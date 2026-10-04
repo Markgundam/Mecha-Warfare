@@ -102,6 +102,10 @@ legend { padding: 0; margin-bottom: 6px; }
 .dlegend { display: flex; flex-wrap: wrap; gap: 3px 10px; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .dlegend span { display: inline-flex; align-items: center; gap: 4px; }
 .dlegend i { width: 10px; height: 10px; display: inline-block; }
+.deckrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.deckrow .note { margin: 0; }
+.cmdpick { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.cmdpick select { font: 600 13px var(--body); padding: 3px 6px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 3px; text-transform: none; letter-spacing: 0; }
 .perks { border-left: 4px solid var(--accent); background: var(--raised); padding: 8px 12px; font-size: 13px; }
 .perks p { margin: 0 0 4px; color: var(--muted); }
 .perks ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
@@ -1018,7 +1022,7 @@ function renderTop() {
   };
   const side = p => {
     const dep = S.objectives.filter(o => o.type === 'depot' && o.owner === p.id).length;
-    return '<div class="side p' + p.id + (S.current === p.id && S.phase !== 'over' ? ' turn' : '') + '"><div class="side-name">' + p.name + (net && net.seat === p.id ? '<em class="you">You</em>' : '') + '<small>' + MW.DOCTRINES[p.doctrine].name.replace(' Doctrine', '') + (p.isAI ? ' · AI' : '') + '</small></div>' +
+    return '<div class="side p' + p.id + (S.current === p.id && S.phase !== 'over' ? ' turn' : '') + '"><div class="side-name">' + p.name + (net && net.seat === p.id ? '<em class="you">You</em>' : '') + '<small>' + MW.DOCTRINES[p.doctrine].name.replace(' Doctrine', '') + (p.isAI ? ' · AI' + (p.ai && MW.PERSONAS[p.ai.persona] ? ' ' + MW.PERSONAS[p.ai.persona].name : '') : '') + '</small></div>' +
       '<div class="basebar' + (('h' + p.id) in prev && p.base.hp < prev['h' + p.id] ? ' hurt' : '') + '"><i style="width:' + Math.min(100, p.base.hp / (p.base.max || C.BASE_HP) * 100) + '%"></i></div>' +
       '<div class="side-nums"><span title="Base HP">' + si('base') + num('h' + p.id, p.base.hp) + '</span><span title="Supply">' + si('supply') + num('s' + p.id, p.supply) + '</span><span class="inc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</span><span title="Victory points: first to ' + C.VP_WIN + ' wins" data-vp>' + si('star') + num('v' + p.id, ui.vpShow && ui.vpShow[p.id] != null ? ui.vpShow[p.id] : (p.vp || 0)) + '/' + C.VP_WIN + '</span></div></div>';
   };
@@ -1213,7 +1217,11 @@ function playFx3(list) {
   ui.fxEnd = Date.now() + end;
 }
 /* ---------- End of the war: victory or defeat, after the last round has played out ---------- */
+const AIMEM_KEY = 'mw-ai-memory';
+try { const m = JSON.parse(localStorage.getItem(AIMEM_KEY) || 'null'); if (m) MW.setAIMemory(m); } catch (e) { /* no stored memory */ }
+function saveAIMemory() { try { localStorage.setItem(AIMEM_KEY, JSON.stringify(MW.getAIMemory())); } catch (e) { /* storage unavailable */ } }
 function queueEnd() {
+  saveAIMemory();
   const k = S.round + ':' + S.winner;
   if (ui.endShown === k) return;
   ui.endShown = k;
@@ -1933,6 +1941,9 @@ function showRules() {
       ['Weapons', Object.keys(CAT_NAME).map(k => '<span class="chip">' + ico(k, 'sm k-' + k) + ' ' + CAT_NAME[k] + '</span>').join(' ')]]],
     ['Special', [['Specials', '5 per deck, gold ★. Inferno Cannon burns (1 damage at each of 3 Resolutions), Cryo Lance slows (−2 move), EMP Projector shocks (one action next round). Aegis Frame and Lattice Core are tougher standard parts.'],
       ['Entrench', 'Siege Anchors are slow, tough legs that add ' + MW.DEFS.s_anchor.hull + ' HP to their mech. Their mech fires only after spending an action to dig in, and must pack up to move again. Dug-in mecha get +1 armor. The Heavy Railgun fires only when dug in.']]],
+    ['AI', [['Commanders', 'The computer opponent is led by a commander with its own style. ' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).map(k => MW.PERSONAS[k].name + ': ' + MW.PERSONAS[k].blurb).join(' ')],
+      ['Adapting', 'Each round a commander reads the board and picks a stance: defending its base when threatened, raiding objectives when behind, pressing the base when ahead, regrouping when outnumbered. It grows warier when it loses mecha and turns to defence when its base is hit.'],
+      ['Learning', 'Commanders remember their wars in this browser. Each keeps a proven playbook and now and then tries a variation, keeping it if it wins more, and leaning away from whatever cost it past wars.']]],
     ['Doctrines', Object.keys(MW.DOCTRINES).map(id => [DOC_NAME(id), MW.DOCTRINES[id].blurb + ' ' + (MW.DOCTRINES[id].perks || []).join(' · ') + '.'])],
     ['Map', [['Objectives', 'End a round on a depot or radar to hold it. Depots add ' + C.DEPOT + ' Supply a round (' + C.DEPOT_EXTRA + ' for each past the ' + (C.DEPOT_FULL === 2 ? 'second' : C.DEPOT_FULL + 'th') + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
       ['Crates', 'Every other round a crate drops on the centre line: +' + C.CRATE_SUPPLY + ' Supply or a special card, taken by the first mech to end a move on it.'],
@@ -2012,7 +2023,9 @@ function updateDeckLists() {
   const v0 = (document.querySelector('input[name=doc0]:checked') || {}).value, v1 = (document.querySelector('input[name=doc1]:checked') || {}).value;
   const btn = id => '<button type="button" class="btn sm ghost" data-act="deckList" data-doc="' + id + '">How ' + DOC_NAME(id) + ' fights, and all 40 cards ›</button>';
   $('#deck0').innerHTML = v0 ? btn(v0) : '';
-  $('#deck1').innerHTML = v1 && v1 !== 'random' ? btn(v1) : '<span class="note">The deck is picked at random when the battle starts.</span>';
+  const cmd = ui.startMode === 'ai' ? '<label class="cmdpick">Commander <select id="cmd1" aria-label="AI commander"><option value="random">Random</option>' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).map(k => '<option value="' + k + '"' + (ui.cmd === k ? ' selected' : '') + ' title="' + MW.PERSONAS[k].blurb + '">' + MW.PERSONAS[k].name + '</option>').join('') + '</select></label>' : '';
+  const btnShort = id => '<button type="button" class="btn sm ghost" data-act="deckList" data-doc="' + id + '">How ' + DOC_NAME(id) + ' fights ›</button>';
+  $('#deck1').innerHTML = '<div class="deckrow">' + (v1 && v1 !== 'random' ? (cmd ? btnShort(v1) : btn(v1)) : '<span class="note">Deck picked at random.</span>') + cmd + '</div>';
 }
 function deployWarn(ready) {
   const o = $('#overlay');
@@ -2076,7 +2089,8 @@ $('#setup').addEventListener('submit', e => {
   const f = new FormData(e.target), keys = Object.keys(MW.DOCTRINES);
   let d1 = f.get('doc1');
   if (d1 === 'random') d1 = keys[Math.floor(Math.random() * keys.length)];
-  MW.newGame({ players: [{ name: 'Azure', doctrine: f.get('doc0'), isAI: false }, { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai' }] });
+  const cs = document.getElementById('cmd1'); ui.cmd = cs ? cs.value : 'random';
+  MW.newGame({ players: [{ name: 'Azure', doctrine: f.get('doc0'), isAI: false }, { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai', persona: ui.cmd !== 'random' ? ui.cmd : null }] });
   MW.S.startedAt = Date.now();
   showGame();
 });

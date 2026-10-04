@@ -106,15 +106,15 @@ const DOCTRINES = {
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Only 2 mecha on the field', '+8 plating HP per mech, regains 2 a round', '+15% accuracy when it has not moved', 'Holds objectives from an adjacent tile', '1 victory point per 2 enemy mecha destroyed', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { fieldMax: 2, plate: 8, plateRegen: 2, steady: 15, control: 1, killVp: 0.5, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    perks: ['Only 2 mecha on the field', '+8 plating HP per mech, regains 2 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '3 victory points per 4 enemy mecha destroyed', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { fieldMax: 2, plate: 8, plateRegen: 2, steady: 15, control: 2, killVp: 0.75, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, l_quad: 3, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 4, w_shield: 1, a_plate: 3, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_anchor: 2, s_frame: 1, x_supply: 2, x_overtime: 2, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +2 heat every round', 'Draws 3 cards a round instead of 2', 'Quantum Relay: energy weapons +1 range'],
-    traits: { ap: 3, heatTick: 2, draw: 3 },
+    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +3 heat every 2 rounds', 'Draws 3 cards a round instead of 2', 'Quantum Relay: energy weapons +1 range'],
+    traits: { ap: 3, heatTick: 1.5, draw: 3 },
     deck: { l_hover: 3, l_quad: 1, l_biped: 1, t_proto: 3, t_assault: 1, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 2, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 1, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
@@ -319,6 +319,7 @@ function newGame(opts) {
     Object.entries(DOCTRINES[o.doctrine].deck).forEach(([id, n]) => { for (let j = 0; j < n; j++) ids.push(id); });
     const p = { id: i, name: o.name, doctrine: o.doctrine, isAI: !!o.isAI, supply: C.START_SUPPLY, ep: 0, deck: shuffle(ids).map(id => mk(id)), workshop: [], hangar: [], base: { x: BASE_POS[i].x, y: BASE_POS[i].y, hp: C.BASE_HP + (((DOCTRINES[o.doctrine] || {}).traits || {}).baseHp || 0), max: C.BASE_HP + (((DOCTRINES[o.doctrine] || {}).traits || {}).baseHp || 0) }, names: shuffle(CALLSIGNS[i].slice()), lost: 0, kills: 0, vp: 0 };
     S.players.push(p);
+    setupCommander(p, o);
     for (let guard = 0; p.workshop.length < C.HAND_START && p.deck.length && guard < 200; guard++) {
       const c = p.deck.pop();
       if (DEFS[c.id].event) p.deck.unshift(c); else p.workshop.push(c);
@@ -639,6 +640,34 @@ function catchupOf(p) {
   const gap = Math.abs((S.players[0].vp || 0) - (S.players[1].vp || 0));
   return Math.min(C.CATCHUP_MAX, Math.max(C.CATCHUP, gap * C.CATCHUP_PER_VP));
 }
+function aiLearn() {
+  if (!S || S.phase !== 'over' || S.aiLearned) return;
+  S.aiLearned = true;
+  for (const p of S.players) {
+    const a = p.ai;
+    if (!a || !a.learn) continue;
+    const pm = personaMem(a.persona), won = S.winner === p.id, foe = S.players[1 - p.id];
+    pm.games++; if (won) pm.wins++;
+    const v = pm.variants.find(x => x.id === a.vid);
+    if (v) { v.games++; if (won) v.wins++; }
+    // why did we lose? point future experiments the other way
+    const L = pm.lessons;
+    const nudge = (k, d) => { L[k] = clamp((L[k] || 0) + d, -6, 6); };
+    if (!won) {
+      if (S.winReason === 'base') { nudge('hold', 1); nudge('caution', 0.5); }
+      else if ((foe.vp || 0) - (p.vp || 0) >= 4) { nudge('objective', 1); nudge('cohesion', -0.3); }
+      if ((p.lost || 0) > (foe.lost || 0) + 2) { nudge('caution', 1); nudge('aggro', -0.5); }
+      if ((foe.siegeDmg || 0) < 4 && (p.siegeDmg || 0) < 4) nudge('siege', 0.5);
+    } else for (const k in L) L[k] *= 0.8;     // winning softens old lessons
+    // a challenger that has had its trial is promoted if it beat the champion's record, or retired
+    for (const c of pm.variants.filter(x => !x.champ && x.games >= TRIAL)) {
+      const champ = pm.variants.find(x => x.champ);
+      if (champ && vscore(c) > vscore(champ)) { champ.champ = false; c.champ = true; pm.variants.splice(pm.variants.indexOf(champ), 1); pm.promoted = (pm.promoted || 0) + 1; }
+      else pm.variants.splice(pm.variants.indexOf(c), 1);
+      pm.tried = (pm.tried || 0) + 1;
+    }
+  }
+}
 function checkWin() {
   if (S.phase === 'over') return true;
   const down = S.players.find(p => p.base.hp <= 0);
@@ -654,6 +683,7 @@ function checkWin() {
   }
   S.phase = 'over'; S.winner = 1 - down.id; S.active = null; S.winReason = 'base';
   log(down.name + "'s base lies in ruins. " + S.players[1 - down.id].name + ' wins the war.', 'sys');
+  aiLearn();
   return true;
 }
 function settle() {
@@ -936,6 +966,8 @@ function destroyMech(tm) {
   if (i < 0) return;
   S.mechs.splice(i, 1);
   S.players[tm.owner].lost++; S.players[1 - tm.owner].kills++;
+  // a lost mech teaches caution; a kill builds confidence
+  aiAdjust(tm.owner, 'caution', 0.12); aiAdjust(1 - tm.owner, 'aggro', 0.05);
   { const k = S.players[1 - tm.owner]; if (C.BOUNTY && (k.vp || 0) < (S.players[tm.owner].vp || 0)) k.bounty = (k.bounty || 0) + C.BOUNTY; } S.players[tm.owner].names.push(tm.name);
   const parts = [];
   for (const { inst } of partsOf(tm)) if (inst.hp > 0 && !DEFS[inst.id].basic && rnd() < C.SALVAGE_CHANCE) { inst.paid = true; parts.push(inst); }
@@ -978,6 +1010,7 @@ function fire(m, key, target, part) {
     if (t.type === 'base') {
       const bd = Math.round(dmg * (w.siege || 1)), bp = S.players[t.pid];
       bp.base.hp -= bd; S.players[m.owner].siegeDmg = (S.players[m.owner].siegeDmg || 0) + bd;
+      aiAdjust(t.pid, 'hold', 0.08);
       fx({ k: 'shot', x0: m.x, y0: m.y, x1: t.x, y1: t.y, hit: true, cat: d.cat });
       fxFloat(t.x, t.y, '−' + bd, 'bad');
       log(m.name + ' hits ' + bp.name + "'s base with " + d.name + ' for ' + bd + '. Base at ' + Math.max(0, bp.base.hp) + '.', 'kill');
@@ -1118,7 +1151,8 @@ function resolution() {
   for (const m of S.mechs) {
     const pr = trait(m.owner, 'plateRegen'), pm = plateMax(m);
     if (pr && pm) m.plate = Math.min(pm, (m.plate == null ? pm : m.plate) + pr);
-    const ht = trait(m.owner, 'heatTick'); if (ht) m.heat += ht;
+    // overclock heat can be fractional: it builds up and lands a point at a time
+    const ht = trait(m.owner, 'heatTick'); if (ht) { m.heatAcc = (m.heatAcc || 0) + ht; const add = Math.floor(m.heatAcc); m.heatAcc -= add; m.heat += add; }
   }
   for (const m of S.mechs.slice()) {
     if (!S.mechs.includes(m)) continue;
@@ -1199,6 +1233,7 @@ function resolution() {
   if ((pa.vp >= C.VP_WIN || pb.vp >= C.VP_WIN) && pa.vp !== pb.vp) {
     S.phase = 'over'; S.winner = pa.vp > pb.vp ? 0 : 1; S.winReason = 'points'; S.active = null;
     log(S.players[S.winner].name + ' reaches ' + S.players[S.winner].vp + ' victory points and wins the war.', 'sys');
+    aiLearn();
     return;
   }
   if (S.round % C.CRATE_EVERY === 1) dropCrate();
@@ -1208,6 +1243,159 @@ function resolution() {
 }
 
 /* ---------- AI commander ---------- */
+/* ---------- AI commanders ----------
+   Every AI side is led by a commander with a personality: a set of weights that shape how it builds, deploys,
+   moves and shoots. Each round it reads the situation and picks a stance (defend, raid, press, regroup).
+   During a war it adjusts to what hurts it; across wars it keeps a few variants of its playbook per personality,
+   mostly plays the one that has won most, and now and then tries a mutated one, steered away from how it lost. */
+const PERSONAS = {
+  blitz: { name: 'Blitz', blurb: 'Hits first and drives at the enemy base.', w: { aggro: 0.85, objective: 1.05, siege: 1.35, caution: 0.4, focus: 0.9, cohesion: 0.6, swarm: 0.85, tech: 0.3, hold: 0.1, overwatch: 0.2 } },
+  warden: { name: 'Warden', blurb: 'Holds ground, covers it with overwatch and bleeds the attacker.', w: { aggro: 0.4, objective: 1.1, siege: 0.4, caution: 1.4, focus: 0.8, cohesion: 0.7, swarm: 0.3, tech: 0.7, hold: 0.9, overwatch: 0.95 } },
+  raider: { name: 'Raider', blurb: 'Spreads out to grab objectives and race on points.', w: { aggro: 0.35, objective: 1.8, siege: 0.6, caution: 0.9, focus: 0.5, cohesion: 0.05, swarm: 0.65, tech: 0.4, hold: 0.3, overwatch: 0.4 } },
+  hunter: { name: 'Hunter', blurb: 'Moves as a pack and focuses fire to destroy mecha.', w: { aggro: 0.9, objective: 1.05, siege: 0.5, caution: 0.8, focus: 1.8, cohesion: 0.75, swarm: 0.4, tech: 0.6, hold: 0.2, overwatch: 0.6 } },
+  // the old single-minded AI, kept as a yardstick for testing
+  classic: { name: 'Classic', hidden: true, w: { aggro: 0.5, objective: 1, siege: 1, caution: 0, focus: 0, cohesion: 0, swarm: 0.5, tech: 0.5, hold: 0, overwatch: 0.5 } }
+};
+const W_KEYS = ['aggro', 'objective', 'siege', 'caution', 'focus', 'cohesion', 'swarm', 'tech', 'hold', 'overwatch'];
+const STANCES = {
+  defend: { label: 'pulls back to defend its base', mod: { siege: -1, hold: 1.2, caution: 0.3, objective: -0.3 } },
+  raid: { label: 'spreads out to raid objectives', mod: { objective: 0.9, aggro: -0.1, cohesion: -0.4 } },
+  press: { label: 'presses the attack on the enemy base', mod: { siege: 1.0, aggro: 0.3, objective: -0.5 } },
+  regroup: { label: 'regroups to fight together', mod: { cohesion: 0.7, caution: 0.5, aggro: -0.2 } },
+  hunt: { label: 'closes in for the kill', mod: { aggro: 0.4, focus: 0.6 } }
+};
+// every commander plays to its army: heavy machines fight forward, swarms spread over the objectives
+const DOCTRINE_STYLE = {
+  armored: { aggro: 0.35, focus: 0.3, caution: -0.45, cohesion: 0.3, siege: 0.2, objective: -0.1 },
+  assault: { objective: 0.15, swarm: 0.3, cohesion: -0.1 },
+  experimental: { aggro: 0.1 }
+};
+let AIMEM = { v: 1, personas: {} };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function personaMem(id) { return AIMEM.personas[id] = AIMEM.personas[id] || { games: 0, wins: 0, variants: [], lessons: {} }; }
+// pick the playbook for this war: the proven champion most of the time, a challenger on trial otherwise
+const TRIAL = 6;
+const vscore = v => (v.wins + 1) / (v.games + 2);
+function chooseVariant(id, learn) {
+  const base = PERSONAS[id].w;
+  if (!learn) return { vid: 'base', w: Object.assign({}, base), experiment: false };
+  const pm = personaMem(id);
+  if (!pm.variants.length) pm.variants.push({ id: 'v0', w: Object.assign({}, base), games: 0, wins: 0, champ: true });
+  const champ = pm.variants.find(v => v.champ) || pm.variants[0];
+  champ.champ = true;
+  const trials = pm.variants.filter(v => !v.champ);
+  // experiment: a new challenger, mutated from the champion and steered by the lessons of past defeats
+  if (trials.length < 2 && champ.games >= 3 && rnd() < 0.3) {
+    const w = Object.assign({}, champ.w), keys = W_KEYS.slice().sort(() => rnd() - 0.5).slice(0, 2 + Math.floor(rnd() * 2));
+    for (const k of keys) w[k] = w[k] * (0.7 + rnd() * 0.6) + (rnd() - 0.5) * 0.3;
+    for (const k in pm.lessons) if (W_KEYS.includes(k)) w[k] += 0.25 * Math.sign(pm.lessons[k]) * Math.min(1, Math.abs(pm.lessons[k]) / 3);
+    // stay in character: a playbook may refine the personality, not abandon it
+    for (const k of W_KEYS) w[k] = clamp(w[k], Math.max(0, base[k] - 0.5), base[k] + 0.5);
+    pm.next = (pm.next || 1);
+    const v = { id: 'v' + pm.next++, w, games: 0, wins: 0, from: champ.id };
+    pm.variants.push(v);
+    return { vid: v.id, w: Object.assign({}, w), experiment: true };
+  }
+  // challengers still on trial get half the wars until judged
+  const open = trials.find(v => v.games < TRIAL);
+  const pick = open && rnd() < 0.5 ? open : champ;
+  return { vid: pick.id, w: Object.assign({}, pick.w), experiment: pick !== champ };
+}
+function setupCommander(p, o) {
+  if (!p.isAI) { p.ai = null; return; }
+  const ids = Object.keys(PERSONAS).filter(k => !PERSONAS[k].hidden);
+  const persona = PERSONAS[o.persona] ? o.persona : ids[Math.floor(rnd() * ids.length)];
+  const learn = o.learn !== false;
+  const v = chooseVariant(persona, learn);
+  p.ai = { persona, vid: v.vid, w: v.w, experiment: v.experiment, learn, adj: {}, stance: null, stanceRound: 0, vpGap: 0 };
+  const pm = learn ? personaMem(persona) : null;
+  log(p.name + ' is led by a ' + PERSONAS[persona].name + ' commander: ' + PERSONAS[persona].blurb + (pm && pm.games ? ' (' + pm.wins + ' wins in ' + pm.games + ' wars' + (v.experiment ? ', trying a new playbook' : '') + ')' : ''), 'p' + p.id);
+}
+// the weights a commander plays by right now: its playbook, what it has learned this war, and its stance
+function aiW(pid) {
+  const p = S.players[pid], a = p && p.ai;
+  if (!a) return PERSONAS.classic.w;
+  const st = a.stance && STANCES[a.stance] ? STANCES[a.stance].mod : {}, ds = DOCTRINE_STYLE[p.doctrine] || {};
+  const out = {};
+  for (const k of W_KEYS) out[k] = clamp((a.w[k] || 0) + (a.adj[k] || 0) + (st[k] || 0) + (a.persona === 'classic' ? 0 : (ds[k] || 0)), 0, 3);
+  return out;
+}
+function aiAdjust(pid, k, d, cap) {
+  const p = S.players[pid];
+  if (!p || !p.ai) return;
+  p.ai.adj[k] = clamp((p.ai.adj[k] || 0) + d, -(cap || 0.8), cap || 0.8);
+}
+// read the board once a round and choose how to fight it
+function aiStance(pid) {
+  const p = S.players[pid], a = p.ai;
+  if (!a || a.stanceRound === S.round) return;
+  a.stanceRound = S.round;
+  const foe = S.players[1 - pid], w = aiW(pid);
+  const mine = fieldMechs(pid), theirs = fieldMechs(1 - pid);
+  const nearBase = theirs.filter(e => man(e.x, e.y, p.base.x, p.base.y) <= 4).length;
+  const gap = (foe.vp || 0) - (p.vp || 0);
+  const myHp = mine.reduce((t, m) => t + hpOf(m) / Math.max(1, maxHpOf(m)), 0) / Math.max(1, mine.length);
+  let stance = null;
+  if (nearBase && (p.base.hp < (p.base.max || C.BASE_HP) * 0.75 || w.hold + w.caution > 1.2)) stance = 'defend';
+  else if (gap <= -C.LEAD_GAP && C.LEAD_GAP) stance = 'press';               // our objectives barely score while we lead: go for the base
+  else if (gap >= 3) stance = 'raid';
+  else if (theirs.length > mine.length + 1 && myHp < 0.7) stance = 'regroup';
+  else if (theirs.some(e => hpOf(e) <= maxHpOf(e) * 0.35) && w.focus + w.aggro > 1.6) stance = 'hunt';
+  if (stance !== a.stance) {
+    if (stance) log(p.name + ' (' + PERSONAS[a.persona].name + ') ' + STANCES[stance].label + '.', 'p' + pid);
+    a.stance = stance;
+  }
+  // a growing points deficit is a mistake worth correcting for the rest of the war
+  if (gap > a.vpGap + 1) aiAdjust(pid, 'objective', 0.2);
+  a.vpGap = gap;
+}
+// where the enemy can hurt us next round: expected damage per tile
+function threatMap(pid) {
+  const key = S.round + ':' + S.mechs.map(m => m.uid + '@' + m.x + ',' + m.y + (m.activated ? 'a' : '')).join('|');
+  if (S._threat && S._threat.pid === pid && S._threat.key === key) return S._threat.t;
+  const t = {};
+  for (const e of S.mechs) {
+    if (e.owner === pid) continue;
+    const st = stats(e); let dmg = 0, rng = 0;
+    for (const wp of weaponsOf(e)) {
+      if (wp.w.repair || wp.inst.hp <= 0) continue;
+      dmg = Math.max(dmg, (wp.w.dmg + st.dmgBonus) * (wp.w.shots || 1) * Math.min(95, wp.w.acc) / 100);
+      rng = Math.max(rng, effRange(wp.w, st));
+    }
+    if (!dmg) continue;
+    const reach = st.move + rng;
+    for (let x = Math.max(0, e.x - reach); x <= Math.min(W - 1, e.x + reach); x++) for (let y = Math.max(0, e.y - reach); y <= Math.min(H - 1, e.y + reach); y++) {
+      const d = man(x, y, e.x, e.y);
+      if (d < 1 || d > reach) continue;
+      t[K(x, y)] = (t[K(x, y)] || 0) + dmg * (d <= rng ? 1.2 : 0.8);
+    }
+  }
+  const b = BASE_POS[1 - pid];
+  if (S.players[1 - pid].base.hp > 0) for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) if (man(x, y, b.x, b.y) <= C.TURRET_RANGE) t[K(x, y)] = (t[K(x, y)] || 0) + C.TURRET_DMG + trait(1 - pid, 'turretDmg');
+  S._threat = { pid, key, t };
+  return t;
+}
+// how much taking this objective matters: it scores for us, it stops the enemy scoring, or it only pays supply
+function objWorth(o, pid) {
+  if (o.type === 'repair') return 0;
+  const me = S.players[pid], foe = S.players[1 - pid], lead = (me.vp || 0) - (foe.vp || 0);
+  let v = scores(o, pid) ? (C.LEAD_GAP && lead >= C.LEAD_GAP ? 3 : 7) : 2.5;
+  if (o.owner === 1 - pid) v += scores(o, 1 - pid) ? 5 : 1.5;
+  return v;
+}
+// can the side still to act this round bring this enemy down with what it has in range?
+function aiKillable(tm, pid) {
+  const key = S.round + ':' + tm.uid + ':' + hpOf(tm) + ':' + S.mechs.filter(f => f.owner === pid && !f.activated).length;
+  S._kill = S._kill || {};
+  if (key in S._kill) return S._kill[key];
+  let pot = 0;
+  for (const f of S.mechs) {
+    if (f.owner !== pid || f.activated) continue;
+    const st = stats(f);
+    for (const wp of weaponsOf(f)) if (!wp.w.repair && wp.inst.hp > 0 && man(f.x, f.y, tm.x, tm.y) <= effRange(wp.w, st) + st.move) pot += (wp.w.dmg + st.dmgBonus) * (wp.w.shots || 1) * Math.min(95, wp.w.acc) / 100;
+  }
+  return (S._kill[key] = pot >= hpOf(tm));
+}
 function withPos(m, x, y, fn) { const ox = m.x, oy = m.y; m.x = x; m.y = y; try { return fn(); } finally { m.x = ox; m.y = oy; } }
 function aiWeaponBest(m, wp, st) {
   const w = wp.w;
@@ -1216,8 +1404,9 @@ function aiWeaponBest(m, wp, st) {
   let best = null;
   const dmgRaw = w.dmg + st.dmgBonus, shots = w.shots || 1;
   for (const t of validTargets(m, wp.key)) {
+    const aw = aiW(m.owner);
     if (t.type === 'base') {
-      const ev = dmgRaw * (w.siege || 1) * shots * 1.3;
+      const ev = dmgRaw * (w.siege || 1) * shots * 1.3 * (0.5 + 0.5 * aw.siege);
       if (!best || ev > best.ev) best = { key: wp.key, target: t, part: null, ev };
       continue;
     }
@@ -1234,8 +1423,8 @@ function aiWeaponBest(m, wp, st) {
       const armor = w.ap ? 0 : (DEFS[pi.id].armor || 0) + ts.armorAll + (tm.braced ? 1 : 0);
       const dmg = Math.max(1, dmgRaw - armor);
       // a finishing shot is worth most; knocking out a core, weapon or legs comes next
-      let mult = part ? 0.9 : 1;
-      if (dmg >= hull) mult = 3;
+      let mult = (part ? 0.9 : 1) * (1 + aw.focus * 0.8 * (1 - hull / Math.max(1, maxHpOf(tm)))) * (aiKillable(tm, m.owner) ? 1.5 : 1);
+      if (dmg >= hull) mult = 3 + aw.focus;
       else if (part && dmg >= pi.hp) mult = part === 'core' ? 1.8 : part === 'legs' ? 1.3 : part === 'torso' ? 1.2 : 1.6;
       const ev = pc * dmg * shots * mult + (w.heatDmg ? 0.5 : 0);
       if (!best || ev > best.ev) best = { key: wp.key, target: t, part, ev };
@@ -1269,36 +1458,51 @@ function aiGoal(m) {
     for (const [dx, dy] of DIRS) { const k = K(x + dx, y + dy); if (k in dm) b = Math.min(b, dm[k] + 1); }
     return b;
   };
-  const cands = [], rng = aiMaxRange(m), armed = hasWeapon(m);
+  const cands = [], rng = aiMaxRange(m), armed = hasWeapon(m), aw = aiW(m.owner), defending = S.players[m.owner].ai && S.players[m.owner].ai.stance === 'defend';
+  const own = S.players[m.owner].base;
   const siege = weaponsOf(m).some(wp => wp.w.siege && wp.inst.hp > 0);
   for (const o of S.objectives) {
     const d = dTo(o.x, o.y);
-    if (o.type === 'repair') { if (isDamaged(m)) cands.push({ x: o.x, y: o.y, cost: d * 0.9 + 2, pref: 0 }); continue; }
-    if (o.owner === m.owner) continue;
+    if (o.type === 'repair') { if (isDamaged(m)) cands.push({ x: o.x, y: o.y, cost: (d * 0.9 + 2) / (1 + aw.caution * 0.3), pref: 0 }); continue; }
+    // guarding a held objective that the enemy is closing on
+    if (o.owner === m.owner) { if (aw.hold > 0.2 && S.mechs.some(e => e.owner !== m.owner && man(e.x, e.y, o.x, o.y) <= 3)) cands.push({ x: o.x, y: o.y, cost: d * 1.1 / aw.hold + 1, pref: 0 }); continue; }
     const occ = mechAt(o.x, o.y);
     if (occ && occ !== m) continue;
     if (S.mechs.some(f => f !== m && f.owner === m.owner && man(f.x, f.y, o.x, o.y) < man(m.x, m.y, o.x, o.y))) continue;
-    cands.push({ x: o.x, y: o.y, cost: d, pref: 0 });
+    cands.push({ x: o.x, y: o.y, cost: d / (0.5 + 0.5 * aw.objective) * 7 / Math.max(2, objWorth(o, m.owner)), pref: 0 });
   }
   for (const c of S.crates || []) cands.push({ x: c.x, y: c.y, cost: dTo(c.x, c.y) * 0.6, pref: 0 });
   for (const w of S.wrecks) cands.push({ x: w.x, y: w.y, cost: dTo(w.x, w.y) * 0.9, pref: 0 });
   if (armed) {
-    for (const e of S.mechs) if (e.owner !== m.owner) cands.push({ x: e.x, y: e.y, cost: dTo(e.x, e.y) * 1.1 - 1, pref: rng });
+    for (const e of S.mechs) if (e.owner !== m.owner) {
+      // wounded prey draws hunters; intruders near home draw defenders
+      const prey = 1 + aw.focus * 0.5 * (1 - hpOf(e) / Math.max(1, maxHpOf(e)));
+      const intruder = defending && man(e.x, e.y, own.x, own.y) <= 4 ? 2 : 1;
+      cands.push({ x: e.x, y: e.y, cost: (dTo(e.x, e.y) * 1.1 - 1) / ((0.5 + aw.aggro) * prey * intruder), pref: rng });
+    }
     const b = BASE_POS[1 - m.owner];
-    cands.push({ x: b.x, y: b.y, cost: dTo(b.x, b.y) * (siege ? 0.6 : Math.max(0.6, 1.3 - S.round * 0.035)), pref: rng });
+    if (!defending) cands.push({ x: b.x, y: b.y, cost: dTo(b.x, b.y) * (siege ? 0.6 : Math.max(0.6, 1.3 - S.round * 0.035)) / (0.5 + 0.5 * aw.siege), pref: rng });
   }
+  if (defending) cands.push({ x: own.x, y: own.y, cost: dTo(own.x, own.y) * 0.8, pref: 2 });
   cands.sort((a, b) => a.cost - b.cost);
   return cands[0] || null;
 }
 function aiBestTile(m) {
   const r = reachable(m), goal = aiGoal(m);
   const dm = goal ? distMap([[goal.x, goal.y]]) : null;
+  const aw = aiW(m.owner), threat = aw.caution > 0 ? threatMap(m.owner) : null;
+  const hpFrac = hpOf(m) / Math.max(1, maxHpOf(m));
+  const allies = S.mechs.filter(f => f.owner === m.owner && f !== m);
   let best = null;
   for (const k in r) {
     const [x, y] = k.split(',').map(Number), stay = x === m.x && y === m.y;
-    let v = 10 * aiAttackValue(m, x, y, stay ? m.ap : m.ap - 1);
+    let v = 10 * (0.5 + aw.aggro) * aiAttackValue(m, x, y, stay ? m.ap : m.ap - 1);
     const o = objAt(x, y);
-    if (o && o.type !== 'repair' && o.owner !== m.owner) v += 6 + (o.owner != null ? 3 : 0);
+    if (o && o.type !== 'repair' && o.owner !== m.owner) v += (1 + objWorth(o, m.owner)) * aw.objective;
+    // look ahead: how much the enemy could pour into this tile next round, weighed by how much we can take
+    if (threat) v -= aw.caution * 0.45 * (threat[k] || 0) * (1.6 - hpFrac);
+    // formation: hunters and wardens stay in support range, raiders spread across the map
+    if (aw.cohesion > 0.05 || aw.cohesion < 0.3) { const near = allies.filter(f => man(f.x, f.y, x, y) <= 2).length; v += aw.cohesion * Math.min(2, near) * 1.2 - (aw.cohesion < 0.3 ? (0.3 - aw.cohesion) * 3 * allies.filter(f => man(f.x, f.y, x, y) <= 1).length : 0); }
     if (o && o.type === 'repair' && isDamaged(m)) v += 4;
     if (wreckAt(x, y)) v += 3;
     if (crateAt(x, y)) v += 8;
@@ -1313,7 +1517,8 @@ function aiWantsRetreat(m) {
   const p = S.players[m.owner];
   if (hangarFull(p)) return false;
   // late in a long war, damaged mecha press on instead of cycling back to the hangar
-  if (hpOf(m) <= maxHpOf(m) * (S.round > 20 ? 0.2 : 0.35)) return true;
+  const aw = aiW(m.owner);
+  if (hpOf(m) <= maxHpOf(m) * (S.round > 20 ? 0.2 : clamp(0.35 + 0.08 * aw.caution - 0.1 * (aw.aggro - 0.5), 0.15, 0.6))) return true;
   if (m.slots.core.hp <= 0) return true;
   return !hasWeapon(m);
 }
@@ -1323,7 +1528,10 @@ function aiCombatStep() {
   if (!m) {
     const list = activatable(pid);
     if (!list.length) return false;
-    m = list.map(x => ({ x, v: aiAttackValue(x, x.x, x.y, 1) })).sort((a, b) => b.v - a.v)[0].x;
+    aiStance(pid);
+    const aw = aiW(pid), th = aw.caution > 0 ? threatMap(pid) : {};
+    // shoot first with whoever can kill; the cautious move endangered mecha out early
+    m = list.map(x => ({ x, v: aiAttackValue(x, x.x, x.y, 1) + aw.caution * 0.15 * (th[K(x.x, x.y)] || 0) * (1 - hpOf(x) / Math.max(1, maxHpOf(x))) })).sort((a, b) => b.v - a.v)[0].x;
   }
   if (m.ap <= 0) { endActivation(m); return true; }
   if (!hasWeapon(m) && coreBlast(m)) {
@@ -1389,7 +1597,9 @@ function aiWantsOverwatch(m) {
   const st = stats(m);
   const rng = Math.max(0, ...weaponsOf(m).filter(wp => owReady(m, wp.key)).map(wp => effRange(wp.w, st)));
   if (!rng) return false;
-  return S.mechs.some(e => e.owner !== m.owner && !e.activated && man(e.x, e.y, m.x, m.y) <= rng + stats(e).move);
+  const aw = aiW(m.owner);
+  if (aw.overwatch < 0.3 && aiBestAttack(m)) return false;
+  return S.mechs.some(e => e.owner !== m.owner && !e.activated && man(e.x, e.y, m.x, m.y) <= rng + stats(e).move + (aw.overwatch > 0.8 ? 1 : 0));
 }
 function aiTileValueHere(m) {
   const goal = aiGoal(m);
@@ -1445,10 +1655,12 @@ function aiDesign(p, m) {
       fp += (w.burn ? 1.5 : 0) + (w.slow ? 0.8 : 0) + (w.shock ? 1 : 0);
     }
     const td = DEFS[tmp.slots.torso.id];
-    let score = fp ? 4 * fp : -50;
-    score += 0.5 * (td.hp + ((td.armor || 0) + st.armorAll) * 4 + st.shield * 2) + 0.2 * (DEFS[tmp.slots.legs.id].hp + DEFS[tmp.slots.core.id].hp);
-    score += 1.5 * st.move + st.selfRepair * 2 + st.heatCap * 0.2 + st.plate * 1.5;
-    score -= 2.5 * Math.max(0, heat - st.cooling) + 0.35 * cost;
+    const aw = aiW(p.id);
+    let score = fp ? 4 * (0.75 + 0.5 * aw.aggro) * fp : -50;
+    score += (1 + 0.3 * aw.caution) * (0.5 * (td.hp + ((td.armor || 0) + st.armorAll) * 4 + st.shield * 2) + 0.2 * (DEFS[tmp.slots.legs.id].hp + DEFS[tmp.slots.core.id].hp));
+    score += 1.5 * st.move * (0.6 + 0.4 * aw.objective + 0.2 * aw.aggro) + st.selfRepair * 2 + st.heatCap * 0.2 + st.plate * 1.5;
+    score += (aw.tech - 0.5) * 3 * [tmp.slots.torso, tmp.slots.core, tmp.slots.legs, tmp.slots.armL, tmp.slots.armR].concat(tmp.slots.aux).filter(i => i && DEFS[i.id].special).length;
+    score -= 2.5 * Math.max(0, heat - st.cooling) + (0.35 + 0.4 * (aw.swarm - 0.5)) * cost;
     // anchored mecha only earn their keep with long guns, since they fire from one spot
     if (DEFS[tmp.slots.legs.id].entrench) { const longest = Math.max(0, ...weaponsOf(tmp).map(wp => wp.w.range || 0)); score -= weaponsOf(tmp).some(wp => wp.w.needsEntrench) ? 0 : longest >= 5 ? 12 : 30; }
     if (!best || score > best.score) best = { score, pick };
@@ -1477,7 +1689,7 @@ function aiBuild(p) {
   const allReady = built.every(m => !issues(m).length && hasWeapon(m));
   ensureBlank(p);
   const spare = p.hangar.find(isBlank);
-  if (spare && allReady && total < fieldMax(p.id) + (p.supply >= 15 ? 3 : 1) && p.ep >= 2 && p.supply >= 5) aiOutfit(p, spare);
+  if (spare && allReady && total < fieldMax(p.id) + (p.supply >= 15 ? 3 : 1) + Math.round(2 * (aiW(p.id).swarm - 0.5)) && p.ep >= 2 && p.supply >= 5) aiOutfit(p, spare);
   while (p.workshop.length > C.WORKSHOP_MAX - 2) {
     const count = {};
     p.workshop.forEach(c => { const s = DEFS[c.id].slot; count[s] = (count[s] || 0) + 1; });
@@ -1490,7 +1702,7 @@ function aiDeploy(p) {
   for (const m of p.hangar.slice()) {
     if (fieldMechs(p.id).length >= fieldMax(p.id)) break;
     if (issues(m).length || !hasWeapon(m)) continue;
-    if (hpOf(m) < maxHpOf(m) * 0.5) continue;
+    if (hpOf(m) < maxHpOf(m) * (0.5 + 0.15 * aiW(p.id).caution - 0.15 * (aiW(p.id).aggro - 0.5))) continue;
     const free = deployTiles(p.id).filter(([x, y]) => !mechAt(x, y));
     if (!free.length) break;
     const t = free[Math.floor(rnd() * free.length)];
@@ -1512,6 +1724,9 @@ function aiStep() {
 }
 
 const api = {
+  PERSONAS, aiW,
+  getAIMemory() { return AIMEM; },
+  setAIMemory(m) { AIMEM = m && m.v === 1 && m.personas ? m : { v: 1, personas: {} }; },
   W, H, C, DEFS, DOCTRINES, REQUIRED,
   get S() { return S; },
   load(s) { S = s; return S; },
