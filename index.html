@@ -326,7 +326,7 @@ button.slot:hover { border-color: var(--ink); }
 .slot.d .hp i { background: var(--warn); } .slot.x .hp i { background: var(--bad); }
 .tot { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--line); background: var(--raised); }
 .tot div { padding: 4px 5px; border-right: 1px solid var(--line-soft); min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.tot .tico { width: 14px; height: 14px; color: var(--muted); }
+.tot .tico { width: 18px; height: 18px; color: var(--muted); }
 .tot .over .tico { color: var(--bad); }
 .tot div:last-child { border-right: 0; }
 .tot b { display: block; font-family: var(--display); font-size: 18px; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -340,22 +340,32 @@ button.slot:hover { border-color: var(--ink); }
 .meter.over b, .meter.over { color: var(--bad); } .meter.over i { background: var(--bad); }
 .meter.near i { background: var(--warn); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-/* compact card faces */
-.face { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+/* compact card faces: every icon sits in the same box so they read as one family */
+:root { --fi: 20px; }
+.face, .ftags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.ftags { margin-top: 4px; gap: 4px 8px; }
+.fi { display: inline-flex; align-items: center; gap: 3px; color: var(--ink); font-family: var(--mono); font-size: 13px; line-height: 1; }
+.fi .ico, .fi .szi, .mnt { width: var(--fi); height: var(--fi); }
+.fi.big { font-size: 16px; } .fi b { font-weight: 600; }
+.fi em { font-style: normal; font-size: 10px; margin-left: 1px; } .fi em.up { color: var(--good); } .fi em.down { color: var(--bad); }
+.fi.warn { color: var(--warn); } .fi.fx { color: var(--accent); } .fi.trait .ico { color: var(--accent); fill: color-mix(in srgb, var(--accent) 35%, transparent); }
+.szi .wfill { fill: currentColor; stroke: none; }
+.mnt { display: inline-grid; place-items: center; box-sizing: border-box; border-radius: 4px; border: 1.5px solid currentColor; margin-right: 2px; }
+.mnt .ico { width: 13px; height: 13px; }
+.mnt-any { border-style: dashed; }
+.cpips { font-size: 15px; line-height: 1; letter-spacing: -1px; color: var(--accent); white-space: nowrap; } .cpips i { font-style: normal; color: var(--line); } .cpips.over { color: var(--bad); }
+.rcard .face, .rcard .ftags { justify-content: center; } .rcard { --fi: 26px; } .rcard .fi.big { font-size: 20px; }
+.pinfo { --fi: 24px; }
+/* (earlier face styles kept below for the build steps and totals) */
 .fs { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 14px; }
 .fs .ico { width: 15px; height: 15px; }
 .fs b { font-weight: 600; }
 .fs em { font-style: normal; font-size: 10px; } .fs em.up { color: var(--good); } .fs em.down { color: var(--bad); }
 .fs.fx b { font-family: var(--body); font-size: 12px; }
-.ftags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
 .tg { display: inline-flex; align-items: center; gap: 2px; font-family: var(--mono); font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-radius: 2px; color: var(--muted); background: var(--raised); }
 .tg .ico { width: 11px; height: 11px; } .tg.heat { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
 .tg.mode, .tg.trait { color: var(--ink); }
-.mnt { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 3px; border: 1px solid var(--line); background: var(--surface); margin-right: 1px; }
-.mnt .ico { width: 12px; height: 12px; }
-.mnt-any { border-style: dashed; }
 .szb { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 2px; border-radius: 2px; background: var(--ink); color: var(--surface); font: 700 10px var(--mono); }
-.cpips { font-size: 11px; letter-spacing: -1px; color: var(--accent); white-space: nowrap; } .cpips i { font-style: normal; color: var(--line); } .cpips.over { color: var(--bad); }
 .cface .card-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .ib.pi { width: 20px; height: 20px; font-size: 11px; flex: none; }
 .card.hurt { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--warn) 60%, transparent); }
@@ -372,7 +382,7 @@ button.slot:hover { border-color: var(--ink); }
 .bstep.done i { background: var(--good); } .bstep.next { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); } .bstep.next i { background: var(--accent); color: var(--accent-ink); }
 .bstep.warn { border-color: var(--bad); } .bstep.warn i { background: var(--bad); }
 .bstep.locked { opacity: .45; cursor: not-allowed; } .bstep.on { outline: 2px solid var(--ink); }
-.bstep .mnt { width: 14px; height: 14px; } .bstep .mnt .ico { width: 9px; height: 9px; }
+.bstep .mnt, .bstep .szi, .bstep em .ico { width: 16px; height: 16px; } .bstep .mnt .ico { width: 10px; height: 10px; } .bstep .cpips { font-size: 12px; }
 .stephead { display: block; font: 700 12px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ink); background: color-mix(in srgb, var(--accent) 18%, var(--raised)); padding: 4px 8px; border-left: 3px solid var(--accent); }
 .wontfit summary { cursor: pointer; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 0; }
 .wontfit .card { opacity: .7; }
@@ -852,6 +862,17 @@ const OBJ_SVG = {
 };
 const OBJ_NAME = { depot: 'Supply depot', radar: 'Radar station', repair: 'Repair station' };
 const ICONS = {
+  ap: '<path d="M3 12h14M13 7l5 5-5 5"/><path d="M9 4v16"/>',
+  arc: '<path d="M3 19c2-9 8-13 15-10"/><path d="M14 5l4 4-5 2"/>',
+  ammo: '<path d="M9 21V10c0-4 3-7 3-7s3 3 3 7v11z"/><path d="M9 16h6"/>',
+  accup: '<circle cx="10" cy="14" r="7"/><circle cx="10" cy="14" r="2"/><path d="M19 2v6M16 5h6"/>',
+  accdn: '<circle cx="10" cy="14" r="7"/><circle cx="10" cy="14" r="2"/><path d="M16 5h6"/>',
+  thermo: '<path d="M10 4a2 2 0 0 1 4 0v10a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>',
+  jump: '<path d="M3 20c3-13 15-13 18 0"/><path d="M17 12l4 8-8-1"/>',
+  stable: '<path d="M12 3v8M12 11l-7 10M12 11l7 10M12 11v10"/>',
+  hover: '<path d="M4 9h16"/><path d="M3 14c3-2 15-2 18 0"/><path d="M6 19h12"/>',
+  foot: '<path d="M6 21h12l1-4-6-2V3H8v14z"/>',
+  wrench: '<path d="M15 3a5 5 0 0 0-4.6 6.9L3 17.3 6.7 21l7.4-7.4A5 5 0 0 0 21 9l-3 3-3-1-1-3z"/>',
   dmg: '<path d="M12 2l2.2 6.3L20.5 6l-3.6 5.6L22 14l-6.4.6L16 21l-4-4.6L8 21l.4-6.4L2 14l5.1-2.4L3.5 6l6.3 2.3z"/>',
   rng: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5"/>',
   univ: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12h6M12 9v6"/>',
@@ -972,55 +993,81 @@ function statList(d) {
   return L.filter(x => !(x.k === 'en' && !x.v));
 }
 // cmp: the component currently in the slot this one would replace; differences show green (better) or red (worse)
+// a weight that fills with the size class: outline for Light, half full for Medium, full for Heavy
+let WUID = 0;
+function sizeIcon(n, title) {
+  const id = 'wc' + (++WUID), h = [0, 0, 6, 12][n] || 0;
+  return '<svg class="ico szi s' + n + '" viewBox="0 0 24 24" role="img" aria-label="' + (title || MW.SIZE_NAME[n]) + '"><title>' + (title || MW.SIZE_NAME[n]) + '</title><defs><clipPath id="' + id + '"><path d="M6 9h12l3 12H3z"/></clipPath></defs>' +
+    (h ? '<rect x="0" y="' + (21 - h) + '" width="24" height="' + h + '" clip-path="url(#' + id + ')" class="wfill"/>' : '') + '<path d="M6 9h12l3 12H3z"/><path d="M9 9V6.5a3 3 0 0 1 6 0V9"/></svg>';
+}
+// every element of a card face: an icon, sometimes a number, a tooltip with the words
 function faceHTML(d, cmp) {
-  const w = d.weapon, out = [], tags = [];
+  const w = d.weapon, head = [], tags = [];
+  const it = (icon, val, title, extra) => '<span class="fi' + (extra || '') + '" title="' + title + '">' + (icon.startsWith('<') ? icon : ico(icon)) + (val != null && val !== '' ? '<b>' + val + '</b>' : '') + '</span>';
   const num = (icon, v, title, cv, better) => {
     let arrow = '';
     if (cmp && cv != null && cv !== v) arrow = '<em class="' + ((v > cv) === (better !== false) ? 'up' : 'down') + '">' + (v > cv ? '▲' : '▼') + '</em>';
-    out.push('<span class="fs" title="' + title + '">' + ico(icon) + '<b>' + (typeof v === 'number' ? v : v) + '</b>' + arrow + '</span>');
+    head.push(it(icon, v + arrow, title, ' big'));
   };
   const cw = cmp && cmp.weapon;
-  if (w && w.repair) { num('hp', w.repair, 'Repairs per use'); num('rng', w.range, 'Range'); }
+  if (w && w.repair) { num('wrench', w.repair, 'Repairs ' + w.repair + ' HP'); num('rng', w.range, 'Range ' + w.range); }
   else if (w) {
-    num('dmg', w.dmg * (w.shots || 1), 'Damage' + (w.shots > 1 ? ' (' + w.dmg + ' × ' + w.shots + ' shots)' : ''), cw ? cw.dmg * (cw.shots || 1) : null);
-    num('rng', (w.min ? w.min + '–' : '') + w.range, 'Range', null);
-    if (w.heat >= 2) tags.push('<span class="tg heat" title="Runs hot">' + ico('incendiary') + (w.heat >= 3 ? ico('incendiary') : '') + '</span>');
-    if (w.acc >= 85) tags.push('<span class="tg" title="Accurate">⌖+</span>'); else if (w.acc <= 65) tags.push('<span class="tg" title="Inaccurate">⌖−</span>');
-    if (w.burn) tags.push('<span class="tg" title="Sets the target burning">' + ico('incendiary') + '</span>');
-    if (w.slow) tags.push('<span class="tg" title="Slows the target">' + ico('cryo') + '</span>');
-    if (w.shock) tags.push('<span class="tg" title="Shocks: −1 action">' + ico('energy') + '</span>');
-    if (w.ap) tags.push('<span class="tg" title="Pierces armour">AP</span>');
-    if (w.indirect) tags.push('<span class="tg" title="Fires over obstacles">ARC</span>');
-    if (w.siege) tags.push('<span class="tg" title="Extra damage to bases">×' + w.siege + ' base</span>');
-    if (w.needsEntrench) tags.push('<span class="tg" title="Only fires when dug in">DIG</span>');
-    if (w.ammo) tags.push('<span class="tg" title="Limited ammo">' + w.ammo + ' shots</span>');
-    if (w.heatDmg) tags.push('<span class="tg" title="Heats the target">+heat</span>');
+    num('dmg', w.dmg * (w.shots || 1), 'Damage ' + w.dmg * (w.shots || 1) + (w.shots > 1 ? ' (' + w.dmg + ' × ' + w.shots + ' shots)' : ''), cw ? cw.dmg * (cw.shots || 1) : null);
+    num('rng', (w.min ? w.min + '–' : '') + w.range, 'Range ' + (w.min ? w.min + ' to ' : '') + w.range);
+    if (w.heat >= 2) tags.push(it('incendiary', w.heat >= 3 ? '2' : '', 'Runs hot', ' warn'));
+    if (w.acc >= 85) tags.push(it('accup', '', 'Accurate')); else if (w.acc <= 65) tags.push(it('accdn', '', 'Inaccurate', ' warn'));
+    if (w.burn) tags.push(it('incendiary', '', 'Sets the target burning', ' fx'));
+    if (w.slow) tags.push(it('cryo', '', 'Slows the target', ' fx'));
+    if (w.shock) tags.push(it('energy', '', 'Shocks: target loses an action', ' fx'));
+    if (w.ap) tags.push(it('ap', '', 'Pierces armour'));
+    if (w.indirect) tags.push(it('arc', '', 'Fires over obstacles'));
+    if (w.siege) tags.push(it('base', '×' + w.siege, 'Extra damage to bases'));
+    if (w.needsEntrench) tags.push(it('anchor', '', 'Only fires when dug in', ' warn'));
+    if (w.ammo) tags.push(it('ammo', w.ammo, 'Limited ammo: ' + w.ammo + ' shots'));
+    if (w.heatDmg) tags.push(it('thermo', '', 'Heats the target'));
   }
   if (d.slot === 'torso') {
-    num('hp', d.hp, 'HP', cmp ? cmp.hp : null);
-    out.push('<span class="fs" title="Weapon mounts">' + (d.mounts || ['any', 'any']).map(mountIco).join('') + '</span>');
-    out.push('<span class="fs" title="Size class">' + sizeBadge(d.size || 2) + '</span>');
-    tags.push(pipsHTML(d.cap || 3, null, 'cap'));
-    if (d.armor) tags.push('<span class="tg" title="Armour">' + ico('shield') + d.armor + '</span>');
-    if (d.auxSlots) tags.push('<span class="tg" title="Aux slots">' + ico('aux') + d.auxSlots + '</span>');
-    if (d.move) tags.push('<span class="tg" title="Move bonus">' + ico('move') + '+' + d.move + '</span>');
+    num('hp', d.hp, 'HP ' + d.hp, cmp ? cmp.hp : null);
+    head.push('<span class="fi" title="Weapon mounts: ' + (d.mounts || ['any', 'any']).map(x => MW.MOUNT_NAME[x]).join(' and ') + '">' + (d.mounts || ['any', 'any']).map(mountIco).join('') + '</span>');
+    head.push('<span class="fi">' + sizeIcon(d.size || 2, MW.SIZE_NAME[d.size || 2] + ' chassis') + '</span>');
+    tags.push('<span class="fi" title="Capacity ' + (d.cap || 3) + ' pips">' + pipsHTML(d.cap || 3, null, 'cap') + '</span>');
+    if (d.armor) tags.push(it('shield', d.armor, 'Armour ' + d.armor));
+    if (d.auxSlots) tags.push(it('aux', d.auxSlots, d.auxSlots + ' aux slots'));
+    if (d.move) tags.push(it('move', '+' + d.move, 'Move +' + d.move));
   }
   if (d.slot === 'legs') {
-    num('move', d.move, 'Move', cmp ? cmp.move : null);
-    out.push('<span class="fs" title="Carries up to a ' + MW.SIZE_NAME[d.carry || 2].toLowerCase() + ' chassis">' + ico('load') + sizeBadge(d.carry || 2, 'Carries ') + '</span>');
-    if (d.mode) tags.push('<span class="tg mode" title="' + (d.modeText || d.mode) + '">' + (d.modeText || d.mode).split(':')[0] + '</span>');
-    if (d.armor) tags.push('<span class="tg" title="Armour">' + ico('shield') + d.armor + '</span>');
+    num('move', d.move, 'Move ' + d.move, cmp ? cmp.move : null);
+    head.push('<span class="fi">' + sizeIcon(d.carry || 2, 'Carries up to a ' + MW.SIZE_NAME[d.carry || 2].toLowerCase() + ' chassis') + '</span>');
+    const MODE_ICO = { jump: 'jump', ram: 'siege', stable: 'stable', hover: 'hover', surefoot: 'foot', entrench: 'anchor' };
+    if (d.mode) head.push(it(MODE_ICO[d.mode] || 'legs', '', d.modeText || d.mode, ' lmode'));
+    if (d.armor) tags.push(it('shield', d.armor, 'Armour ' + d.armor));
   }
   if (d.slot === 'aux') {
-    const eff = d.shield ? 'Shield ' + d.shield : d.selfRepair ? 'Repair ' + d.selfRepair + '/rd' : d.armorAll ? 'Armour +' + d.armorAll : d.plate ? 'Plating +' + d.plate : d.cooling ? 'Cooling +' + d.cooling : d.heatCap ? 'Heat cap +' + d.heatCap : d.move ? 'Move +' + d.move : d.dmgBonus ? 'Damage +' + d.dmgBonus : d.energyRange ? 'Energy range +' + d.energyRange : d.capBonus ? 'Capacity +' + d.capBonus : d.carryBonus ? 'Legs carry +1 class' : '';
-    if (eff) out.push('<span class="fs fx" title="' + eff + '"><b>' + eff + '</b></span>');
+    if (d.shield) num('shield', d.shield, 'Shield ' + d.shield + ' a round');
+    if (d.selfRepair) num('wrench', d.selfRepair, 'Self-repair ' + d.selfRepair + ' a round');
+    if (d.armorAll) num('shield', '+' + d.armorAll, 'All parts +' + d.armorAll + ' armour');
+    if (d.plate) num('hp', '+' + d.plate, 'Plating +' + d.plate + ' HP');
+    if (d.cooling) num('cryo', '+' + d.cooling, 'Cooling +' + d.cooling);
+    if (d.heatCap) num('incendiary', '+' + d.heatCap, 'Heat capacity +' + d.heatCap);
+    if (d.move) num('move', '+' + d.move, 'Move +' + d.move);
+    if (d.dmgBonus) num('dmg', '+' + d.dmgBonus, 'Weapons +' + d.dmgBonus + ' damage');
+    if (d.energyRange) num('rng', '+' + d.energyRange, 'Energy weapons +' + d.energyRange + ' range');
+    if (d.capBonus) head.push('<span class="fi big" title="Capacity +' + d.capBonus + '">' + pipsHTML(d.capBonus) + '<b>+</b></span>');
+    if (d.carryBonus) head.push('<span class="fi big" title="Legs carry one class heavier">' + sizeIcon(3, 'Legs carry one class heavier') + '<b>+1</b></span>');
+    if (d.moveHeat || d.shotHeat) tags.push(it('incendiary', '', 'Adds heat', ' warn'));
   }
-  if (d.event) out.push('<span class="fs fx"><b>' + (d.event.supply ? '+' + d.event.supply + ' Supply' : d.event.ep ? '+' + d.event.ep + ' engineering' : d.event.draw ? 'Draw ' + d.event.draw : d.event.repair ? 'Repair ' + d.event.repair : 'Event') + '</b></span>');
-  if (d.weapon && !d.weapon.repair || (d.slot === 'arm' && !d.weapon)) out.push('<span class="fs" title="Needs a ' + MW.MOUNT_NAME[MW.mountOf(d)].toLowerCase() + ' mount">' + mountIco(MW.mountOf(d)) + '</span>');
-  if (d.slot === 'arm' && !d.weapon && d.armorAll) tags.push('<span class="tg" title="All parts +' + d.armorAll + ' armour">' + ico('shield') + '+' + d.armorAll + '</span>');
-  if (d.pips != null && d.slot !== 'torso') tags.push(pipsHTML(d.pips));
-  if (d.trait) tags.push('<span class="tg trait" title="' + d.trait + '">★ ' + d.trait.split(':')[0] + '</span>');
-  return '<div class="face">' + out.join('') + '</div>' + (tags.length ? '<div class="ftags">' + tags.join('') + '</div>' : '');
+  if (d.event) {
+    const e = d.event;
+    if (e.supply) num('supply', '+' + e.supply, '+' + e.supply + ' Supply');
+    if (e.ep) num('eng', '+' + e.ep, '+' + e.ep + ' engineering this round');
+    if (e.draw) num('cards', '+' + e.draw, 'Draw ' + e.draw + ' more cards');
+    if (e.repair) num('wrench', e.repair, 'Repairs ' + e.repair + ' on every mech');
+  }
+  if (d.slot === 'arm') head.push('<span class="fi" title="Needs a ' + MW.MOUNT_NAME[MW.mountOf(d)].toLowerCase() + ' mount">' + mountIco(MW.mountOf(d)) + '</span>');
+  if (d.slot === 'arm' && !w && d.armorAll) num('shield', '+' + d.armorAll, 'All parts +' + d.armorAll + ' armour');
+  if (d.pips != null && d.slot !== 'torso' && d.pips > 0) tags.push('<span class="fi" title="Costs ' + d.pips + ' capacity pips">' + pipsHTML(d.pips) + '</span>');
+  if (d.trait) tags.push(it('star', '', d.trait, ' trait'));
+  return '<div class="face">' + head.join('') + '</div>' + (tags.length ? '<div class="ftags">' + tags.join('') + '</div>' : '');
 }
 // the full numbers, one tap away
 function showPartInfo(id) {
@@ -1664,7 +1711,8 @@ function renderDock() {
 /* ---------- Window: tabbed and paged, never scrolls ---------- */
 const MOUNT_ICO = { gun: 'ballistic', energy: 'energy', melee: 'melee', heavy: 'artillery', any: 'univ' };
 const mountIco = mt => '<span class="mnt mnt-' + mt + '" title="' + MW.MOUNT_NAME[mt] + ' mount">' + ico(MOUNT_ICO[mt]) + '</span>';
-const sizeBadge = (n, pre) => '<span class="szb" title="' + (pre || '') + MW.SIZE_NAME[n] + '">' + MW.SIZE_NAME[n][0] + '</span>';
+// kept for older callers: the size class is now always the weight icon
+const sizeBadge = (n, pre) => sizeIcon(n, (pre || '') + MW.SIZE_NAME[n]);
 const pipsHTML = (n, total, cls) => '<span class="cpips ' + (cls || '') + '" title="' + n + (total != null ? ' of ' + total : '') + ' capacity pips">' + '●'.repeat(Math.max(0, n)) + (total != null ? '<i>' + '○'.repeat(Math.max(0, total - n)) + '</i>' : '') + '</span>';
 // what fitting this card would do: the slot it goes to, or the one reason it can't
 function fitInfo(m, d) {
@@ -1826,8 +1874,8 @@ function swapWarn(m, d, el) {
   return true;
 }
 function revealCard(d, i) {
-  if (d.event) return '<div class="rcard event k-event" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico('event') + '</span><span class="now">Event · takes effect now</span><h3>' + d.name + '</h3>' + chips(d) + '</div>';
-  return '<div class="rcard k-' + kind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico(kind(d)) + '</span><span class="lbl">' + (d.special ? '<span class="star">★ Special</span> · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + chips(d) + '</div>';
+  if (d.event) return '<div class="rcard event k-event" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico('event') + '</span><span class="now">Event · takes effect now</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
+  return '<div class="rcard k-' + kind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico(kind(d)) + '</span><span class="lbl">' + (d.special ? '<span class="star">★ Special</span> · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
 }
 function renderReveal() {
   const el = $('#reveal'), p = S.players[S.current];
