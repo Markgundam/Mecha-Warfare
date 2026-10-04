@@ -85,10 +85,17 @@ legend { padding: 0; margin-bottom: 6px; }
 .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .opt { position: relative; display: block; border: 1px solid var(--line); background: var(--surface); padding: 8px 12px; border-radius: 3px; cursor: pointer; }
 .opt input { position: absolute; opacity: 0; }
-.opt.has-mech { overflow: hidden; }
+#setup .opts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.opt.has-mech { overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; padding: 6px 4px 7px; text-align: center; min-height: 118px; }
 .opt.has-mech > :not(.opt-mech) { position: relative; z-index: 1; }
-.opt-mech { position: absolute; right: -16px; bottom: -10px; height: calc(100% + 12px); max-height: 116px; width: auto; pointer-events: none; opacity: .4; filter: saturate(.85); transition: opacity .2s, transform .2s; }
-.opt:has(input:checked) .opt-mech { opacity: 1; transform: scale(1.06); transform-origin: bottom right; }
+.opt.has-mech b { font-size: 17px; line-height: 1; }
+.opt-random { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 7px 12px; }
+.opt-random b { display: inline; font-size: 18px; }
+.opt-random span:last-child { font-size: 12px; }
+.rnd-ico { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 900 16px var(--display); color: var(--muted); border: 2px dashed var(--line); flex: none; }
+.dlegend:empty { display: none; }
+.opt-mech { position: static; display: block; height: 88px; width: auto; max-width: 100%; object-fit: contain; pointer-events: none; opacity: .5; filter: saturate(.7); transition: opacity .2s, transform .2s; }
+.opt:has(input:checked) .opt-mech { opacity: 1; filter: none; transform: scale(1.08); transform-origin: bottom center; }
 .opt b { display: block; font-family: var(--display); font-size: 20px; text-transform: uppercase; letter-spacing: .02em; }
 .opt span { font-size: 13px; color: var(--muted); }
 /* deck make-up: one bar per doctrine, same scale, so the differences read at a glance */
@@ -333,7 +340,7 @@ button.slot:hover { border-color: var(--ink); }
 .meter.over b, .meter.over { color: var(--bad); } .meter.over i { background: var(--bad); }
 .meter.near i { background: var(--warn); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.chip { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px solid var(--line); background: var(--raised); white-space: nowrap; }
+.chip { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px solid var(--line); background: var(--raised); white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
 .hpb { position: absolute; left: 3px; right: 3px; bottom: 1px; height: 3px; background: color-mix(in srgb, var(--ink) 28%, transparent); }
 .hpb i, .mdhp i { display: block; height: 100%; background: var(--good); }
 .hpb.mid i, .mdhp.mid i { background: var(--warn); } .hpb.low i, .mdhp.low i { background: var(--bad); }
@@ -598,7 +605,9 @@ button.rost { cursor: pointer; }
 .cardgrid .card-top > span:last-child, .cardlist .card-top > span:last-child { display: none; }
 .cardgrid .card .row, .cardlist .card .row { flex-wrap: nowrap; }
 .cardgrid .card .row .btn, .cardlist .card .row .btn { font-size: 12px; padding: 4px 6px; white-space: nowrap; }
-.cardgrid .card .row .btn:first-child, .cardlist .card .row .btn:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; justify-content: center; }
+.cardgrid .card .row .btn:first-child, .cardlist .card .row .btn:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; justify-content: safe center; }
+/* card action labels wrap to a second line rather than clip */
+.cardgrid .card .row .btn:first-child, .cardlist .card .row .btn:first-child { white-space: normal; text-align: center; line-height: 1.1; height: auto; min-height: 30px; padding-block: 3px; }
 .sheet .wtab { font-size: 12px; padding: 6px 2px; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; flex: none; font-family: var(--mono); font-size: 12px; }
 .slotline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; flex: none; }
@@ -670,8 +679,7 @@ button.rost { cursor: pointer; }
   .side-name small, .side-nums .inc { display: none; }
   .dock .row .btn.sm small { display: none; }
   .dock .row .btn.sm { padding: 6px 9px; }
-  .opts .opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
-  #setup .opt > span:not(.dbar):not(.wcats) { display: none; }
+  #setup .opt.has-mech > span { display: none; }
   #setup .opt { padding-block: 6px; }
   .board { gap: 1px; }
   .sheet dl { grid-template-columns: 1fr; gap: 2px; } .sheet dd { margin-bottom: 8px; }
@@ -2058,8 +2066,8 @@ function showDeck(id) {
 function buildSetup() {
   const docs = Object.entries(MW.DOCTRINES);
   const pic = id => { const src = R3on && MW.DOCTRINES[id] ? window.R3.portrait(id) : null; return src ? '<img class="opt-mech" src="' + src + '" alt="" aria-hidden="true">' : ''; };
-  const opt = (name, id, title, text, checked) => '<label class="opt' + (MW.DOCTRINES[id] ? ' has-mech' : '') + '"><input type="radio" name="' + name + '" id="' + name + '-' + id + '" value="' + id + '"' + (checked ? ' checked' : '') + '>' + pic(id) + '<b>' + title + '</b><span>' + text + '</span>' + (MW.DOCTRINES[id] ? deckBar(id) + weaponMix(id) : '') + '</label>';
-  $('#dlegend').innerHTML = GROUPS.map(([k, l]) => '<span><i class="g-' + k + '"></i>' + l + '</span>').join('') + '<span>' + ico('ballistic') + ' weapon types</span>';
+  const opt = (name, id, title, text, checked) => '<label class="opt' + (MW.DOCTRINES[id] ? ' has-mech' : ' opt-random') + '" title="' + text + '"><input type="radio" name="' + name + '" id="' + name + '-' + id + '" value="' + id + '"' + (checked ? ' checked' : '') + '>' + (MW.DOCTRINES[id] ? pic(id) + '<b>' + title + '</b>' : '<span class="rnd-ico" aria-hidden="true">?</span><b>' + title + '</b><span>' + text + '</span>') + '</label>';
+  $('#dlegend').innerHTML = '';
   setTimeout(updateDeckLists, 0);
   $('#doc0').innerHTML = docs.map(([id, d], i) => opt('doc0', id, d.name.replace(' Doctrine', ''), TAGS[id], i === 0)).join('');
   $('#doc1').innerHTML = opt('doc1', 'random', 'Random', 'Decided when the battle starts.', true) + docs.map(([id, d]) => opt('doc1', id, d.name.replace(' Doctrine', ''), TAGS[id], false)).join('');
