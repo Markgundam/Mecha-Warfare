@@ -133,6 +133,33 @@ const LOCO = {
   s_anchor: { mode: 'entrench', modeText: 'Entrench: dig in to fire siege guns' }
 };
 for (const id in LOCO) Object.assign(DEFS[id], LOCO[id]);
+/* Size classes replace weight and load: a chassis is Light (1), Medium (2) or Heavy (3), and legs carry up to a class.
+   Capacity pips replace energy and power: a chassis has a budget, each weapon and aux system costs pips. */
+const SIZE_NAME = ['', 'Light', 'Medium', 'Heavy'];
+const SIZE = { b_torso: 2, t_skirm: 1, t_light: 1, t_assault: 2, t_heavy: 3, t_fortress: 3, t_proto: 2, s_frame: 3, c_sing: 2, s_core: 2 };
+const CARRY = { b_legs: 2, l_boost: 2, l_hover: 2, l_biped: 3, l_treads: 3, l_quad: 3, s_anchor: 3 };
+const CAP = { b_torso: 3, t_skirm: 3, t_light: 3, t_assault: 4, t_heavy: 4, t_fortress: 5, t_proto: 5, s_frame: 5, c_sing: 6, s_core: 5 };
+const PIPS = { b_gun: 1, w_smg: 1, w_scatter: 1, w_blade: 1, w_ram: 1, w_shield: 1, w_repair: 1, w_gatling: 2, w_rail: 2, w_laser: 2, w_lance: 2, w_arc: 2, w_missile: 2, w_howitzer: 2, s_inferno: 2, s_cryo: 2, s_emp: 2, s_railgun: 3,
+  a_cool: 1, a_sink: 1, a_plate: 1, a_bulwark: 2, a_relay: 1, a_jump: 1, a_apu: 0, a_nano: 1, a_servo: 0, a_shield: 1, a_over: 1 };
+for (const id in SIZE) DEFS[id].size = SIZE[id];
+for (const id in CARRY) DEFS[id].carry = CARRY[id];
+for (const id in CAP) DEFS[id].cap = CAP[id];
+for (const id in PIPS) DEFS[id].pips = PIPS[id];
+// the two aux systems that only made sense under the old budgets get new jobs
+Object.assign(DEFS.a_apu, { capBonus: 2 });         // +2 capacity
+Object.assign(DEFS.a_servo, { carryBonus: 1 });     // legs carry one class heavier
+function sizeOf(m) { const t = m.slots.torso; return t ? DEFS[t.id].size || 2 : 0; }
+function carryOf(m) { const l = m.slots.legs; return l ? (DEFS[l.id].carry || 2) + m.slots.aux.reduce((a, x) => a + (x && x.hp > 0 ? DEFS[x.id].carryBonus || 0 : 0), 0) : 0; }
+// capacity budget: the chassis's, plus power units, less what a damaged reactor can no longer supply
+function capOf(m) {
+  const t = m.slots.torso, c = m.slots.core;
+  if (!t) return 0;
+  let cap = (DEFS[t.id].cap || 3) + m.slots.aux.reduce((a, x) => a + (x && x.hp > 0 ? DEFS[x.id].capBonus || 0 : 0), 0);
+  if (c && c.hp <= 0) return 0;
+  if (c && c.hp <= DEFS[c.id].hp / 2) cap -= 1;
+  return Math.max(0, cap);
+}
+function pipsUsed(m) { return ['armL', 'armR'].map(k => m.slots[k]).concat(m.slots.aux).reduce((a, x) => a + (x ? DEFS[x.id].pips || 0 : 0), 0); }
 DEFS.l_boost.cost = 3;
 const locoMode = m => { const l = m.slots.legs; return l && l.hp > 0 ? DEFS[l.id].mode || null : null; };
 const WCAT = { w_smg: 'ballistic', b_gun: 'ballistic', w_blade: 'melee', w_rail: 'ballistic', w_missile: 'missile', w_howitzer: 'artillery', w_ram: 'siege', w_laser: 'energy', w_scatter: 'ballistic', w_gatling: 'ballistic', w_shield: 'shield', w_lance: 'energy', w_arc: 'energy', w_repair: 'support', s_inferno: 'incendiary', s_cryo: 'cryo', s_emp: 'energy', s_railgun: 'ballistic' };
@@ -303,7 +330,8 @@ function stats(m) {
   if (core && core.hp > 0 && core.hp <= DEFS[core.id].hp / 2) st.power = Math.ceil(st.power * 0.6);
   if (m.entrenched) st.armorAll += C.ENTRENCH_ARMOR;
   if (m.slow > 0 && locoMode(m) !== 'hover') st.move = Math.max(1, st.move - 2);
-  st.underpowered = st.draw > st.power;
+  st.cap = capOf(m); st.used = pipsUsed(m); st.size = sizeOf(m); st.carry = carryOf(m);
+  st.underpowered = st.used > st.cap;
   return st;
 }
 
@@ -316,8 +344,8 @@ function issues(m) {
     else if (i.hp <= 0) out.push(DEFS[i.id].name + ' is destroyed and must be replaced');
   }
   const st = stats(m);
-  if (m.slots.legs && st.weight > st.capacity) out.push('Overweight: ' + st.weight + ' load on legs rated for ' + st.capacity);
-  if (m.slots.core && st.draw > st.power) out.push('Underpowered: systems draw ' + st.draw + ' energy, the reactor supplies ' + st.power);
+  if (m.slots.legs && m.slots.torso && st.size > st.carry) out.push(DEFS[m.slots.legs.id].name + ' cannot carry a ' + SIZE_NAME[st.size].toLowerCase() + ' chassis');
+  if (m.slots.torso && st.used > st.cap) out.push('Over capacity: parts need ' + st.used + ' pips, the chassis has ' + st.cap);
   for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && !fitsMount(armMount(m, k), DEFS[w.id])) out.push(DEFS[w.id].name + ' does not fit the ' + MOUNT_NAME[armMount(m, k)].toLowerCase() + ' mount'); }
   return out;
 }
@@ -513,6 +541,7 @@ function install(p, m, key, src) {
   if (d.slot !== slotType(key)) return fail(d.name + ' does not fit the ' + slotName(key).toLowerCase() + ' slot.');
   if (slotType(key) === 'aux' && +key.slice(3) >= auxCount(m)) return fail('This chassis has no free auxiliary mount there.');
   if (key === 'core') return fail('The reactor is built into the chassis.');
+  if (key !== 'torso' && !m.slots.torso) return fail('Fit a chassis first: it decides what else can go on.');
   if (key.startsWith('arm') && !fitsMount(armMount(m, key), d)) return fail(d.name + ' needs a ' + MOUNT_NAME[mountOf(d)].toLowerCase() + ' mount: this arm is ' + MOUNT_NAME[armMount(m, key)].toLowerCase() + '.');
   if (p.ep < 1) return fail('No engineering capacity left this round.');
   const cost = installCost(src, p);
@@ -1754,7 +1783,7 @@ function aiDesign(p, m) {
       if (c) pick[key] = c.src;
     }
     const st = stats(tmp);
-    if (st.weight > st.capacity || st.draw > st.power) continue;
+    if (st.size > st.carry || st.used > st.cap) continue;
     if (cost > p.supply + 6) continue;
     let fp = 0, heat = st.passiveHeat + st.moveHeat;
     for (const wp of weaponsOf(tmp)) {
@@ -1848,7 +1877,7 @@ const api = {
   setRng(f) { rnd = f; },
   newGame, terrain, baseAt, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
-  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, canRam, ramTargets, ram, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
+  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, canRam, ramTargets, ram, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
   activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
   radarBonus, isDamaged, aiStep,
