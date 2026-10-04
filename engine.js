@@ -85,13 +85,56 @@ const DEFS = {};
   { id: 'x_supply', name: 'Supply Drop', slot: 'event', cost: 0, event: { supply: 4 } },
   // doctrine signature cards
   { id: 't_skirm', name: 'Skirmisher Frame', slot: 'torso', cost: 2, wt: 1, hp: 4, auxSlots: 1, heatCap: 5, move: 1 },
-  { id: 'w_smg', name: 'Twin SMGs', slot: 'arm', cost: 2, wt: 1, en: 1, hp: 3, weapon: { dmg: 1, range: 2, acc: 80, heat: 1, shots: 3 } },
+  { id: 'w_smg', name: 'Twin SMGs', slot: 'arm', cost: 2, wt: 1, en: 1, hp: 3, weapon: { dmg: 2, range: 2, acc: 72, heat: 1, shots: 2 } },
   { id: 'a_bulwark', name: 'Bulwark Plating', slot: 'aux', cost: 3, wt: 3, plate: 4 },
   { id: 'a_relay', name: 'Quantum Relay', slot: 'aux', cost: 3, wt: 1, en: 2, energyRange: 1 },
   { id: 'x_overtime', name: 'Overtime Shift', slot: 'event', cost: 0, event: { ep: 3 } },
   { id: 'x_req', name: 'Tech Requisition', slot: 'event', cost: 0, event: { draw: 2 } },
   { id: 'x_repair', name: 'Field Repairs', slot: 'event', cost: 0, event: { repair: 2 } }
 ].forEach(d => { DEFS[d.id] = d; });
+/* Chassis: the frame and its reactor in one card. It sets HP, power and cooling, which weapon mounts each arm takes,
+   how many aux systems it carries, and often a signature trait. The reactor is built in: it can still be hit,
+   overheated or detonated, but it is never fitted on its own. */
+const CHASSIS = {
+  b_torso: { name: 'Standard Chassis', cost: 3, mounts: ['any', 'any'], reactor: { hp: 4, power: 6, cooling: 2 }, trait: 'Universal mounts take any weapon' },
+  t_skirm: { name: 'Skirmisher Chassis', cost: 2, mounts: ['gun', 'any'], reactor: { hp: 3, power: 5, cooling: 3 }, trait: '+1 move' },
+  t_light: { name: 'Scout Chassis', cost: 4, mounts: ['gun', 'energy'], reactor: { hp: 3, power: 7, cooling: 3 }, evasive: 10, trait: 'Evasive: enemies have −10% to hit it' },
+  t_assault: { name: 'Striker Chassis', cost: 4, mounts: ['any', 'gun'], reactor: { hp: 4, power: 8, cooling: 3 }, meleeBonus: 1, trait: 'Melee weapons +1 damage' },
+  t_heavy: { name: 'Heavy Chassis', cost: 6, mounts: ['gun', 'heavy'], reactor: { hp: 6, power: 10, cooling: 2 }, trait: 'Armour 2' },
+  t_fortress: { name: 'Fortress Chassis', cost: 7, mounts: ['melee', 'heavy'], reactor: { hp: 6, power: 12, cooling: 2, passiveHeat: 1 }, bulwark: 1, trait: 'Bulwark: bracing gives +2 armour' },
+  t_proto: { name: 'Prototype Chassis', cost: 5, mounts: ['energy', 'energy'], reactor: { hp: 5, power: 12, cooling: 3 }, energyRange: 1, trait: 'Energy weapons +1 range' },
+  s_frame: { name: 'Aegis Chassis', cost: 8, mounts: ['any', 'any'], reactor: { hp: 6, power: 12, cooling: 3 }, shield: 2, trait: 'Shield 2 a round, universal mounts' },
+  c_sing: { name: 'Singularity Chassis', slot: 'torso', cost: 6, wt: 3, hp: 6, auxSlots: 2, heatCap: 7, mounts: ['energy', 'heavy'], reactor: { hp: 3, power: 16, cooling: 1, passiveHeat: 1, breach: 4 }, trait: 'Huge power, but its reactor explodes when breached' },
+  s_core: { name: 'Lattice Chassis', slot: 'torso', special: true, cost: 7, wt: 3, hp: 9, auxSlots: 2, heatCap: 8, mounts: ['energy', 'any'], reactor: { hp: 7, power: 14, cooling: 4 }, selfRepair: 1, trait: 'Self-repairs 1 a round' }
+};
+for (const id in CHASSIS) {
+  const d = DEFS[id], c = CHASSIS[id];
+  for (const k of ['power', 'cooling', 'passiveHeat', 'breach']) delete d[k];   // reactor stats now live on the built-in reactor
+  Object.assign(d, c);
+  DEFS['r_' + id] = { id: 'r_' + id, name: c.name.replace(' Chassis', '') + ' reactor', slot: 'core', basic: true, hidden: true, cost: 0, wt: 0, hp: c.reactor.hp, power: c.reactor.power, cooling: c.reactor.cooling, passiveHeat: c.reactor.passiveHeat || 0, breach: c.reactor.breach || 0 };
+}
+/* Hardpoints: every weapon belongs to a mount class, and fits an arm whose mount matches or is universal */
+const MOUNT_NAME = { gun: 'Gun', energy: 'Energy', melee: 'Melee', heavy: 'Heavy', any: 'Universal' };
+function mountOf(d) {
+  if (!d || !d.weapon) return 'any';
+  if (d.id === 's_railgun') return 'heavy';
+  return { ballistic: 'gun', incendiary: 'gun', cryo: 'gun', support: 'gun', energy: 'energy', melee: 'melee', siege: 'melee', shield: 'melee', missile: 'heavy', artillery: 'heavy' }[d.cat] || 'gun';
+}
+function armMount(m, key) { const t = m.slots.torso, d = t && DEFS[t.id]; return d && d.mounts ? d.mounts[key === 'armL' ? 0 : 1] : 'any'; }
+const fitsMount = (mount, d) => mount === 'any' || !d.weapon || mountOf(d) === mount;
+/* Locomotion: legs give a way of moving, not only a speed */
+const LOCO = {
+  b_legs: { mode: null },
+  l_biped: { mode: 'surefoot', modeText: 'Sure-footed: cannot be knocked back' },
+  l_boost: { mode: 'jump', modeText: 'Jump: moves over rocks, ruins and mecha' },
+  l_treads: { mode: 'ram', modeText: 'Ram: smash an adjacent enemy for 3 and shove it back' },
+  l_quad: { mode: 'stable', modeText: 'Stable: heavy weapons keep full accuracy after moving' },
+  l_hover: { mode: 'hover', modeText: 'Hover: immune to slowing' },
+  s_anchor: { mode: 'entrench', modeText: 'Entrench: dig in to fire siege guns' }
+};
+for (const id in LOCO) Object.assign(DEFS[id], LOCO[id]);
+DEFS.l_boost.cost = 3;
+const locoMode = m => { const l = m.slots.legs; return l && l.hp > 0 ? DEFS[l.id].mode || null : null; };
 const WCAT = { w_smg: 'ballistic', b_gun: 'ballistic', w_blade: 'melee', w_rail: 'ballistic', w_missile: 'missile', w_howitzer: 'artillery', w_ram: 'siege', w_laser: 'energy', w_scatter: 'ballistic', w_gatling: 'ballistic', w_shield: 'shield', w_lance: 'energy', w_arc: 'energy', w_repair: 'support', s_inferno: 'incendiary', s_cryo: 'cryo', s_emp: 'energy', s_railgun: 'ballistic' };
 Object.keys(WCAT).forEach(id => { DEFS[id].cat = WCAT[id]; if (DEFS[id].weapon) DEFS[id].weapon.cat = WCAT[id]; });
 
@@ -99,22 +142,22 @@ const DOCTRINES = {
   assault: {
     name: 'Assault Doctrine',
     blurb: 'A swarm of light, fast mecha that overwhelm by numbers and speed.',
-    perks: ['Up to 4 mecha on the field', 'Every mech moves +1', 'Skirmisher Frame and Twin SMGs'],
-    traits: { fieldMax: 4, hangarMax: 4, move: 1, ep: 5 },
+    perks: ['Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Issue parts: Striker Chassis, Booster Legs (jump), Scatter Cannon, Plasma Blade'],
+    traits: { fieldMax: 4, hangarMax: 4, move: 1, ep: 5, startMechs: 3 },
     deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 2, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 3, w_smg: 3, a_jump: 3, a_cool: 1, a_over: 1, s_inferno: 2, s_cryo: 1, s_emp: 1, s_core: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
   },
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Only 2 mecha on the field', '+8 plating HP per mech, regains 2 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '3 victory points per 4 enemy mecha destroyed', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { fieldMax: 2, plate: 8, plateRegen: 2, steady: 15, control: 2, killVp: 0.75, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 2 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per 2 enemy mecha destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (ram), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { fieldMax: 2, plate: 3, plateRegen: 2, steady: 15, control: 2, killVp: 0.5, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, l_quad: 3, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 4, w_shield: 1, a_plate: 3, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_anchor: 2, s_frame: 1, x_supply: 2, x_overtime: 2, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +3 heat every 2 rounds', 'Draws 3 cards a round instead of 2', 'Quantum Relay: energy weapons +1 range'],
-    traits: { ap: 3, heatTick: 1.5, draw: 3 },
+    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +7 heat every 4 rounds', 'Draws 3 cards a round instead of 2', 'Issue parts: Prototype Chassis (two energy mounts), Hover Skirt, Laser Rifle'],
+    traits: { ap: 3, heatTick: 1.75, draw: 3 },
     deck: { l_hover: 3, l_quad: 1, l_biped: 1, t_proto: 3, t_assault: 1, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 2, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 1, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
@@ -138,8 +181,8 @@ RUINS.forEach(([x, y]) => { TERRAIN[x + ',' + y] = 'ruins'; });
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const BASE_POS = [{ x: 0, y: 3 }, { x: W - 1, y: 3 }];
 const REQUIRED = ['torso', 'core', 'legs'];
-const SLOT_NAME = { torso: 'Frame', core: 'Core', legs: 'Legs', armL: 'Left arm', armR: 'Right arm', arm: 'Arm', aux: 'Aux' };
-const SUM = ['plate', 'energyRange', 'armorAll', 'cooling', 'heatCap', 'capacity', 'power', 'move', 'moveHeat', 'shield', 'selfRepair', 'dmgBonus', 'shotHeat', 'passiveHeat'];
+const SLOT_NAME = { torso: 'Chassis', core: 'Reactor', legs: 'Legs', armL: 'Left arm', armR: 'Right arm', arm: 'Arm', aux: 'Aux' };
+const SUM = ['evasive', 'meleeBonus', 'bulwark', 'plate', 'energyRange', 'armorAll', 'cooling', 'heatCap', 'capacity', 'power', 'move', 'moveHeat', 'shield', 'selfRepair', 'dmgBonus', 'shotHeat', 'passiveHeat'];
 
 let S = null;
 let rnd = Math.random;
@@ -214,6 +257,14 @@ function partsOf(m) {
 // A mech's HP is its frame's HP. Every hit lowers it; a hit on a core, leg or arm also damages that part.
 // extra hull from legs such as Siege Anchors, used up before the frame
 // doctrine traits: what sets each army apart beyond its deck
+const ISSUE = { assault: ['t_assault', 'l_boost', 'w_scatter', 'w_blade'], armored: ['t_heavy', 'l_treads', 'w_missile'], experimental: ['t_proto', 'l_hover', 'w_laser'] };
+const issuedTo = p => (p && ISSUE[p.doctrine]) || [];
+const standardFor = p => Object.values(DEFS).filter(d => (d.basic && !d.hidden) || issuedTo(p).includes(d.id)).map(d => d.id);
+for (const [doc, add] of Object.entries({ assault: { l_boost: 1, w_blade: 1, t_skirm: 1 }, armored: { l_treads: 1, t_heavy: 1, w_missile: 1 }, experimental: { t_proto: 1, l_hover: 1 } })) {
+  const dk = DOCTRINES[doc].deck;
+  for (const c of ['c_heavy', 'c_compact', 'c_fusion', 'b_core']) delete dk[c];
+  for (const k in add) dk[k] = (dk[k] || 0) + add[k];
+}
 const TRAIT_KEYS = ['control', 'fieldMax', 'hangarMax', 'startMechs', 'move', 'ep', 'draw', 'ap', 'plate', 'plateRegen', 'steady', 'turretDmg', 'heatTick'];
 function trait(pid, k) {
   const p = S && S.players[pid], t = p && DOCTRINES[p.doctrine] && DOCTRINES[p.doctrine].traits;
@@ -251,7 +302,7 @@ function stats(m) {
   st.fullPower = st.power;
   if (core && core.hp > 0 && core.hp <= DEFS[core.id].hp / 2) st.power = Math.ceil(st.power * 0.6);
   if (m.entrenched) st.armorAll += C.ENTRENCH_ARMOR;
-  if (m.slow > 0) st.move = Math.max(1, st.move - 2);
+  if (m.slow > 0 && locoMode(m) !== 'hover') st.move = Math.max(1, st.move - 2);
   st.underpowered = st.draw > st.power;
   return st;
 }
@@ -260,12 +311,14 @@ function issues(m) {
   const out = [];
   for (const k of REQUIRED) {
     const i = m.slots[k];
+    if (k === 'core' && !m.slots.torso) continue;
     if (!i) out.push('Needs a ' + SLOT_NAME[k].toLowerCase());
     else if (i.hp <= 0) out.push(DEFS[i.id].name + ' is destroyed and must be replaced');
   }
   const st = stats(m);
   if (m.slots.legs && st.weight > st.capacity) out.push('Overweight: ' + st.weight + ' load on legs rated for ' + st.capacity);
-  if (m.slots.core && st.draw > st.power) out.push('Underpowered: systems draw ' + st.draw + ' energy, core supplies ' + st.power);
+  if (m.slots.core && st.draw > st.power) out.push('Underpowered: systems draw ' + st.draw + ' energy, the reactor supplies ' + st.power);
+  for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && !fitsMount(armMount(m, k), DEFS[w.id])) out.push(DEFS[w.id].name + ' does not fit the ' + MOUNT_NAME[armMount(m, k)].toLowerCase() + ' mount'); }
   return out;
 }
 
@@ -327,8 +380,11 @@ function newGame(opts) {
     // each side opens with standard mecha ready to deploy; the swarm army brings an extra one
     for (let j = 0; j < (((DOCTRINES[p.doctrine] || {}).traits || {}).startMechs || 2); j++) {
       const m = blankMech(p);
-      ['torso', 'core', 'legs'].forEach(k => { m.slots[k] = mk('b_' + k, true); });
-      m.slots.armR = mk('b_gun', true);
+      // the army opens with its own signature machines: issue chassis, issue legs, a weapon in each mount that takes one
+      const iss = ISSUE[o.doctrine] || [], ch = iss.find(id => DEFS[id].slot === 'torso') || 'b_torso', lg = iss.find(id => DEFS[id].slot === 'legs') || 'b_legs';
+      m.slots.torso = mk(ch, true); m.slots.torso.issued = true; m.slots.core = mk('r_' + ch, true); m.slots.legs = mk(lg, true); m.slots.legs.issued = true;
+      const guns = ['b_gun'].concat(iss.filter(id => DEFS[id].slot === 'arm'));
+      for (const k of ['armR', 'armL']) { const g = guns.slice().reverse().find(id => fitsMount(armMount(m, k), DEFS[id])); if (g && (k === 'armR' || j === 0)) { m.slots[k] = mk(g, true); m.slots[k].issued = true; } }
       p.hangar.push(m);
     }
   });
@@ -439,7 +495,7 @@ function buildGuard(p) {
   return null;
 }
 function toWorkshop(p, inst) {
-  if (!inst || DEFS[inst.id].basic || inst.hp <= 0) return;
+  if (!inst || DEFS[inst.id].basic || inst.issued || inst.hp <= 0) return;
   p.workshop.push(inst);
 }
 function installCost(src, p) {
@@ -450,18 +506,21 @@ function installCost(src, p) {
 function install(p, m, key, src) {
   const g = buildGuard(p); if (g) return fail(g);
   if (!p.hangar.includes(m)) return fail('That mech is not in your hangar.');
+  if (src.basic && !standardFor(p).includes(src.basic)) return fail('That part is not standard issue for this army.');
   const inst0 = src.basic ? null : p.workshop.find(c => c.uid === src.uid);
   const d = DEFS[src.basic || (inst0 && inst0.id)];
   if (!d) return fail('That part is no longer in the Workshop.');
   if (d.slot !== slotType(key)) return fail(d.name + ' does not fit the ' + slotName(key).toLowerCase() + ' slot.');
-  if (slotType(key) === 'aux' && +key.slice(3) >= auxCount(m)) return fail('This torso has no free auxiliary mount there.');
+  if (slotType(key) === 'aux' && +key.slice(3) >= auxCount(m)) return fail('This chassis has no free auxiliary mount there.');
+  if (key === 'core') return fail('The reactor is built into the chassis.');
+  if (key.startsWith('arm') && !fitsMount(armMount(m, key), d)) return fail(d.name + ' needs a ' + MOUNT_NAME[mountOf(d)].toLowerCase() + ' mount: this arm is ' + MOUNT_NAME[armMount(m, key)].toLowerCase() + '.');
   if (p.ep < 1) return fail('No engineering capacity left this round.');
   const cost = installCost(src, p);
   if (p.supply < cost) return fail('Not enough Supply: ' + d.name + ' costs ' + cost + '.');
   p.ep--; p.supply -= cost;
   const old = getSlot(m, key);
   let inst;
-  if (src.basic) inst = mk(src.basic, true, p);
+  if (src.basic) { inst = mk(src.basic, true, p); inst.issued = true; }
   else { inst = inst0; p.workshop.splice(p.workshop.indexOf(inst0), 1); inst.paid = true; }
   setSlot(m, key, inst);
   toWorkshop(p, old);
@@ -469,6 +528,9 @@ function install(p, m, key, src) {
     const n = auxCount(m);
     m.slots.aux.slice(n).forEach(a => toWorkshop(p, a));
     m.slots.aux.length = Math.min(m.slots.aux.length, n);
+    m.slots.core = mk('r_' + inst.id, true, p);   // a new chassis comes with its own reactor
+    // weapons that no longer fit the new mounts go back to the Workshop
+    for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && !fitsMount(armMount(m, k), DEFS[w.id])) { m.slots[k] = null; toWorkshop(p, w); log(DEFS[w.id].name + ' does not fit the ' + MOUNT_NAME[armMount(m, k)].toLowerCase() + ' mount and returns to the Workshop.', 'p' + p.id); } }
   }
   log(p.name + ' fits ' + d.name + ' to ' + m.name + ' (' + slotName(key).toLowerCase() + ').', 'p' + p.id);
   ensureBlank(p); return OK;
@@ -477,9 +539,10 @@ function removePart(p, m, key) {
   const g = buildGuard(p); if (g) return fail(g);
   const inst = getSlot(m, key);
   if (!inst) return fail('That slot is already empty.');
+  if (key === 'core') return fail('The reactor is built into the chassis.');
   setSlot(m, key, null);
   toWorkshop(p, inst);
-  if (key === 'torso') { m.slots.aux.forEach(a => toWorkshop(p, a)); m.slots.aux = []; }
+  if (key === 'torso') { m.slots.aux.forEach(a => toWorkshop(p, a)); m.slots.aux = []; m.slots.core = null; }
   ensureBlank(p); return OK;
 }
 function repairCost(inst) { const d = DEFS[inst.id]; return Math.max(1, Math.ceil((d.hp - inst.hp + (d.hull && inst.hullHp != null ? d.hull - inst.hullHp : 0)) / 2)); }
@@ -488,7 +551,7 @@ function repair(p, m, key) {
   const inst = getSlot(m, key);
   if (!inst) return fail('Nothing to repair there.');
   const d = DEFS[inst.id];
-  if (inst.hp <= 0) return fail(d.name + ' is destroyed. Replace it instead.');
+  if (inst.hp <= 0 && key !== 'core') return fail(d.name + ' is destroyed. Replace it instead.');
   if (!worn(inst)) return fail(d.name + ' is undamaged.');
   const cost = repairCost(inst);
   if (p.ep < 1) return fail('No engineering capacity left this round.');
@@ -592,7 +655,7 @@ function startCombat() {
     const st = stats(m);
     m.ap = (m.shutdown || st.underpowered) ? 1 : trait(m.owner, 'ap');
     if (m.shock) { m.ap = Math.max(1, m.ap - 1); m.shock = 0; }
-    m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false;
+    m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false; m.rammed = false;
   }
   log('Combat begins.', 'sys');
   S.current = S.first;
@@ -696,16 +759,19 @@ function settle() {
 }
 
 function reachable(m) {
-  const max = m.entrenched ? 0 : stats(m).move, dist = {};
-  dist[K(m.x, m.y)] = 0;
+  const max = m.entrenched ? 0 : stats(m).move, dist = {}, jump = locoMode(m) === 'jump';
+  const seen = {}; seen[K(m.x, m.y)] = 0; dist[K(m.x, m.y)] = 0;
   const q = [[m.x, m.y]];
   while (q.length) {
-    const [x, y] = q.shift(), d = dist[K(x, y)];
+    const [x, y] = q.shift(), d = seen[K(x, y)];
     if (d >= max) continue;
     for (const [dx, dy] of DIRS) {
       const nx = x + dx, ny = y + dy, k = K(nx, ny);
-      if (!passable(nx, ny) || k in dist || mechAt(nx, ny)) continue;
-      dist[k] = d + 1; q.push([nx, ny]);
+      if (k in seen || !inb(nx, ny)) continue;
+      const open = passable(nx, ny) && !mechAt(nx, ny);
+      if (!open && !(jump && baseAt(nx, ny) === null)) continue;
+      seen[k] = d + 1; q.push([nx, ny]);
+      if (open) dist[k] = d + 1;
     }
   }
   return dist;
@@ -734,14 +800,16 @@ function los(x0, y0, x1, y1) {
   return true;
 }
 function pathTo(m, x, y) {
-  const prev = {}, q = [[m.x, m.y]];
+  const prev = {}, q = [[m.x, m.y]], jump = locoMode(m) === 'jump';
   prev[K(m.x, m.y)] = null;
   while (q.length) {
     const [cx, cy] = q.shift();
     if (cx === x && cy === y) break;
     for (const [dx, dy] of DIRS) {
       const nx = cx + dx, ny = cy + dy, k = K(nx, ny);
-      if (!passable(nx, ny) || k in prev || mechAt(nx, ny)) continue;
+      if (k in prev || !inb(nx, ny)) continue;
+      const open = passable(nx, ny) && !mechAt(nx, ny);
+      if (!open && !(jump && baseAt(nx, ny) === null)) continue;
       prev[k] = [cx, cy]; q.push([nx, ny]);
     }
   }
@@ -763,6 +831,38 @@ function move(m, x, y) {
   log(m.name + ' moves ' + from + ' → ' + coord(x, y) + '.', 'p' + m.owner);
   pickupCrate(m);
   triggerOverwatch(m);
+  settle();
+  return OK;
+}
+/* ---------- Ram: treads smash into an adjacent enemy and shove it back ---------- */
+const RAM_DMG = 3, CRASH_DMG = 2;
+function canRam(m) { return locoMode(m) === 'ram' && !m.rammed && m.ap > 0 && S.mechs.some(e => e.owner !== m.owner && man(e.x, e.y, m.x, m.y) === 1); }
+function ramTargets(m) { return locoMode(m) === 'ram' && !m.rammed ? S.mechs.filter(e => e.owner !== m.owner && man(e.x, e.y, m.x, m.y) === 1) : []; }
+function ram(m, uid) {
+  const g = actGuard(m); if (g) return fail(g);
+  if (locoMode(m) !== 'ram') return fail(m.name + ' has no treads to ram with.');
+  if (m.rammed) return fail(m.name + ' has already rammed this activation.');
+  const tm = fieldMech(uid);
+  if (!tm || tm.owner === m.owner || man(tm.x, tm.y, m.x, m.y) !== 1) return fail('Ram an enemy right next to you.');
+  S.active = m.uid; m.ap--; m.rammed = true; m.entrenched = false;
+  fx({ k: 'shot', x0: m.x, y0: m.y, x1: tm.x, y1: tm.y, hit: true, cat: 'siege' });
+  log(m.name + ' rams ' + tm.name + '.', 'p' + m.owner);
+  const dx = tm.x - m.x, dy = tm.y - m.y, nx = tm.x + dx, ny = tm.y + dy;
+  const immune = locoMode(tm) === 'surefoot' || locoMode(tm) === 'stable' || tm.entrenched;
+  applyDamage(tm, rollLocation(tm), RAM_DMG, false);
+  if (S.mechs.includes(tm) && !immune) {
+    const other = mechAt(nx, ny);
+    if (passable(nx, ny) && !other) {
+      fx({ k: 'move', uid: tm.uid, path: [[tm.x, tm.y], [nx, ny]] });
+      tm.x = nx; tm.y = ny;
+      log(tm.name + ' is shoved back to ' + coord(nx, ny) + '.', 'hit');
+    } else {
+      // nowhere to go: it crashes into the obstacle
+      log(tm.name + ' slams into ' + (other ? other.name : inb(nx, ny) ? 'the ' + (baseAt(nx, ny) != null ? 'base' : 'rubble') : 'the edge of the field') + '.', 'hit');
+      applyDamage(tm, 'torso', CRASH_DMG, true);
+      if (other && S.mechs.includes(other)) applyDamage(other, 'torso', 1, true);
+    }
+  } else if (S.mechs.includes(tm)) log(tm.name + ' holds its ground.', 'hit');
   settle();
   return OK;
 }
@@ -914,6 +1014,8 @@ function radarBonus(pid) { return S.objectives.filter(o => o.type === 'radar' &&
 function hitChance(m, key, tm, part) {
   const w = DEFS[getSlot(m, key).id].weapon, st = stats(m), ts = stats(tm);
   let c = w.acc + radarBonus(m.owner) + (m.moves ? 0 : trait(m.owner, 'steady'));
+  if (m.moves && mountOf(DEFS[getSlot(m, key).id]) === 'heavy' && locoMode(m) !== 'stable' && !m.entrenched) c -= 15;
+  c -= ts.evasive || 0;
   if (terrain(tm.x, tm.y) === 'ruins' && !w.melee && !st.ignoreCover) c -= 20;
   if (part) c -= part === 'core' ? 25 : 10;
   return Math.max(5, Math.min(95, c));
@@ -1005,7 +1107,7 @@ function fire(m, key, target, part) {
     log(m.name + ' repairs ' + tm.name + "'s " + pd.name + '.', 'p' + m.owner);
     settle(); return OK;
   }
-  const dmg = w.dmg + st.dmgBonus;
+  const dmg = w.dmg + st.dmgBonus + (w.melee ? st.meleeBonus : 0);
   for (let s = 0; s < (w.shots || 1); s++) {
     if (t.type === 'base') {
       const bd = Math.round(dmg * (w.siege || 1)), bp = S.players[t.pid];
@@ -1519,7 +1621,7 @@ function aiWantsRetreat(m) {
   // late in a long war, damaged mecha press on instead of cycling back to the hangar
   const aw = aiW(m.owner);
   if (hpOf(m) <= maxHpOf(m) * (S.round > 20 ? 0.2 : clamp(0.35 + 0.08 * aw.caution - 0.1 * (aw.aggro - 0.5), 0.15, 0.6))) return true;
-  if (m.slots.core.hp <= 0) return true;
+  if (m.slots.core && m.slots.core.hp <= 0) return true;
   return !hasWeapon(m);
 }
 function aiCombatStep() {
@@ -1573,6 +1675,10 @@ function aiCombatStep() {
     if (b && (b.x !== m.x || b.y !== m.y)) { if (move(m, b.x, b.y).ok) return true; }
   }
   const atk = aiBestAttack(m);
+  if (canRam(m)) {
+    const rt = ramTargets(m).map(e => { const nx = 2 * e.x - m.x, ny = 2 * e.y - m.y, blocked = !passable(nx, ny) || mechAt(nx, ny); return { e, v: RAM_DMG + (blocked ? CRASH_DMG : 0) + (hpOf(e) <= RAM_DMG ? 4 : 0) }; }).sort((a, b) => b.v - a.v)[0];
+    if (rt && (!atk || rt.v >= atk.ev) && ram(m, rt.e.uid).ok) return true;
+  }
   if (atk && fire(m, atk.key, atk.target, atk.part).ok) return true;
   if (wreckAt(m.x, m.y) && salvage(m).ok) return true;
   if (m.moves === 1) {
@@ -1615,25 +1721,30 @@ function aiDesign(p, m) {
   for (const c of p.workshop) { const d = DEFS[c.id]; if (pool[d.slot] && c.hp > 0 && !(d.weapon && d.weapon.repair)) pool[d.slot].push(c); }
   const fixed = {};
   for (const { key, inst } of partsOf(m)) fixed[key] = inst;
-  const BAS = { torso: 'b_torso', core: 'b_core', legs: 'b_legs', arm: 'b_gun' };
+  const iss = t => issuedTo(p).filter(id => DEFS[id].slot === t);
+  const BAS = { torso: ['b_torso'].concat(iss('torso')), legs: ['b_legs'].concat(iss('legs')), arm: ['b_gun'].concat(iss('arm')) };
   let best = null;
   for (let t = 0; t < 300; t++) {
     const used = new Set(), pick = {};
     const tmp = { slots: { torso: null, core: null, legs: null, armL: null, armR: null, aux: [] }, heat: 0 };
     let cost = 0;
-    const choose = (type, allowNone) => {
-      const opts = pool[type].filter(c => !used.has(c.uid));
-      let i = Math.floor(rnd() * (opts.length + (BAS[type] ? 1 : 0) + (allowNone ? 1 : 0)));
+    const choose = (type, allowNone, ok) => {
+      const opts = pool[type].filter(c => !used.has(c.uid) && (!ok || ok(DEFS[c.id])));
+      const bas = (BAS[type] || []).filter(id => !ok || ok(DEFS[id]));
+      let i = Math.floor(rnd() * (opts.length + bas.length + (allowNone ? 1 : 0)));
       if (i < opts.length) { used.add(opts[i].uid); cost += opts[i].paid ? 0 : DEFS[opts[i].id].cost; return { inst: opts[i], src: { uid: opts[i].uid } }; }
       i -= opts.length;
-      if (BAS[type] && i === 0) { cost += DEFS[BAS[type]].cost; return { inst: { id: BAS[type], hp: DEFS[BAS[type]].hp }, src: { basic: BAS[type] } }; }
+      if (i < bas.length) { const id = bas[i]; cost += DEFS[id].cost; return { inst: { id, hp: DEFS[id].hp }, src: { basic: id } }; }
       return null;
     };
-    for (const key of ['torso', 'core', 'legs', 'armL', 'armR']) {
+    for (const key of ['torso', 'legs', 'armL', 'armR']) {
       if (fixed[key]) { tmp.slots[key] = fixed[key]; continue; }
-      const c = choose(slotType(key), key.startsWith('arm'));
+      const c = choose(slotType(key), key.startsWith('arm'), key.startsWith('arm') ? d => fitsMount(armMount(tmp, key), d) : null);
       if (c) { tmp.slots[key] = c.inst; pick[key] = c.src; }
+      if (key === 'torso' && tmp.slots.torso) tmp.slots.core = fixed.core && !pick.torso ? fixed.core : { id: 'r_' + tmp.slots.torso.id, hp: DEFS['r_' + tmp.slots.torso.id].hp };
     }
+    if (!tmp.slots.torso) continue;
+    if (!tmp.slots.core) tmp.slots.core = fixed.core || { id: 'r_' + tmp.slots.torso.id, hp: DEFS['r_' + tmp.slots.torso.id].hp };
     const nAux = DEFS[tmp.slots.torso.id].auxSlots || 0;
     for (let i = 0; i < nAux; i++) {
       const key = 'aux' + i;
@@ -1661,6 +1772,10 @@ function aiDesign(p, m) {
     score += 1.5 * st.move * (0.6 + 0.4 * aw.objective + 0.2 * aw.aggro) + st.selfRepair * 2 + st.heatCap * 0.2 + st.plate * 1.5;
     score += (aw.tech - 0.5) * 3 * [tmp.slots.torso, tmp.slots.core, tmp.slots.legs, tmp.slots.armL, tmp.slots.armR].concat(tmp.slots.aux).filter(i => i && DEFS[i.id].special).length;
     score -= 2.5 * Math.max(0, heat - st.cooling) + (0.35 + 0.4 * (aw.swarm - 0.5)) * cost;
+    const ws = weaponsOf(tmp), mode = DEFS[tmp.slots.legs.id].mode;
+    const heavyW = ws.filter(wp => mountOf(wp.def) === 'heavy').length, meleeW = ws.filter(wp => wp.w.melee).length;
+    score += (st.evasive || 0) * 0.25 + (st.meleeBonus || 0) * meleeW * 3 + (st.bulwark || 0) * 2;
+    score += mode === 'jump' ? 2 + aw.objective : mode === 'ram' ? 1.5 + aw.aggro * 2 : mode === 'stable' ? 1 + heavyW * 3 : mode === 'hover' ? 1.5 : mode === 'surefoot' ? 1 : 0;
     // anchored mecha only earn their keep with long guns, since they fire from one spot
     if (DEFS[tmp.slots.legs.id].entrench) { const longest = Math.max(0, ...weaponsOf(tmp).map(wp => wp.w.range || 0)); score -= weaponsOf(tmp).some(wp => wp.w.needsEntrench) ? 0 : longest >= 5 ? 12 : 30; }
     if (!best || score > best.score) best = { score, pick };
@@ -1670,7 +1785,7 @@ function aiDesign(p, m) {
 function aiOutfit(p, m) {
   const pick = aiDesign(p, m);
   if (!pick) return;
-  for (const key of ['torso', 'core', 'legs', 'armR', 'armL', 'aux0', 'aux1', 'aux2']) {
+  for (const key of ['torso', 'legs', 'armR', 'armL', 'aux0', 'aux1', 'aux2']) {
     if (!pick[key] || getSlot(m, key)) continue;
     if (!install(p, m, key, pick[key]).ok) break;
   }
@@ -1680,7 +1795,7 @@ function aiBuild(p) {
   if (C.REQ_COST && p.supply >= C.REQ_COST + 14 && p.workshop.length <= C.WORKSHOP_MAX - 3 && !canRequisition(p)) { requisition(p); return; }
   for (const c of p.workshop.slice()) if (DEFS[c.id].slot === 'tactic') playTactic(p, c.uid);
   for (const m of p.hangar) for (const { key, inst } of partsOf(m)) {
-    if (inst.hp <= 0) removePart(p, m, key);
+    if (inst.hp <= 0) { if (key === 'core') repair(p, m, key); else removePart(p, m, key); }
     else if (worn(inst)) repair(p, m, key);
   }
   for (const m of p.hangar) if (!isBlank(m)) aiOutfit(p, m);
@@ -1733,7 +1848,7 @@ const api = {
   setRng(f) { rnd = f; },
   newGame, terrain, baseAt, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
-  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
+  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, canRam, ramTargets, ram, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
   activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
   radarBonus, isDamaged, aiStep,

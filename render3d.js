@@ -224,7 +224,7 @@ const wedge = (w, h, d, tx, tz, sz) => geo('w' + [w, h, d, tx, tz, sz || 0].join
   for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * tx); p.setZ(i, p.getZ(i) * tz + (sz || 0)); }
   g.computeVertexNormals(); return g;
 });
-const FRAME_DIM = { b_torso: [0.30, 0.26, 0.20], t_heavy: [0.38, 0.28, 0.24], t_light: [0.26, 0.24, 0.17], t_assault: [0.32, 0.27, 0.21], t_fortress: [0.44, 0.30, 0.27], t_proto: [0.30, 0.27, 0.20], s_frame: [0.40, 0.29, 0.25], t_skirm: [0.24, 0.22, 0.16] };
+const FRAME_DIM = { c_sing: [0.30, 0.27, 0.20], s_core: [0.34, 0.28, 0.22], b_torso: [0.30, 0.26, 0.20], t_heavy: [0.38, 0.28, 0.24], t_light: [0.26, 0.24, 0.17], t_assault: [0.32, 0.27, 0.21], t_fortress: [0.44, 0.30, 0.27], t_proto: [0.30, 0.27, 0.20], s_frame: [0.40, 0.29, 0.25], t_skirm: [0.24, 0.22, 0.16] };
 const DEFS = () => window.MW.DEFS;
 const isKO = i => !!i && i.hp <= 0;
 const isHurt = i => !!i && i.hp > 0 && i.hp <= (DEFS()[i.id].hp || 1) / 2;
@@ -620,7 +620,7 @@ function buildMech(m, owner, doctrine, opt) {
     if (S.core) {
       mesh(tor(0.034, 0.01), toon(tc.dark), cg, null, null, flat);
       for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; mesh(box(0.012, 0.012, 0.012), toon(tc.trim), cg, [Math.cos(a) * 0.044, Math.sin(a) * 0.044, 0], null, flat); }
-      R.core = mesh(sph(0.025, 10), glow(isKO(S.core) ? 0x333a42 : (CORE_GLOW[S.core.id] || 0x7dffb2)), cg, null, null, flat);
+      R.core = mesh(sph(0.025, 10), glow(isKO(S.core) ? 0x333a42 : (CORE_GLOW[S.core.id] || CORE_GLOW[S.core.id.replace(/^r_/, '')] || CORE_GLOW.b_core)), cg, null, null, flat);
       R.coreLive = !isKO(S.core);
     } else mesh(sph(0.03, 10), GHOST, cg, null, null, flat);
     tag(cg, 'core');
@@ -1715,9 +1715,9 @@ function pickSlot(ray) {
 /* ================= doctrine portraits ================= */
 // a typical machine of each army, drawn once to an image for the doctrine picker
 const ARCHETYPE = {
-  assault: { torso: 't_assault', core: 'c_fusion', legs: 'l_boost', armL: 'w_blade', armR: 'w_laser', aux: ['a_jump', 'a_cool'] },
-  armored: { torso: 't_fortress', core: 'c_heavy', legs: 'l_biped', armL: 'w_shield', armR: 'w_howitzer', aux: ['a_plate', 'a_bulwark'] },
-  experimental: { torso: 't_proto', core: 'c_sing', legs: 'l_hover', armL: 'w_lance', armR: 's_emp', aux: ['a_relay', 'a_nano', 'a_shield'] }
+  assault: { torso: 't_assault', core: 'r_t_assault', legs: 'l_boost', armL: 'w_blade', armR: 'w_scatter', aux: ['a_jump', 'a_cool'] },
+  armored: { torso: 't_fortress', core: 'r_t_fortress', legs: 'l_treads', armL: 'w_shield', armR: 'w_howitzer', aux: ['a_plate', 'a_bulwark'] },
+  experimental: { torso: 't_proto', core: 'r_t_proto', legs: 'l_hover', armL: 'w_lance', armR: 's_emp', aux: ['a_relay', 'a_nano', 'a_shield'] }
 };
 const PORTRAITS = {};
 let PR = null;
