@@ -70,6 +70,12 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 .nrow b { display: block; font-size: 14px; line-height: 1.2; }
 .nrow small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .nrow .row { flex: none; }
+.menu-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.menu-acts #resume { grid-column: 1 / -1; }
+.menu-acts .btn { justify-content: center; text-align: center; }
+#recent .netlist { max-height: none; overflow: visible; }
+.nrow .rg-res { font-style: normal; white-space: nowrap; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 1px 5px; margin-left: 6px; vertical-align: 2px; border: 1px solid currentColor; border-radius: 2px; }
+.rg-res.won { color: var(--ok, #7fb069); } .rg-res.lost { color: var(--bad, #c8553d); } .rg-res.live { color: var(--accent); }
 .you { font-style: normal; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; background: var(--pc); color: var(--bg); padding: 1px 5px; margin-left: 6px; vertical-align: 4px; }
 .mode { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 18px 16px; border: 2px solid var(--ink); background: var(--raised); border-radius: 3px; cursor: pointer; box-shadow: inset 0 -5px 0 var(--accent); }
 .mode:hover { background: var(--surface); }
@@ -745,11 +751,17 @@ button.rost { cursor: pointer; }
         <button type="button" class="mode" data-start="hot"><b>Two players</b><span>Two commanders share this screen.</span></button>
         <button type="button" class="mode" id="go-online"><b>Online match</b><span>Each commander plays from their own device.</span></button>
       </div>
-      <div class="row">
-        <button class="btn" type="button" id="resume" hidden>Resume saved battle</button>
+      <div class="row menu-acts">
+        <button class="btn primary" type="button" id="resume" hidden>Continue last battle</button>
+        <button class="btn" type="button" data-act="recent">Recent games</button>
         <button class="btn ghost" type="button" data-act="rules">How to play</button>
       </div>
       <p class="note" id="menu-note" hidden></p>
+    </div>
+    <div id="recent" class="menu" hidden>
+      <div class="phead"><h2>Recent games</h2><button type="button" class="btn sm" data-act="toStart">Back</button></div>
+      <p class="note">Every battle is saved as you play. Continue one that is still going, or open a finished one to look over the battlefield.</p>
+      <div class="netlist" id="recent-list"></div>
     </div>
     <div id="online" class="menu" hidden>
       <div class="phead"><h2>Online match</h2><span class="lbl">Two devices</span></div>
@@ -839,7 +851,39 @@ const flip = () => !!net && net.seat === 1;
 const dc = (x, y) => flip() ? MW.H - 1 - y : y, dr = (x, y) => flip() ? x : MW.W - 1 - x;
 const ui = { sel: null, hangarSel: null, slotSel: null, mode: 'idle', weaponKey: null, pendingTarget: null, deployUid: null, busy: false, timer: null, phaseKey: '', confirmNew: false, seen: new Set(), flash: null, prev: null, prevRes: null, logN: null, annKey: '', win: null, winShown: undefined, startMode: 'ai' };
 let S = null;
-const SAVE = 'mecha-warfare-save-v4';
+const SAVE = 'mecha-warfare-save-v4';          // the single save of older versions, folded into the list below
+const GAMES = 'mw-games', GAME = id => 'mw-game-' + id, GAMES_MAX = 20;
+function gamesIndex() { try { return JSON.parse(localStorage.getItem(GAMES) || '[]') || []; } catch (e) { return []; } }
+// a saved online match opened from the list keeps its own mode and seat
+const viewing = st => ui.viewMeta && ui.viewMeta.id === st.gameId ? ui.viewMeta : null;
+function gameMode(st) { return net ? 'online' : viewing(st) ? viewing(st).mode : st.players.some(p => p.isAI) ? 'ai' : 'local'; }
+function gameId(st) {
+  if (net) return 'online-' + net.code;
+  if (!st.gameId) st.gameId = gameMode(st) + '-' + (st.startedAt || Date.now());
+  return st.gameId;
+}
+// who "you" are in a saved game: your seat online, the human against the AI, nobody on a shared screen
+function gameSeat(st, mode) { if (!net && viewing(st)) return viewing(st).seat; return mode === 'online' ? (net ? net.seat : null) : mode === 'ai' ? st.players.find(p => !p.isAI).id : null; }
+function gameSummary(st) {
+  const mode = gameMode(st);
+  return { id: gameId(st), at: Date.now(), startedAt: st.startedAt || null, mode, code: net ? net.code : viewing(st) ? viewing(st).code : null, seat: gameSeat(st, mode),
+    round: st.round, phase: st.phase, status: st.phase === 'over' ? 'over' : 'playing', winner: st.winner, winReason: st.winReason || null,
+    players: st.players.map(p => ({ name: p.name, doctrine: p.doctrine, isAI: !!p.isAI, vp: p.vp || 0, baseHp: p.base.hp })) };
+}
+function saveGameLocal(st) {
+  try {
+    const sum = gameSummary(st);
+    localStorage.setItem(GAME(sum.id), JSON.stringify(st));
+    const list = [sum].concat(gamesIndex().filter(g => g.id !== sum.id));
+    list.slice(GAMES_MAX).forEach(g => localStorage.removeItem(GAME(g.id)));
+    localStorage.setItem(GAMES, JSON.stringify(list.slice(0, GAMES_MAX)));
+  } catch (e) { /* storage full or unavailable */ }
+}
+// a save from before the list existed becomes its first entry
+try {
+  const old = localStorage.getItem(SAVE);
+  if (old) { const st = JSON.parse(old); if (st && st.v === 4 && st.players) saveGameLocal(st); localStorage.removeItem(SAVE); }
+} catch (e) { /* nothing to fold in */ }
 const TYPE_LABEL = { event: 'Event', torso: 'Chassis', core: 'Reactor', legs: 'Legs', arm: 'Arm', aux: 'Aux', tactic: 'Tactic' };
 
 /* ---------- Glyphs ---------- */
@@ -1386,20 +1430,18 @@ function queueEnd() {
   clearTimeout(ui.endT);
   ui.endT = setTimeout(showEnd, Math.max(400, (ui.fxEnd || 0) - Date.now() + 400));
 }
-// every finished war, online or not, is kept in the player's own private history so it can be reviewed later
+// every war, online or not and finished or not, is kept in the player's own private history: updated each round and at the end
 async function saveHistory() {
   try {
     await netReady;
-    if (!NETDB || !ME || !S || S.phase !== 'over') return;
-    const mode = net ? 'online' : S.players.some(p => p.isAI) ? 'ai' : 'local';
-    const seat = net ? net.seat : mode === 'ai' ? S.players.find(p => !p.isAI).id : null;
-    const id = (net ? 'online-' + net.code : mode + '-' + (S.startedAt || Date.now())) + '-r' + S.round;
-    await NETDB.doc('data/users/' + ME + '/mw/history/' + id).set({
-      v: 1, at: Date.now(), mode, code: net ? net.code : null, seat, round: S.round, winner: S.winner, winReason: S.winReason || null,
-      players: S.players.map(p => ({ name: p.name, doctrine: p.doctrine, isAI: !!p.isAI, vp: p.vp || 0, baseHp: p.base.hp, kills: p.kills || 0, lost: p.lost || 0, supply: p.supply, hangar: p.hangar.length })),
-      log: (S.log || []).map(l => 'R' + l.r + ' ' + l.t),
-      state: JSON.stringify(S)
-    });
+    if (!NETDB || !ME || !S) return;
+    const st = S, sum = gameSummary(st);
+    await NETDB.doc('data/users/' + ME + '/mw/history/' + sum.id).set(Object.assign(sum, {
+      v: 2,
+      players: st.players.map(p => ({ name: p.name, doctrine: p.doctrine, isAI: !!p.isAI, vp: p.vp || 0, baseHp: p.base.hp, kills: p.kills || 0, lost: p.lost || 0, supply: p.supply, hangar: p.hangar.length })),
+      log: (st.log || []).map(l => 'R' + l.r + ' ' + l.t),
+      state: JSON.stringify(st)
+    }));
   } catch (e) { /* history is a nicety; the game goes on without it */ }
 }
 function showEnd() {
@@ -1926,7 +1968,9 @@ function render() {
   renderTop(); renderFlow(); renderTrack(); renderBoard(); renderDock(); renderWin(); renderReveal();
   if (R3on) mountHangar();
   ui.flash = null; ui.logN = S.logN || 0;
-  if (!net) { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+  saveGameLocal(S);
+  const hk = gameId(S) + ':' + S.round + ':' + (S.phase === 'over');
+  if (ui.histKey !== hk) { ui.histKey = hk; saveHistory(); }
 }
 function mountHangar() {
   const el = document.getElementById('h3d');
@@ -2049,6 +2093,7 @@ function onAct(el) {
   const a = el.dataset.act;
   if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } return renderTop(); }
   if (a === 'rules') { ui.ruleTab = 0; return showRules(); }
+  if (a === 'recent') return showRecent();
   if (a === 'ruleTab') { ui.ruleTab = +el.dataset.tab; return showRules(); }
   if (a === 'deckList') return showDeck(el.dataset.doc);
   if (a === 'wtab') { ui.wtab = el.dataset.tab; ui.pg = 0; return render(); }
@@ -2199,10 +2244,10 @@ function showStart() {
   leaveMatch();
   $('#online').hidden = true;
   $('#game').hidden = true; $('#start').hidden = false; $('#overlay').hidden = true;
-  let has = false;
-  try { has = !!localStorage.getItem(SAVE); } catch (e) { /* storage unavailable */ }
-  $('#resume').hidden = !has;
-  $('#menu').hidden = false; $('#setup').hidden = true;
+  const last = gamesIndex().find(g => g.status === 'playing' && g.mode !== 'online');
+  $('#resume').hidden = !last;
+  if (last) $('#resume').dataset.id = last.id;
+  $('#menu').hidden = false; $('#setup').hidden = true; $('#recent').hidden = true;
 }
 function showGame() {
   if (R3on) window.R3.reset();
@@ -2329,11 +2374,103 @@ $('#setup').addEventListener('submit', e => {
   const cs = document.getElementById('cmd1'); ui.cmd = cs ? cs.value : 'random';
   MW.newGame({ players: [{ name: 'Azure', doctrine: f.get('doc0'), isAI: false }, { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai', persona: ui.cmd !== 'random' ? ui.cmd : null }] });
   MW.S.startedAt = Date.now();
+  MW.S.gameId = (ui.startMode === 'ai' ? 'ai-' : 'local-') + MW.S.startedAt;
+  ui.endShown = null; ui.histKey = null; ui.viewMeta = null;
   showGame();
 });
 $('#resume').addEventListener('click', () => {
-  try { const s = JSON.parse(localStorage.getItem(SAVE)); if (s && s.v === 4) { MW.load(s); return showGame(); } } catch (e) { /* unreadable save */ }
-  $('#resume').hidden = true;
+  if (!openGame($('#resume').dataset.id)) $('#resume').hidden = true;
+});
+// a game from the list: the local copy first, the cloud copy when it was played on another device
+function openGame(id, cloud, meta) {
+  let st = null;
+  try { st = JSON.parse(localStorage.getItem(GAME(id)) || 'null'); } catch (e) { /* unreadable */ }
+  if (!st && cloud && cloud.state) { try { st = JSON.parse(cloud.state); } catch (e) { /* unreadable */ } }
+  if (!st || st.v !== 4) { toast('That game was saved by an older version and can\'t be opened.'); return false; }
+  ui.endShown = null; ui.histKey = null;
+  if (!st.gameId) st.gameId = id;
+  ui.viewMeta = meta && meta.mode === 'online' ? { id, mode: 'online', seat: meta.seat, code: meta.code } : null;
+  MW.load(st);
+  showGame();
+  return true;
+}
+function rgTitle(g) {
+  const [a, b] = g.players, me = g.seat != null ? g.seat : null;
+  const them = me != null ? g.players[1 - me] : null;
+  const vs = g.mode === 'ai' ? 'vs AI' : g.mode === 'online' ? 'Online' : 'Two players';
+  return vs + ' · ' + (me != null ? DOC_NAME(g.players[me].doctrine) + ' vs ' + DOC_NAME(them.doctrine) : DOC_NAME(a.doctrine) + ' vs ' + DOC_NAME(b.doctrine));
+}
+function rgLine(g) {
+  const [a, b] = g.players;
+  const score = g.seat != null ? (g.players[g.seat].vp + '–' + g.players[1 - g.seat].vp) : (a.vp + '–' + b.vp);
+  const ph = { build: 'build', deploy: 'deployment', action: 'battle', resolve: 'battle', draw: 'draw', over: 'ended' }[g.phase] || g.phase;
+  return 'Round ' + g.round + (g.status === 'over' ? '' : ' · ' + ph) + ' · ' + score + ' pts · ' + ago(g.at);
+}
+async function showRecent() {
+  $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#recent').hidden = false;
+  const el = $('#recent-list');
+  const draw = list => {
+    el.innerHTML = list.length ? '' : '<p class="note">No games yet. Start one from the menu and it will show up here.</p>';
+    for (const g of list.slice(0, GAMES_MAX)) {
+      const row = document.createElement('div'); row.className = 'nrow';
+      const info = document.createElement('span'), b = document.createElement('b'), sm = document.createElement('small');
+      b.textContent = rgTitle(g);
+      const tag = document.createElement('i'); tag.className = 'rg-res';
+      if (g.status !== 'over') { tag.classList.add('live'); tag.textContent = 'In progress'; }
+      else if (g.seat != null) { const w = g.winner === g.seat; tag.classList.add(w ? 'won' : 'lost'); tag.textContent = w ? 'Won' : 'Lost'; }
+      else { tag.textContent = g.players[g.winner] ? g.players[g.winner].name + ' won' : 'Ended'; }
+      b.append(tag);
+      sm.textContent = rgLine(g);
+      info.append(b, sm);
+      const acts = document.createElement('span'); acts.className = 'row';
+      const live = g.status !== 'over';
+      acts.innerHTML = '<button type="button" class="btn sm' + (live ? ' primary' : '') + '" data-rg="open" data-id="' + g.id + '">' + (live ? 'Continue' : 'View') + '</button>' +
+        '<button type="button" class="btn sm ghost" data-rg="del" data-id="' + g.id + '" aria-label="Delete this game">Delete</button>';
+      row.append(info, acts); el.append(row);
+    }
+    ui.recent = list;
+  };
+  const local = gamesIndex().map(g => Object.assign({ local: true }, g));
+  draw(local);
+  // games saved to the cloud from other devices join the list
+  try {
+    await netReady;
+    if (!NETDB || !ME) return;
+    const snap = await NETDB.collection('data/users/' + ME + '/mw/history').orderBy('at', 'desc').limit(GAMES_MAX).get();
+    if ($('#recent').hidden) return;
+    const seen = new Set(local.map(g => g.id)), merged = local.slice();
+    for (const d of snap.docs) {
+      const g = d.data(); if (!g || !g.players) continue;
+      const id = g.id || d.id;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      merged.push(Object.assign({}, g, { id, status: g.status || 'over', phase: g.phase || 'over', cloud: d.id }));
+    }
+    merged.sort((x, y) => (y.at || 0) - (x.at || 0));
+    draw(merged);
+  } catch (e) { /* the local list stands on its own */ }
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-rg]');
+  if (!b || b.disabled) return;
+  const g = (ui.recent || []).find(x => x.id === b.dataset.id);
+  if (!g) return;
+  if (b.dataset.rg === 'open') {
+    // an online match still being played is rejoined live; anything else opens from its save
+    if (g.mode === 'online' && g.status !== 'over' && g.code && NETDB) {
+      try { const snap = await NETDB.doc('matches/' + g.code).get(); if (snap.exists && snap.data().status === 'playing') return enterMatch(snap.data()); } catch (err) { /* fall back to the save */ }
+    }
+    let cloud = null;
+    if (g.cloud || !g.local) { try { const snap = await NETDB.doc('data/users/' + ME + '/mw/history/' + (g.cloud || g.id)).get(); cloud = snap.exists ? snap.data() : null; } catch (err) { /* offline */ } }
+    return openGame(g.id, cloud, g);
+  }
+  if (b.dataset.rg === 'del') {
+    if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Sure?'; b.classList.remove('ghost'); return; }
+    b.disabled = true;
+    try { localStorage.removeItem(GAME(g.id)); localStorage.setItem(GAMES, JSON.stringify(gamesIndex().filter(x => x.id !== g.id))); } catch (err) { /* storage unavailable */ }
+    try { await netReady; if (NETDB && ME) await NETDB.doc('data/users/' + ME + '/mw/history/' + (g.cloud || g.id)).delete(); } catch (err) { /* local copy is gone either way */ }
+    showRecent();
+  }
 });
 
 // tapping an icon or stat names it, since phones have no hover
@@ -2361,7 +2498,7 @@ $('#back').addEventListener('click', () => { $('#menu').hidden = false; $('#setu
 /* ---------- Online match: one shared document per match, synced after every move ---------- */
 const clone = o => JSON.parse(JSON.stringify(o));
 const DOC_NAME = id => MW.DOCTRINES[id] ? MW.DOCTRINES[id].name.replace(' Doctrine', '') : 'Unknown';
-function ago(t) { const m = Math.max(0, Math.round((Date.now() - (t || 0)) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; }
+function ago(t) { const m = Math.max(0, Math.round((Date.now() - (t || 0)) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; }
 function netMsg(t) { const el = $('#net-msg'); el.textContent = t || ''; el.hidden = !t; }
 async function netInit() {
   try {
