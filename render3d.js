@@ -1109,8 +1109,8 @@ function buildCrate(c) {
 }
 
 /* ---------- effects ---------- */
-function muzzleWorld(rec, cat) {
-  const R = rec.R, pick = Object.keys(R.muzzles).find(k => R.muzzles[k].cat === cat) || Object.keys(R.muzzles)[0];
+function muzzleWorld(rec, cat, slotKey) {
+  const R = rec.R, pick = (slotKey && R.muzzles[slotKey] ? slotKey : null) || Object.keys(R.muzzles).find(k => R.muzzles[k].cat === cat) || Object.keys(R.muzzles)[0];
   const mz = pick && R.muzzles[pick];
   rec.R.root.updateMatrixWorld(true);
   if (!mz) return rec.R.root.position.clone().add(new T.Vector3(0, 0.5, 0));
@@ -1193,7 +1193,7 @@ function slash(at, col, delay, flipArc) {
 // fire one weapon: returns the time (s) from now until it lands
 const ANTICIPATION = 0.42;  // wind-up before any weapon goes off
 // wind-up glow gathering at the weapon that is about to fire, with sparks drawn in toward it
-function charge(att, cat, dur) {
+function charge(att, cat, dur, slotKey) {
   if (!att) return;
   const col = FX_COL[cat] || 0xffffff;
   const m = new T.Mesh(sph(0.05, 10), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
@@ -1202,7 +1202,7 @@ function charge(att, cat, dur) {
   BD.anims.push(t => {
     const k = (t - t0) / dur;
     if (k >= 1 || att.gone) { BD.group.remove(m); m.material.dispose(); return false; }
-    const p = muzzleWorld(att, cat);
+    const p = muzzleWorld(att, cat, slotKey);
     m.position.copy(p); m.scale.setScalar(0.5 + k * 1.8 + Math.sin(t * 45) * 0.18); m.material.opacity = 0.2 + 0.75 * k;
     if (LEVEL !== 'low' && Math.random() < 0.6) {
       const o = new T.Vector3(rand(-0.3, 0.3), rand(-0.2, 0.3), rand(-0.3, 0.3));
@@ -1225,7 +1225,7 @@ function reticle(p, dur) {
   });
 }
 function shoot(f, start) {
-  const att = recAt(f.x0, f.y0, false) || recAt(f.x0, f.y0, true);
+  const att = (f.uid && BD.recs[f.uid]) || recAt(f.x0, f.y0, false) || recAt(f.x0, f.y0, true);
   const tgtRec = recAt(f.x1, f.y1, false);
   let to = tp(f.x1, f.y1, 0.45);
   if (tgtRec) to = tgtRec.R.root.position.clone().add(new T.Vector3(0, 0.45, 0));
@@ -1241,13 +1241,13 @@ function shoot(f, start) {
     from = null;
   } else from = tp(f.x0, f.y0, 0.5);
   schedule(start, () => {
-    if (att) { faceTo(att, to); charge(att, cat, ANTICIPATION); }
+    if (att) { faceTo(att, to); charge(att, cat, ANTICIPATION, f.key); }
     else if (cat === 'turret') flash(from.clone(), 0xff7050, 0.25, ANTICIPATION);
     reticle(tp(f.x1, f.y1), ANTICIPATION + 0.25);
   });
   let travel = 0.2;
   const go = () => {
-    if (!from) from = muzzleWorld(att, cat);
+    if (!from) from = muzzleWorld(att, cat, f.key);
     if (att) { att.recoil = clock(); const mz = att.R.muzzles[att.lastArm]; if (mz && mz.spin) att.spin = clock(); }
     if (cat === 'ballistic' || cat === 'turret') {
       flash(from.clone(), 0xffe9a8, 0.22, 0.08);
@@ -1313,29 +1313,36 @@ R3.fx = function (list) {
     tok = ++BD.focusTok;
   }
   const delays = list.map(() => 0);
-  let tShot = lead, end = lead;
+  const combat = [], res = [];
+  list.forEach((f, i) => (f.res ? res : combat).push(i));
+  let end = lead;
+  const runPass = (idx, base) => {
+  const sub = idx.map(i => list[i]);
+  let tShot = base, endP = base;
   const impact = {};
-  list.forEach(f => {
+  sub.forEach(f => {
     if (f.k === 'move') {
       const rec = BD.recs[f.uid]; if (!rec || f.path.length < 2) return;
-      const pts = f.path.map(p => tp(p[0], p[1]));
-      rec.walk = { pts, t0: clock() + lead, dur: 0.26 * (pts.length - 1) };
+      const all = f.path.map(p => tp(p[0], p[1]));
+      // a jump is a single hop, high enough to clear what it passes over
+      const pts = f.jump ? [all[0], all[all.length - 1]] : all;
+      rec.walk = { pts, t0: clock() + base, dur: f.jump ? 0.35 + 0.12 * (all.length - 1) : 0.26 * (pts.length - 1), hop: f.jump ? 1.1 + 0.1 * (all.length - 1) : 0 };
       rec.R.root.position.copy(pts[0]);
-      tShot = Math.max(tShot, lead + rec.walk.dur + 0.1);
+      tShot = Math.max(tShot, base + rec.walk.dur + 0.1);
     } else if (f.k === 'deploy') {
       const rec = BD.recs[f.uid]; if (!rec) return;
-      rec.drop = { t0: clock() + lead, dur: 0.6 };
-      tShot = Math.max(tShot, lead + 0.7);
+      rec.drop = { t0: clock() + base, dur: 0.6 };
+      tShot = Math.max(tShot, base + 0.7);
     } else if (f.k === 'enter') {
       const rec = Object.values(BD.recs).find(r => r.uid === f.uid);
-      if (rec) { rec.claimed = true; const b = window.MW.S.players[f.owner].base; rec.leave = { t0: clock() + lead, dur: 0.7, to: tp(b.x, b.y) }; tShot = Math.max(tShot, lead + 0.75); }
+      if (rec) { rec.claimed = true; const b = window.MW.S.players[f.owner].base; rec.leave = { t0: clock() + base, dur: 0.7, to: tp(b.x, b.y) }; tShot = Math.max(tShot, base + 0.75); }
     } else if (f.k === 'boom' || f.k === 'nuke' || f.k === 'strip') {
       const rec = (f.uid && BD.recs[f.uid]) || recAt(f.x, f.y, true);
       if (rec) rec.claimed = true;
     }
   });
   const pairN = {};
-  list.forEach(f => {
+  sub.forEach(f => {
     if (f.k !== 'shot') return;
     const pk = [f.x0, f.y0, f.x1, f.y1].join();
     const n = pairN[pk] = (pairN[pk] || 0) + 1;
@@ -1344,12 +1351,12 @@ R3.fx = function (list) {
     const k = key(f.x1, f.y1);
     impact[k] = Math.max(impact[k] || 0, start + travel);
   });
-  end = Math.max(end, tShot, ...Object.values(impact));
-  list.forEach((f, i) => {
-    const k = key(f.x, f.y);
+  endP = Math.max(endP, tShot, ...Object.values(impact));
+  sub.forEach((f, j) => {
+    const i = idx[j], k = key(f.x, f.y);
     if (f.k === 'float') { delays[i] = Math.round(1000 * (impact[k] != null ? impact[k] : tShot)); return; }
     const at = (impact[k] != null ? impact[k] + 0.15 : tShot) + 0.05;
-    if (f.k === 'boom' || f.k === 'nuke') end = Math.max(end, at + (f.k === 'nuke' ? 2 : 1.1));
+    if (f.k === 'boom' || f.k === 'nuke') endP = Math.max(endP, at + (f.k === 'nuke' ? 2 : 1.1));
     if (f.k === 'boom') {
       delays[i] = at * 1000;
       const rec = (f.uid && BD.recs[f.uid]) || recAt(f.x, f.y, true) || null;
@@ -1369,12 +1376,22 @@ R3.fx = function (list) {
       const rec = recAt(f.x, f.y, false);
       schedule(at, () => { if (rec) rec.braceT = clock(); });
     } else if (f.k === 'capture') {
+      // "Captured" shows with its light pillar, not before
+      delays[i] = Math.round(tShot * 1000);
       schedule(tShot, () => pillar(tp(f.x, f.y), TEAM[f.owner].ring));
+      endP = Math.max(endP, tShot + 0.8);
     } else if (f.k === 'drop') {
+      delays[i] = Math.round(tShot * 1000);
       const cr = BD.crates[k];
-      if (cr) { cr.userData.dropT = clock(); cr.userData.body.position.y = 4; cr.userData.chute.visible = true; }
+      // the crate stays out of sight until its drop begins
+      if (cr) { cr.visible = false; schedule(tShot, () => { cr.visible = true; cr.userData.dropT = clock(); cr.userData.body.position.y = 4; cr.userData.chute.visible = true; }); }
+      endP = Math.max(endP, tShot + 1);
     }
   });
+  return endP;
+  };
+  end = runPass(combat, lead);
+  if (res.length) end = runPass(res, end + (combat.length ? 0.35 : 0));
   // hold the shot for a beat after the last hit, then hand the camera back
   delays.total = Math.round((end + 0.35) * 1000);
   if (tok != null) schedule(end + 0.6, () => { if (BD.focusTok === tok) applyIntent(); });
@@ -1500,6 +1517,7 @@ function updateRec(rec, t, dt) {
     root.position.lerpVectors(a, b, u);
     rec.faceT = Math.atan2(b.x - a.x, b.z - a.z);
     moving = q > 0;
+    if (w.hop) y += Math.sin(q * Math.PI) * w.hop;
     if (q >= 1) { rec.walk = null; root.position.copy(rec.pos); moving = false; }
   }
   // returning to base

@@ -238,7 +238,7 @@ function log(t, k) {
   S.logN = (S.logN || 0) + 1;
   if (S.log.length > 400) S.log.splice(0, S.log.length - 400);
 }
-function fx(o) { S.fx.push(o); if (S.fx.length > 120) S.fx.splice(0, S.fx.length - 120); }
+function fx(o) { if (S.phase === 'resolve') o.res = true; S.fx.push(o); if (S.fx.length > 120) S.fx.splice(0, S.fx.length - 120); }
 function mark(m) { (S.order = S.order || []).push({ uid: m.uid, owner: m.owner, name: m.name }); }
 function fxFloat(x, y, t, c) { fx({ k: 'float', x, y, t, c }); }
 function shuffle(a) {
@@ -855,7 +855,9 @@ function move(m, x, y) {
   const st = stats(m);
   S.active = m.uid; m.ap--; m.moves++; m.heat += st.moveHeat;
   const from = coord(m.x, m.y);
-  fx({ k: 'move', uid: m.uid, path: pathTo(m, x, y) });
+  const path = pathTo(m, x, y);
+  const leaps = locoMode(m) === 'jump' && path.slice(1, -1).some(([px, py]) => !passable(px, py) || mechAt(px, py));
+  fx({ k: 'move', uid: m.uid, path, jump: leaps });
   m.x = x; m.y = y;
   log(m.name + ' moves ' + from + ' → ' + coord(x, y) + '.', 'p' + m.owner);
   pickupCrate(m);
@@ -936,7 +938,7 @@ function triggerOverwatch(mover) {
     log('Overwatch! ' + o.name + ' fires ' + d.name + ' at ' + mover.name + ' (' + ch + '%).', 'p' + o.owner);
     for (let s = 0; s < (w.shots || 1) && S.mechs.includes(mover); s++) {
       const hit = rnd() * 100 < ch;
-      fx({ k: 'shot', x0: o.x, y0: o.y, x1: mover.x, y1: mover.y, hit, cat: d.cat });
+      fx({ k: 'shot', x0: o.x, y0: o.y, x1: mover.x, y1: mover.y, hit, cat: d.cat, uid: o.uid, key: wp.key });
       if (!hit) { fxFloat(mover.x, mover.y, 'Miss', 'info'); log(o.name + ' misses.', 'hit'); continue; }
       applyStatus(w, mover);
       applyDamage(mover, rollLocation(mover), w.dmg + st.dmgBonus, w.ap);
@@ -1142,7 +1144,7 @@ function fire(m, key, target, part) {
       const bd = Math.round(dmg * (w.siege || 1)), bp = S.players[t.pid];
       bp.base.hp -= bd; S.players[m.owner].siegeDmg = (S.players[m.owner].siegeDmg || 0) + bd;
       aiAdjust(t.pid, 'hold', 0.08);
-      fx({ k: 'shot', x0: m.x, y0: m.y, x1: t.x, y1: t.y, hit: true, cat: d.cat });
+      fx({ k: 'shot', x0: m.x, y0: m.y, x1: t.x, y1: t.y, hit: true, cat: d.cat, uid: m.uid, key });
       fxFloat(t.x, t.y, '−' + bd, 'bad');
       log(m.name + ' hits ' + bp.name + "'s base with " + d.name + ' for ' + bd + '. Base at ' + Math.max(0, bp.base.hp) + '.', 'kill');
       if (bp.base.hp <= 0) break;
@@ -1150,7 +1152,7 @@ function fire(m, key, target, part) {
       const tm = fieldMech(t.uid);
       if (!tm) break;
       const ch = hitChance(m, key, tm, part), hit = rnd() * 100 < ch;
-      fx({ k: 'shot', x0: m.x, y0: m.y, x1: tm.x, y1: tm.y, hit, cat: d.cat });
+      fx({ k: 'shot', x0: m.x, y0: m.y, x1: tm.x, y1: tm.y, hit, cat: d.cat, uid: m.uid, key });
       if (!hit) { fxFloat(tm.x, tm.y, 'Miss', 'info'); log(m.name + ' fires ' + d.name + ' at ' + tm.name + ' (' + ch + '%) and misses.', 'p' + m.owner); continue; }
       log(m.name + ' fires ' + d.name + ' at ' + tm.name + ' (' + ch + '%) and hits.', 'p' + m.owner);
       if (w.heatDmg) { tm.heat += w.heatDmg; fxFloat(tm.x, tm.y, '+' + w.heatDmg + ' heat', 'warn'); }
