@@ -783,6 +783,14 @@ function buildMech(m, owner, doctrine, opt) {
       else if (opt.ghosts) { const gg = new T.Group(); gg.position.set(spots[i][0], spots[i][1], spots[i][2]); bp.add(gg); mesh(box(0.06, 0.06, 0.05), GHOST, gg, null, null, flat); tag(gg, 'aux' + i); }
     }
   }
+  // legs are always the biggest part: wider and taller than the whole chassis (signature parts and head included)
+  if ((S.legs || opt.ghosts) && S.torso) {
+    root.updateMatrixWorld(true);
+    const lb = new T.Box3().setFromObject(legsG), fb = new T.Box3().setFromObject(frame), ls = new T.Vector3(), fs2 = new T.Vector3();
+    lb.getSize(ls); fb.getSize(fs2);
+    const grow = Math.min(1.9, Math.max(1, (fs2.x * 1.15) / Math.max(0.01, ls.x), (fs2.y * 1.05) / Math.max(0.01, R.hipY)));
+    if (grow > 1.001) { legsG.scale.setScalar(grow); R.hipY *= grow; hips.position.y = R.hipY; }
+  }
   const scale = (fid === 't_fortress' ? 1.06 : 1) * (style === 'armored' ? 1.08 : style === 'assault' ? 0.96 : 1);
   root.scale.setScalar(scale);
   return R;
