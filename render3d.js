@@ -377,6 +377,10 @@ function buildLegs(R, g, id, tc, style, ghost) {
   }
 }
 
+// the weapon kit's own paint, shared by every army: a dark body, grey barrels, orange caps and a red sight
+const KIT = { body: 0x2c2f34, grey: 0x7d8288, light: 0xa7acb1, orange: 0xd9892e, red: 0xb63a30 };
+// weapons a mech carries in its hand; the rest are built onto the forearm or the shoulder
+const HANDHELD = new Set(['b_gun', 'w_smg', 'w_scatter', 'w_gatling', 'w_rail', 'w_laser', 'w_lance', 's_inferno', 's_cryo', 'w_blade']);
 function buildWeapon(p, id, tc, sx) {
   const D = toon(tc.metal), D2 = toon(tc.dark), mu = new T.Object3D();
   let z = 0.22, y = 0;
@@ -384,35 +388,38 @@ function buildWeapon(p, id, tc, sx) {
   const sight = (zz, yy) => mesh(box(0.016, 0.018, 0.04), toon(tc.trim), p, [0, yy, zz], null, flat);
   switch (id) {
     case 'b_gun':
-      // autocannon: one long barrel with a slotted muzzle brake and a side box magazine
-      mesh(wedge(0.06, 0.075, 0.17, 0.85, 0.9), toon(tc.main), p, [0, 0, 0.05]);
-      mesh(cyl(0.015, 0.015, 0.22, 8), D2, p, [0, 0.012, 0.24], [Math.PI / 2, 0, 0]);
-      mesh(box(0.04, 0.03, 0.05), D2, p, [0, 0.012, 0.36]);
-      mesh(box(0.042, 0.008, 0.012), toon(tc.trim), p, [0, 0.012, 0.37], null, flat);
-      mesh(box(0.04, 0.06, 0.06), toon(tc.second), p, [0.05, -0.01, 0.05]);
-      mesh(box(0.03, 0.05, 0.04), D2, p, [0, -0.05, 0.02]); sight(0.03, 0.05);
-      z = 0.39; y = 0.012; break;
+      // autocannon, the kit rifle: a dark receiver and stock, a grey barrel shroud, a grey drum magazine
+      // under the front, orange muzzle and stock caps
+      mesh(box(0.056, 0.07, 0.22), toon(KIT.body), p, [0, 0.01, 0.06]);
+      mesh(box(0.05, 0.05, 0.08), toon(KIT.body), p, [0, 0.0, -0.08]);
+      mesh(box(0.052, 0.054, 0.016), toon(KIT.orange), p, [0, 0.0, -0.124]);
+      mesh(cyl(0.024, 0.024, 0.15, 14), toon(KIT.grey), p, [0, 0.016, 0.24], [Math.PI / 2, 0, 0]);
+      mesh(cyl(0.026, 0.026, 0.03, 14), toon(KIT.orange), p, [0, 0.016, 0.325], [Math.PI / 2, 0, 0]);
+      mesh(cyl(0.036, 0.036, 0.05, 14), toon(KIT.grey), p, [0, -0.045, 0.14], [0, 0, Math.PI / 2]);
+      mesh(box(0.03, 0.022, 0.06), toon(KIT.light), p, [0, 0.055, 0.03]);
+      z = 0.35; y = 0.016; break;
     case 'w_smg':
-      // twin SMGs: two stubby guns side by side, each with a long magazine hanging below
+      // twin SMGs: two stubby dark guns, grey magazines hanging below, orange muzzles
       for (const x of [-0.03, 0.03]) {
-        mesh(box(0.034, 0.045, 0.1), toon(tc.second), p, [x, 0, 0.04]);
-        mesh(cyl(0.009, 0.009, 0.06, 6), D2, p, [x, 0.008, 0.12], [Math.PI / 2, 0, 0]);
-        mesh(box(0.018, 0.11, 0.022), D2, p, [x, -0.075, 0.06], [0.2, 0, 0]);
-        mesh(box(0.036, 0.008, 0.06), toon(tc.trim), p, [x, 0.026, 0.03], null, flat);
+        mesh(box(0.034, 0.048, 0.11), toon(KIT.body), p, [x, 0, 0.04]);
+        mesh(cyl(0.011, 0.011, 0.05, 10), toon(KIT.grey), p, [x, 0.008, 0.12], [Math.PI / 2, 0, 0]);
+        mesh(cyl(0.013, 0.013, 0.014, 10), toon(KIT.orange), p, [x, 0.008, 0.15], [Math.PI / 2, 0, 0]);
+        mesh(box(0.02, 0.1, 0.024), toon(KIT.grey), p, [x, -0.07, 0.07], [0.2, 0, 0]);
       }
       z = 0.16; y = 0.008; break;
     case 'w_scatter':
-      // scatter cannon: a short body, a pump grip and one wide flared bell of a muzzle
-      mesh(wedge(0.08, 0.075, 0.14, 0.85, 0.9), D, p, [0, 0, 0.04]);
-      mesh(cyl(0.026, 0.026, 0.1, 10), D2, p, [0, 0.01, 0.16], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.062, 0.03, 0.07, 12), toon(tc.second), p, [0, 0.01, 0.24], [Math.PI / 2, 0, 0]);
-      mesh(tor(0.056, 0.008), toon(tc.trim), p, [0, 0.01, 0.275], null, flat);
-      mesh(box(0.05, 0.03, 0.05), toon(tc.trim), p, [0, -0.025, 0.14]);
-      z = 0.28; y = 0.01; break;
+      // scatter cannon, the kit's stubby drum gun: a fat grey drum body, a dark top rail, an orange pump grip
+      // and a flared muzzle
+      mesh(cyl(0.05, 0.05, 0.15, 16), toon(KIT.grey), p, [0, 0.0, 0.07], [Math.PI / 2, 0, 0]);
+      mesh(box(0.04, 0.025, 0.17), toon(KIT.body), p, [0, 0.055, 0.06]);
+      mesh(cyl(0.064, 0.034, 0.06, 16), toon(KIT.body), p, [0, 0.0, 0.17], [Math.PI / 2, 0, 0]);
+      mesh(tor(0.06, 0.008), toon(KIT.orange), p, [0, 0.0, 0.2], null, flat);
+      mesh(box(0.03, 0.05, 0.04), toon(KIT.orange), p, [0, -0.06, 0.13], [0.2, 0, 0]);
+      z = 0.21; y = 0.0; break;
     case 'w_gatling': {
       // gatling: a fat motor housing, a big spinning barrel cluster and a side ammo drum
-      mesh(cyl(0.05, 0.05, 0.12, 12), D, p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.055, 0.055, 0.04, 12), toon(tc.second), p, [0.075, -0.01, 0.02], [0, 0, Math.PI / 2]);
+      mesh(cyl(0.05, 0.05, 0.12, 12), toon(KIT.body), p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
+      mesh(cyl(0.055, 0.055, 0.04, 12), toon(KIT.orange), p, [0.075, -0.01, 0.02], [0, 0, Math.PI / 2]);
       mesh(box(0.012, 0.012, 0.08), toon(tc.trim), p, [0.045, -0.01, 0.06], null, flat);
       const cl = new T.Group(); cl.position.z = 0.17; p.add(cl); p.userData.spin = cl;
       for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mesh(cyl(0.011, 0.011, 0.2, 6), D2, cl, [Math.cos(a) * 0.03, Math.sin(a) * 0.03, 0], [Math.PI / 2, 0, 0], { noOutline: true }); }
@@ -420,27 +427,32 @@ function buildWeapon(p, id, tc, sx) {
       z = 0.28; break;
     }
     case 'w_rail':
-      mesh(wedge(0.065, 0.075, 0.17, 0.8, 0.9), D, p, [0, 0, 0.04]);
-      for (const x of [-0.024, 0.024]) mesh(box(0.013, 0.024, 0.36), toon(tc.trim), p, [x, 0.01, 0.27]);
-      mesh(box(0.026, 0.012, 0.32), glow(FX_COL.energy), p, [0, 0.01, 0.27], null, flat);
-      for (const zz of [0.14, 0.26, 0.38]) mesh(box(0.07, 0.012, 0.012), D2, p, [0, 0.01, zz], null, flat);
-      z = 0.46; y = 0.01; break;
+      // heavy rail cannon, the kit bazooka: a long dark upper body over a full-length grey tube, orange caps at
+      // both ends, a red sight panel on top and a foregrip
+      mesh(cyl(0.034, 0.034, 0.48, 16), toon(KIT.grey), p, [0, 0.0, 0.16], [Math.PI / 2, 0, 0]);
+      for (const zz of [-0.085, 0.405]) mesh(cyl(0.038, 0.038, 0.03, 16), toon(KIT.orange), p, [0, 0.0, zz], [Math.PI / 2, 0, 0]);
+      mesh(box(0.05, 0.05, 0.3), toon(KIT.body), p, [0, 0.05, 0.12]);
+      mesh(box(0.054, 0.034, 0.07), toon(KIT.red), p, [0, 0.065, -0.02]);
+      mesh(box(0.034, 0.024, 0.05), toon(KIT.light), p, [0, 0.09, 0.16]);
+      mesh(box(0.022, 0.05, 0.026), toon(KIT.body), p, [0, -0.055, 0.22], [0.25, 0, 0]);
+      z = 0.42; y = 0.0; break;
     case 'w_laser':
       // beam rifle: body, an offset box sensor with its lens, collimator coils on the barrel,
       // an energy-cap magazine at the rear, a foregrip and a glowing emitter
-      mesh(wedge(0.052, 0.07, 0.2, 0.85, 0.9), toon(tc.main), p, [0, 0, 0.06]);
-      mesh(box(0.036, 0.03, 0.08), toon(tc.second), p, [-0.03, 0.05, 0.05]);
+      mesh(wedge(0.052, 0.07, 0.2, 0.85, 0.9), toon(KIT.body), p, [0, 0, 0.06]);
+      mesh(box(0.036, 0.03, 0.08), toon(KIT.light), p, [-0.03, 0.05, 0.05]);
       mesh(cyl(0.011, 0.011, 0.01, 10), glow(tc.eye), p, [-0.03, 0.05, 0.092], [Math.PI / 2, 0, 0], flat);
-      mesh(box(0.04, 0.05, 0.05), toon(tc.accent), p, [0, -0.012, -0.06]);
+      mesh(box(0.04, 0.05, 0.05), toon(KIT.grey), p, [0, -0.012, -0.06]);
       mesh(box(0.022, 0.05, 0.03), D2, p, [0, -0.05, 0.11], [0.25, 0, 0]);
       mesh(cyl(0.014, 0.014, 0.16, 12), D2, p, [0, 0.008, 0.23], [Math.PI / 2, 0, 0]);
       for (const zz of [0.18, 0.22, 0.26]) mesh(cyl(0.02, 0.02, 0.012, 12), D, p, [0, 0.008, zz], [Math.PI / 2, 0, 0], flat);
-      mesh(cyl(0.022, 0.016, 0.03, 12), D, p, [0, 0.008, 0.31], [Math.PI / 2, 0, 0]);
+      mesh(cyl(0.022, 0.016, 0.03, 12), toon(KIT.orange), p, [0, 0.008, 0.31], [Math.PI / 2, 0, 0]);
       mesh(cyl(0.011, 0.011, 0.012, 10), glow(FX_COL.energy), p, [0, 0.008, 0.327], [Math.PI / 2, 0, 0], flat);
       z = 0.34; y = 0.008; break;
     case 'w_lance':
-      mesh(cyl(0.013, 0.026, 0.46, 8), toon(tc.main), p, [0, 0, 0.21], [Math.PI / 2, 0, 0]);
-      mesh(box(0.05, 0.05, 0.09), D, p, [0, 0, 0.02]);
+      mesh(cyl(0.013, 0.026, 0.46, 8), toon(KIT.grey), p, [0, 0, 0.21], [Math.PI / 2, 0, 0]);
+      mesh(box(0.05, 0.05, 0.09), toon(KIT.body), p, [0, 0, 0.02]);
+      mesh(cyl(0.016, 0.016, 0.02, 10), toon(KIT.orange), p, [0, 0, 0.44], [Math.PI / 2, 0, 0]);
       for (const zz of [0.1, 0.22, 0.34]) mesh(tor(0.03, 0.006), glow(FX_COL.energy), p, [0, 0, zz], null, flat);
       z = 0.46; break;
     case 'w_arc':
@@ -844,6 +856,16 @@ function buildMech(m, owner, doctrine, opt) {
     const onShoulder = cat === 'missile' || cat === 'artillery' || inst.id === 's_railgun';
     let wg = hand;
     if (onShoulder) { wg = new T.Group(); wg.position.set(sx * 0.01, 0.09, -0.02); sh.add(wg); }
+    else if (HANDHELD.has(inst.id)) {
+      // a fist closed round the grip: guns ride above it, barrel forward; a blade is held by its hilt and raised
+      const fm = style === 'armored' ? tc.second : tc.dark;
+      mesh(box(0.05, 0.05, 0.055), toon(fm), hand, [0, 0, 0.02]);
+      mesh(box(0.054, 0.018, 0.026), toon(tc.metal), hand, [0, 0.022, 0.044]);
+      mesh(box(0.016, 0.03, 0.032), toon(fm), hand, [sx * 0.031, 0.006, 0.028]);
+      wg = new T.Group(); hand.add(wg);
+      if (cat === 'melee') { wg.position.set(0, 0.0, -0.005); wg.rotation.x = -0.55; }
+      else { wg.position.set(0, 0.048, -0.05); mesh(box(0.024, 0.06, 0.03), toon(KIT.body), wg, [0, -0.04, 0.072], [0.3, 0, 0]); }
+    }
     R.muzzles[key] = { o: buildWeapon(wg, inst.id, tc, sx), cat: cat || 'ballistic', spin: wg.userData.spin || null };
     R.arms[key] = { sh, arm, el };
     tag(sh, key);
