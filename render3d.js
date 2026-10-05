@@ -433,37 +433,38 @@ function quadSolve(L, Q, x, y, z) {
 const QUAD_ORDER = [0, 0.5, 0.25, 0.75];
 function quadStep(st, R, dt, speed) {
   const Q = R.quad; if (!Q) return null;
-  const ws = R.legsG ? R.legsG.getWorldScale(new T.Vector3()).z || 1 : 1;
+  const ws = R.legsG ? R.legsG.getWorldScale(new T.Vector3()).z || 1 : 1, k = R.legsG ? R.legsG.scale.x : 1;
   st.w = (st.w || 0) + ((speed > 0.02 ? 1 : 0) - (st.w || 0)) * Math.min(1, dt * 4);
   st.phase = ((st.phase || 0) + Math.min(0.55, (speed / ws) * 0.75 / Q.stride) * dt) % 1;
-  const w = st.w, out = { bob: 0, roll: 0, pitch: 0, yaw: 0 }, drop = st.crouch || 0;
-  let stomp = 0, shx = 0, shz = 0;
+  const w = st.w, drop = st.crouch || 0;
+  // the hub: before each leg lifts it slides over the other three and sinks a little onto them, then eases back
+  let shx = 0, shz = 0, load = 0;
   Q.legs.forEach((L, i) => {
     const p = (st.phase + QUAD_ORDER[i]) % 1, f = p > 0.6 ? Math.sin(Math.PI * (p - 0.6) / 0.4) : 0;
-    shx -= Math.sign(L.hx) * f; shz -= Math.sign(L.hz) * f;
+    shx -= Math.sign(L.hx) * f; shz -= Math.sign(L.hz) * f; load += f;
   });
   shx *= 0.05 * w; shz *= 0.05 * w;
+  const hubY = -0.012 * w * load - drop;
   Q.legs.forEach((L, i) => {
     const p = (st.phase + QUAD_ORDER[i]) % 1;
     let z, y;
-    if (p < 0.75) {
-      z = Q.stride * (0.5 - p / 0.75); y = 0;
-      if (p < 0.1) stomp = Math.max(stomp, 1 - p / 0.1);                          // just planted: the weight lands
-    } else {
-      // lift slowly and high, hang, then drive the foot down hard
-      const s2 = (p - 0.75) / 0.25, up = Math.sin(Math.PI * Math.min(1, Math.pow(s2, 0.6)));
-      z = Q.stride * (-0.5 + smooth(s2)); y = Q.lift * up;
-      out.roll += -Math.sign(L.hx) * 0.035 * up * w; out.pitch += Math.sign(L.hz) * 0.03 * up * w;
-    }
-    quadSolve(L, Q, L.fx - shx, Q.sole + y * w + drop, L.fz + z * w - shz);
+    if (p < 0.75) { z = Q.stride * (0.5 - p / 0.75); y = 0; }
+    else { const s2 = (p - 0.75) / 0.25; z = Q.stride * (-0.5 + smooth(s2)); y = Q.lift * Math.sin(Math.PI * Math.min(1, Math.pow(s2, 0.6))); }
+    // feet are offset against the hub's motion so they stay planted on the ground
+    quadSolve(L, Q, L.fx - shx, Q.sole + y * w - hubY, L.fz + z * w - shz);
   });
-  out.yaw = 0.035 * w * Math.sin(st.phase * Math.PI * 2);
-  const k = R.legsG ? R.legsG.scale.x : 1; out.shx = shx * k; out.shz = shz * k;
-  // the hub leans into the shift as well as sliding
-  out.roll += -shx * 0.9; out.pitch += shz * 0.7;
-  out.bob = (-0.022 * w * stomp * stomp - drop) * (R.legsG ? R.legsG.scale.y : 1);
-  return out;
+  // the upper body rides the hub on a slow, soft spring: it lags each shift, leans into it, overshoots and settles
+  const sp = st.sp || (st.sp = { x: [0, 0], y: [0, 0], z: [0, 0] }), h = Math.min(0.05, dt), om = 4.2, ze = 0.32;
+  for (const [c, tgt] of [['x', shx], ['y', hubY], ['z', shz]]) { const a = sp[c]; a[1] += (om * om * (tgt - a[0]) - 2 * ze * om * a[1]) * h; a[0] += a[1] * h; }
+  return {
+    hubX: shx * k, hubY: hubY * k, hubZ: shz * k,
+    bodyX: sp.x[0] * k, bodyZ: sp.z[0] * k, bob: (sp.y[0] + drop) * k,
+    // the body tips toward where its weight is going, and the lag swings it a little further
+    roll: -sp.x[0] * 1.6 - sp.x[1] * 0.25, pitch: sp.z[0] * 1.3 + sp.z[1] * 0.2,
+    yaw: 0.03 * w * Math.sin(st.phase * Math.PI * 2),
+  };
 }
+
 
 // one step of the gait. st keeps the phase and blend between frames; speed is the body's ground speed (world units/s).
 // Each leg: 60% stance with the foot planted (sliding back under the hips at exactly the body's speed), heel strike
@@ -2037,7 +2038,7 @@ function updateRec(rec, t, dt) {
       const p0 = rec.gaitPos || root.position.clone(), sp = moving && dt > 0 ? Math.hypot(root.position.x - p0.x, root.position.z - p0.z) / dt : 0;
       rec.gaitPos = root.position.clone();
       const g = quadStep(rec.gait || (rec.gait = {}), R, dt, sp);
-      if (g) { R.hips.position.y += g.bob; R.hips.rotation.z = g.roll; R.torso.rotation.y += g.yaw; lean += g.pitch; R.legsG.position.x = R.hips.position.x = g.shx; R.legsG.position.z = R.hips.position.z = g.shz; }
+      if (g) { R.legsG.position.set(g.hubX, g.hubY, g.hubZ); R.hips.position.x = g.bodyX; R.hips.position.z = g.bodyZ; R.hips.position.y += g.bob; R.hips.rotation.z = g.roll; R.torso.rotation.y += g.yaw; lean += g.pitch; }
     }
     if (R.stakes) R.stakes.forEach(st => { st.g.rotation.z = entr ? st.sx * 0.6 : 0; st.g.position.y = entr ? -0.14 : -0.06; });
     if (R.boosters) R.boosters.forEach(f => { f.visible = moving; f.scale.y = 1 + Math.random() * 0.8; });
@@ -2553,8 +2554,9 @@ function pvAnimate(t, dt) {
       if (act === 'walk') for (const k in R.arms) R.arms[k].arm.rotation.x += -(k === 'armL' ? g.swing[1] : g.swing[0]) * (R.style === 'armored' ? 0.55 : 0.85);
     }
   } else if (R.kind === 'quad') {
-    const st = PV.gait || (PV.gait = {}); st.crouch = crouch * 1.3; R.legsG.position.y = -st.crouch * R.legsG.scale.y;
-    const g = quadStep(st, R, dt, speed); if (g) { hipY += g.bob; R.hips.rotation.z += g.roll; R.hips.rotation.x = g.pitch; R.torso.rotation.y += g.yaw; R.legsG.position.x = R.hips.position.x = g.shx; R.legsG.position.z = R.hips.position.z = g.shz; }
+    const st = PV.gait || (PV.gait = {}); st.crouch = crouch * 1.3;
+    const g = quadStep(st, R, dt, speed);
+    if (g) { R.legsG.position.set(g.hubX, g.hubY, g.hubZ); R.hips.position.x = g.bodyX; R.hips.position.z = g.bodyZ; hipY += g.bob - st.crouch * R.legsG.scale.y; R.hips.rotation.z += g.roll; R.hips.rotation.x = g.pitch; R.torso.rotation.y += g.yaw; }
   } else hipY -= crouch * (R.legsG ? R.legsG.scale.y : 1);
   if (R.hips) R.hips.position.y = hipY + (moving ? 0 : Math.sin(t * 1.6) * 0.004);
   if (R.head) R.head.rotation.y = Math.sin(t * 0.9) * 0.3 + R.torso.rotation.y * -0.4;
