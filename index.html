@@ -396,7 +396,11 @@ button.slot:hover { border-color: var(--ink); }
 /* compact card faces: every icon sits in the same box so they read as one family */
 :root { --fi: 20px; }
 .face, .ftags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-.ftags { margin-top: 4px; gap: 4px 8px; }
+.ftags { margin-top: 4px; gap: 4px 8px; justify-content: space-between; flex-wrap: nowrap; }
+.ftags .fr { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.kw { font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .04em; color: var(--accent); white-space: nowrap; }
+.fi.szw { font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.fi.mnts { gap: 0; }
 .fi { display: inline-flex; align-items: center; gap: 3px; color: var(--ink); font-family: var(--mono); font-size: 13px; line-height: 1; }
 .fi .ico, .fi .szi, .mnt { width: var(--fi); height: var(--fi); }
 .fi.big { font-size: 16px; } .fi b { font-weight: 600; }
@@ -572,6 +576,7 @@ button.rost { cursor: pointer; }
 .anc { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); width: 28%; height: 28%; background: var(--accent); color: var(--accent-ink); border-radius: 2px; display: flex; }
 .anc .ico { width: 100%; height: 100%; }
 .tok.entr { box-shadow: inset 0 -3px 0 var(--accent); }
+.k-gun { --cc: var(--c-ballistic); } .k-heavy { --cc: var(--c-artillery); } .k-any { --cc: var(--ink); }
 .k-aux { --cc: var(--good); } .k-tactic { --cc: var(--accent); } .k-event { --cc: var(--accent); }
 .btn.sell { background: transparent; border-color: var(--good); color: var(--good); }
 .btn.sell:hover:not(:disabled) { background: color-mix(in srgb, var(--good) 12%, transparent); border-color: var(--good); }
@@ -1063,6 +1068,20 @@ const ICONS = {
 const CAT_NAME = { incendiary: 'Incendiary', cryo: 'Cryo', melee: 'Melee', ballistic: 'Ballistic', energy: 'Energy', missile: 'Missile', artillery: 'Artillery', siege: 'Siege', shield: 'Shield', support: 'Support' };
 const ico = (name, cls) => '<svg class="ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
 const kind = d => d.cat || d.slot;
+// the card's type: chassis, legs, aux, or for an arm part the mount it fits (gun, energy, melee, heavy, universal)
+const cardKind = d => (d.slot === 'arm' ? (d.weapon ? MW.mountOf(d) : 'any') : d.slot === 'core' ? 'torso' : d.slot);
+const KIND_ICO = { gun: 'ammo', energy: 'energy', melee: 'melee', heavy: 'artillery', any: 'univ', torso: 'torso', legs: 'legs', aux: 'aux', tactic: 'tactic', event: 'event' };
+const kindIco = (d, cls) => ico(KIND_ICO[cardKind(d)] || cardKind(d), cls);
+// one word for the part's special rule; anything more lives in the details sheet
+const CHASSIS_KW = { b_torso: 'Universal', t_skirm: 'Quick', t_light: 'Evasive', t_assault: 'Brawler', t_heavy: 'Armoured', t_fortress: 'Bulwark', t_proto: 'Focus', c_sing: 'Volatile', s_frame: 'Shielded', s_core: 'Self-repair' };
+const LEG_KW = { jump: 'Jump', ram: 'Ram', stable: 'Stable', hover: 'Hover', surefoot: 'Sure-foot', entrench: 'Entrench' };
+function keyword(d) {
+  const w = d.weapon;
+  if (w) return w.needsEntrench ? 'Dug-in' : w.burn ? 'Burn' : w.slow ? 'Slow' : w.shock ? 'Shock' : w.heatDmg ? 'Scorch' : w.indirect ? 'Lob' : w.ap ? 'Pierce' : w.siege ? 'Siege' : w.shots > 1 ? 'Twin' : '';
+  if (d.slot === 'torso') return CHASSIS_KW[d.id] || (d.trait ? d.trait.split(':')[0] : '');
+  if (d.slot === 'legs') return LEG_KW[d.mode] || '';
+  return '';
+}
 const si = name => ico(name, 'si');
 
 /* ---------- Helpers ---------- */
@@ -1094,7 +1113,7 @@ function toast(msg, good) {
 }
 function armIcons(m) {
   let h = '';
-  for (const k of ['armL', 'armR']) { const i = m.slots[k]; if (i) { const c = kind(D[i.id]); h += ico(c, 'sm k-' + c + (i.hp <= 0 ? ' dead' : '')); } }
+  for (const k of ['armL', 'armR']) { const i = m.slots[k]; if (i) { const c = cardKind(D[i.id]); h += kindIco(D[i.id], 'sm k-' + c + (i.hp <= 0 ? ' dead' : '')); } }
   return h ? '<span class="wicons">' + h + '</span>' : '';
 }
 function statList(d) {
@@ -1153,61 +1172,44 @@ function sizeIcon(n, title) {
   return '<svg class="ico szi s' + n + '" viewBox="0 0 24 24" role="img" aria-label="' + (title || MW.SIZE_NAME[n]) + '"><title>' + (title || MW.SIZE_NAME[n]) + '</title><defs><clipPath id="' + id + '"><path d="M6 9h12l3 12H3z"/></clipPath></defs>' +
     (h ? '<rect x="0" y="' + (21 - h) + '" width="24" height="' + h + '" clip-path="url(#' + id + ')" class="wfill"/>' : '') + '<path d="M6 9h12l3 12H3z"/><path d="M9 9V6.5a3 3 0 0 1 6 0V9"/></svg>';
 }
-// every element of a card face: an icon, sometimes a number, a tooltip with the words
+// every card face has the same layout: two big numbers, then one keyword on the left and weight and heat on the right
 function faceHTML(d, cmp) {
-  const w = d.weapon, head = [], tags = [];
+  const w = d.weapon, head = [];
   const it = (icon, val, title, extra) => '<span class="fi' + (extra || '') + '" title="' + title + '">' + (icon.startsWith('<') ? icon : ico(icon)) + (val != null && val !== '' ? '<b>' + val + '</b>' : '') + '</span>';
   const num = (icon, v, title, cv, better) => {
     let arrow = '';
     if (cmp && cv != null && cv !== v) arrow = '<em class="' + ((v > cv) === (better !== false) ? 'up' : 'down') + '">' + (v > cv ? '▲' : '▼') + '</em>';
     head.push(it(icon, v + arrow, title, ' big'));
   };
+  const size = (n, pre, title) => '<span class="fi szw" title="' + title + '">' + (pre || '') + MW.SIZE_NAME[n || 2] + '</span>';
   const cw = cmp && cmp.weapon;
   if (w && w.repair) { num('wrench', w.repair, 'Repairs ' + w.repair + ' HP'); num('rng', w.range, 'Range ' + w.range); }
   else if (w) {
     num('dmg', w.dmg * (w.shots || 1), 'Damage ' + w.dmg * (w.shots || 1) + (w.shots > 1 ? ' (' + w.dmg + ' × ' + w.shots + ' shots)' : ''), cw ? cw.dmg * (cw.shots || 1) : null);
     num('rng', (w.min ? w.min + '–' : '') + w.range, 'Range ' + (w.min ? w.min + ' to ' : '') + w.range);
-    if (w.heat >= 2) tags.push(it('incendiary', w.heat >= 3 ? '2' : '', 'Runs hot', ' warn'));
-    if (w.acc >= 85) tags.push(it('accup', '', 'Accurate')); else if (w.acc <= 65) tags.push(it('accdn', '', 'Inaccurate', ' warn'));
-    if (w.burn) tags.push(it('incendiary', '', 'Sets the target burning', ' fx'));
-    if (w.slow) tags.push(it('cryo', '', 'Slows the target', ' fx'));
-    if (w.shock) tags.push(it('energy', '', 'Shocks: target loses an action', ' fx'));
-    if (w.ap) tags.push(it('ap', '', 'Pierces armour'));
-    if (w.indirect) tags.push(it('arc', '', 'Fires over obstacles'));
-    if (w.siege) tags.push(it('base', '×' + w.siege, 'Extra damage to bases'));
-    if (w.needsEntrench) tags.push(it('anchor', '', 'Only fires when dug in', ' warn'));
-    if (w.ammo) tags.push(it('ammo', w.ammo, 'Limited ammo: ' + w.ammo + ' shots'));
-    if (w.heatDmg) tags.push(it('thermo', '', 'Heats the target'));
   }
   if (d.slot === 'torso') {
     num('hp', d.hp, 'HP ' + d.hp, cmp ? cmp.hp : null);
-    head.push('<span class="fi" title="Weapon mounts: ' + (d.mounts || ['any', 'any']).map(x => MW.MOUNT_NAME[x]).join(' and ') + '">' + (d.mounts || ['any', 'any']).map(mountIco).join('') + '</span>');
-    head.push('<span class="fi">' + sizeIcon(d.size || 2, MW.SIZE_NAME[d.size || 2] + ' chassis') + '</span>');
-    tags.push('<span class="fi" title="Capacity ' + (d.cap || 3) + ' pips">' + pipsHTML(d.cap || 3, null, 'cap') + '</span>');
-    if (d.armor) tags.push(it('shield', d.armor, 'Armour ' + d.armor));
-    if (d.auxSlots) tags.push(it('aux', d.auxSlots, d.auxSlots + ' aux slots'));
-    if (d.move) tags.push(it('move', '+' + d.move, 'Move +' + d.move));
+    head.push(size(d.size, '', MW.SIZE_NAME[d.size || 2] + ' chassis'));
+    head.push('<span class="fi mnts" title="Arms take: ' + (d.mounts || ['any', 'any']).map(x => MW.MOUNT_NAME[x]).join(' and ') + '">' + (d.mounts || ['any', 'any']).map(mountIco).join('') + '</span>');
   }
   if (d.slot === 'legs') {
     num('move', d.move, 'Move ' + d.move, cmp ? cmp.move : null);
-    head.push('<span class="fi">' + sizeIcon(d.carry || 2, 'Carries up to a ' + MW.SIZE_NAME[d.carry || 2].toLowerCase() + ' chassis') + '</span>');
-    const MODE_ICO = { jump: 'jump', ram: 'siege', stable: 'stable', hover: 'hover', surefoot: 'foot', entrench: 'anchor' };
-    if (d.mode) head.push(it(MODE_ICO[d.mode] || 'legs', '', d.modeText || d.mode, ' lmode'));
-    if (d.armor) tags.push(it('shield', d.armor, 'Armour ' + d.armor));
+    head.push(size(d.carry, '≤ ', 'Carries up to a ' + MW.SIZE_NAME[d.carry || 2].toLowerCase() + ' chassis'));
   }
   if (d.slot === 'aux') {
+    // only the module's main bonus; the rest is in the details sheet
     if (d.shield) num('shield', d.shield, 'Shield ' + d.shield + ' a round');
-    if (d.selfRepair) num('wrench', d.selfRepair, 'Self-repair ' + d.selfRepair + ' a round');
-    if (d.armorAll) num('shield', '+' + d.armorAll, 'All parts +' + d.armorAll + ' armour');
-    if (d.plate) num('hp', '+' + d.plate, 'Plating +' + d.plate + ' HP');
-    if (d.cooling) num('cryo', '+' + d.cooling, 'Cooling +' + d.cooling);
-    if (d.heatCap) num('incendiary', '+' + d.heatCap, 'Heat capacity +' + d.heatCap);
-    if (d.move) num('move', '+' + d.move, 'Move +' + d.move);
-    if (d.dmgBonus) num('dmg', '+' + d.dmgBonus, 'Weapons +' + d.dmgBonus + ' damage');
-    if (d.energyRange) num('rng', '+' + d.energyRange, 'Energy weapons +' + d.energyRange + ' range');
-    if (d.capBonus) head.push('<span class="fi big" title="Capacity +' + d.capBonus + '">' + pipsHTML(d.capBonus) + '<b>+</b></span>');
-    if (d.carryBonus) head.push('<span class="fi big" title="Legs carry one class heavier">' + sizeIcon(3, 'Legs carry one class heavier') + '<b>+1</b></span>');
-    if (d.moveHeat || d.shotHeat) tags.push(it('incendiary', '', 'Adds heat', ' warn'));
+    else if (d.selfRepair) num('wrench', d.selfRepair, 'Self-repair ' + d.selfRepair + ' a round');
+    else if (d.armorAll) num('shield', '+' + d.armorAll, 'All parts +' + d.armorAll + ' armour');
+    else if (d.plate) num('hp', '+' + d.plate, 'Plating +' + d.plate + ' HP');
+    else if (d.cooling) num('cryo', '+' + d.cooling, 'Cooling +' + d.cooling);
+    else if (d.heatCap) num('incendiary', '+' + d.heatCap, 'Heat capacity +' + d.heatCap);
+    else if (d.move) num('move', '+' + d.move, 'Move +' + d.move);
+    else if (d.dmgBonus) num('dmg', '+' + d.dmgBonus, 'Weapons +' + d.dmgBonus + ' damage');
+    else if (d.energyRange) num('rng', '+' + d.energyRange, 'Energy weapons +' + d.energyRange + ' range');
+    else if (d.capBonus) head.push('<span class="fi big" title="Capacity +' + d.capBonus + '">' + pipsHTML(d.capBonus) + '<b>+</b></span>');
+    else if (d.carryBonus) head.push(size(3, '+', 'Legs carry one class heavier'));
   }
   if (d.event) {
     const e = d.event;
@@ -1216,19 +1218,23 @@ function faceHTML(d, cmp) {
     if (e.draw) num('cards', '+' + e.draw, 'Draw ' + e.draw + ' more cards');
     if (e.repair) num('wrench', e.repair, 'Repairs ' + e.repair + ' on every mech');
   }
-  if (d.slot === 'arm') head.push('<span class="fi" title="Needs a ' + MW.MOUNT_NAME[MW.mountOf(d)].toLowerCase() + ' mount">' + mountIco(MW.mountOf(d)) + '</span>');
   if (d.slot === 'arm' && !w && d.armorAll) num('shield', '+' + d.armorAll, 'All parts +' + d.armorAll + ' armour');
-  if (d.pips != null && d.slot !== 'torso' && d.pips > 0) tags.push('<span class="fi" title="Costs ' + d.pips + ' capacity pips">' + pipsHTML(d.pips) + '</span>');
-  if (d.trait) tags.push(it('star', '', d.trait, ' trait'));
-  return '<div class="face">' + head.join('') + '</div>' + (tags.length ? '<div class="ftags">' + tags.join('') + '</div>' : '');
+  // bottom row: the keyword, then weight (pips) and a heat warning only when it really runs hot
+  const kw = keyword(d), right = [];
+  if (d.pips != null && d.slot !== 'torso' && d.pips > 0) right.push('<span class="fi" title="Weighs ' + d.pips + ' capacity pips">' + pipsHTML(d.pips) + '</span>');
+  if (d.slot === 'torso') right.push('<span class="fi" title="Carries ' + (d.cap || 3) + ' pips of parts">' + pipsHTML(0, d.cap || 3, 'cap') + '</span>');
+  if ((w && w.heat >= 3) || d.moveHeat || d.shotHeat) right.push(it('incendiary', '', 'Runs hot', ' warn'));
+  const foot = (kw ? '<span class="kw" title="' + (d.trait || d.modeText || '') + '">' + kw + '</span>' : '<span></span>') + (right.length ? '<span class="fr">' + right.join('') + '</span>' : '');
+  return '<div class="face">' + head.join('') + '</div>' + (kw || right.length ? '<div class="ftags">' + foot + '</div>' : '');
 }
 // the full numbers, one tap away
-function showPartInfo(id) {
+function showPartInfo(id, uid) {
   const d = D[id]; if (!d) return;
+  const sell = uid ? '<div class="row"><button type="button" class="btn sell grow" data-act="scrap" data-uid="' + uid + '"><span>Sell for +' + MW.sellValue(d) + ' ' + si('supply') + '</span></button></div>' : '';
   const o = $('#overlay');
   o.innerHTML = '<div class="sheet pinfo" role="dialog" aria-label="' + d.name + '"><div class="phead"><h2>' + d.name + '</h2><button type="button" class="btn sm" data-act="closeOverlay">Close</button></div>' +
     '<span class="lbl">' + (d.special ? '★ Special · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.cost ? ' · ' + d.cost + ' Supply' : '') + (d.pips != null && d.slot !== 'torso' ? ' · ' + d.pips + ' capacity pips' : '') + '</span>' +
-    faceHTML(d) + chips(d) + (d.modeText ? '<p class="note">' + d.modeText + '</p>' : '') + (d.trait ? '<p class="note">' + d.trait + '</p>' : '') + '</div>';
+    faceHTML(d) + chips(d) + (d.modeText ? '<p class="note">' + d.modeText + '</p>' : '') + (d.trait ? '<p class="note">' + d.trait + '</p>' : '') + sell + '</div>';
   o.hidden = false;
 }
 function chips(d, cmp) {
@@ -1268,7 +1274,7 @@ function blueprint(m, editable) {
   const cell = key => {
     const inst = MW.getSlot(m, key), d = inst && D[inst.id], aux = MW.slotType(key) === 'aux';
     const state = !inst ? 'empty' : inst.hp <= 0 ? 'x' : (!aux && inst.hp <= d.hp / 2) ? 'd' : 'ok';
-    let inner = '<span class="slot-l">' + (d ? ico(kind(d), 'sm k-' + kind(d)) + ' ' : '') + MW.slotName(key) + (MW.REQUIRED.includes(key) && !inst ? ' · required' : '') + '</span><span class="slot-n">' + (d ? d.name : 'Empty') + '</span>';
+    let inner = '<span class="slot-l">' + (d ? kindIco(d, 'sm k-' + cardKind(d)) + ' ' : '') + MW.slotName(key) + (MW.REQUIRED.includes(key) && !inst ? ' · required' : '') + '</span><span class="slot-n">' + (d ? d.name : 'Empty') + '</span>';
     if (inst && !aux) inner += '<span class="hp"><span><i style="width:' + (inst.hp / d.hp * 100) + '%"></i></span>' + inst.hp + '/' + d.hp + (inst.ammo != null ? ' · ' + inst.ammo + ' rds' : '') + '</span>';
     const cls = 'slot ' + state + (editable && ui.slotSel === key ? ' sel' : '') + (ui.flash && ui.flash.m === m.uid && ui.flash.key === key ? ' ' + ui.flash.cls : '');
     const style = aux ? '' : ' style="grid-area:' + key + '"';
@@ -1879,7 +1885,7 @@ function renderDock() {
 }
 
 /* ---------- Window: tabbed and paged, never scrolls ---------- */
-const MOUNT_ICO = { gun: 'ballistic', energy: 'energy', melee: 'melee', heavy: 'artillery', any: 'univ' };
+const MOUNT_ICO = { gun: 'ammo', energy: 'energy', melee: 'melee', heavy: 'artillery', any: 'univ' };
 const mountIco = mt => '<span class="mnt mnt-' + mt + '" title="' + MW.MOUNT_NAME[mt] + ' mount">' + ico(MOUNT_ICO[mt]) + '</span>';
 // kept for older callers: the size class is now always the weight icon
 const sizeBadge = (n, pre) => sizeIcon(n, (pre || '') + MW.SIZE_NAME[n]);
@@ -1946,8 +1952,7 @@ function panelBase(p) {
       const SHORT = { torso: 'chassis', core: 'reactor', legs: 'legs', armL: 'L arm', armR: 'R arm', aux0: 'aux 1', aux1: 'aux 2', aux2: 'aux 3' };
       act = '<button type="button" class="btn sm' + (why ? (need ? ' blocked' : '') : ' primary') + '"' + (need ? ' data-need="' + need + '" aria-disabled="true"' : ' data-act="install"') + ' ' + (inst ? 'data-uid="' + inst.uid + '"' : 'data-basic="' + d.id + '"') + ' data-key="' + (key || '') + '"' + (why && !need ? ' disabled' : '') + '>' + (why || (cur && cur.id !== d.id ? 'Replace ' + D[cur.id].name : verb + (SHORT[key] || '')) + ' · ' + (cost ? cost + si('supply') : 'free')) + '</button>';
     }
-    if (inst) act += '<button type="button" class="btn sm sell" data-act="scrap" data-uid="' + inst.uid + '"><small>Sell</small><span>+' + MW.sellValue(d) + si('supply') + '</span></button>';
-    return '<div class="card cface k-' + kind(d) + (d.special ? ' special' : '') + (inst && inst.hp < d.hp ? ' hurt' : '') + (inst && !ui.seen.has(inst.uid) ? ' new' : '') + '"><div class="card-top"><span class="card-name"><span class="badge">' + ico(kind(d)) + '</span><b>' + (d.special ? '★ ' : '') + d.name + '</b></span><button type="button" class="ib pi" data-act="partInfo" data-id="' + d.id + '" aria-label="Details for ' + d.name + '">i</button></div>' + (cmp ? '<span class="vs">vs ' + cmp.name + '</span>' : '') + faceHTML(d, cmp) + '<div class="row">' + act + '</div></div>';
+    return '<div class="card cface k-' + cardKind(d) + (d.special ? ' special' : '') + (inst && inst.hp < d.hp ? ' hurt' : '') + (inst && !ui.seen.has(inst.uid) ? ' new' : '') + '"><div class="card-top"><span class="card-name"><span class="badge">' + kindIco(d) + '</span><b>' + (d.special ? '★ ' : '') + d.name + '</b></span><button type="button" class="ib pi" data-act="partInfo" data-id="' + d.id + '"' + (inst ? ' data-uid="' + inst.uid + '"' : '') + ' aria-label="Details for ' + d.name + '">i</button></div>' + (cmp ? '<span class="vs">vs ' + cmp.name + '</span>' : '') + faceHTML(d, cmp) + '<div class="row">' + act + '</div></div>';
   };
   const grid = (items, head) => {
     const sp = winSpace(m ? 300 : 230), cols = sp.wide ? 3 : 2, rows = Math.max(1, Math.min(4, Math.floor(sp.h / 165))), per = cols * rows;
@@ -1989,7 +1994,7 @@ function panelBase(p) {
     const std = MW.standardFor(p).map(id => D[id]).filter(d => !type || d.slot === type);
     const cols = winSpace(230).wide ? 3 : 2, list = items => '<div class="cardlist" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' + items.join('') + '</div>';
     const rq = MW.canRequisition(p), rqNeed = p.supply < C.REQ_COST && !(!p.deck.length || p.workshop.length >= C.WORKSHOP_MAX);
-    h += '<div class="slotline"><span class="note">' + (type ? 'Parts for the ' + MW.slotName(ui.slotSel).toLowerCase() : 'Fit to ' + (m ? m.name : 'a frame') + ', or sell what you won’t use') + '</span>' + (type ? '<button type="button" class="btn sm ghost" data-act="slotClear">Show all</button>' : '') +
+    h += '<div class="slotline"><span class="note">' + (type ? 'Parts for the ' + MW.slotName(ui.slotSel).toLowerCase() : 'Fit to ' + (m ? m.name : 'a frame') + '. Tap i on a card for details, or to sell it') + '</span>' + (type ? '<button type="button" class="btn sm ghost" data-act="slotClear">Show all</button>' : '') +
       '<button type="button" class="btn sm' + (rq ? (rqNeed ? ' blocked' : '') : '') + '"' + (rq ? (rqNeed ? ' data-need="supply" aria-disabled="true"' : ' disabled title="' + rq + '"') : ' data-act="requisition"') + '>' + (rq && rqNeed ? 'Needs ' + C.REQ_COST + si('supply') : '+1 card · ' + C.REQ_COST + si('supply')) + '</button></div>' +
       (() => {
         // sort every card into fits / won't fit for this mech, keeping the reason
@@ -2045,7 +2050,7 @@ function swapWarn(m, d, el) {
 }
 function revealCard(d, i) {
   if (d.event) return '<div class="rcard event k-event" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico('event') + '</span><span class="now">Event · takes effect now</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
-  return '<div class="rcard k-' + kind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico(kind(d)) + '</span><span class="lbl">' + (d.special ? '<span class="star">★ Special</span> · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
+  return '<div class="rcard k-' + cardKind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + kindIco(d) + '</span><span class="lbl">' + (d.special ? '<span class="star">★ Special</span> · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
 }
 function renderReveal() {
   const el = $('#reveal'), p = S.players[S.current];
@@ -2400,7 +2405,7 @@ function onAct(el) {
       if (key === 'aux0' && hm) { const n = MW.auxCount(hm); for (let i = 0; i < n; i++) if (!hm.slots.aux[i]) { key = 'aux' + i; break; } }
       ui.slotSel = key; ui.wtab = 'cards'; ui.pg = 0; return render();
     }
-    case 'partInfo': return showPartInfo(el.dataset.id);
+    case 'partInfo': return showPartInfo(el.dataset.id, el.dataset.uid);
     case 'slotClear': ui.slotSel = null; return render();
     case 'install': {
       if (!hm || !el.dataset.key) return;
@@ -2414,7 +2419,7 @@ function onAct(el) {
     case 'remove': if (hm && ui.slotSel) return after(MW.removePart(p, hm, ui.slotSel)); return;
     case 'repair': if (hm && ui.slotSel) { const r = MW.repair(p, hm, ui.slotSel); if (r.ok) ui.flash = { m: hm.uid, key: ui.slotSel, cls: 'fx-fix' }; return after(r, 'Repaired.'); } return;
     case 'dismantle': if (hm) { ui.slotSel = null; return after(MW.dismantle(p, hm)); } return;
-    case 'scrap': { const c = p.workshop.find(x => x.uid === +el.dataset.uid), v = c ? MW.sellValue(D[c.id]) : 1; return after(MW.scrapCard(p, +el.dataset.uid), 'Sold for ' + v + ' Supply.'); }
+    case 'scrap': { $('#overlay').hidden = true; const c = p.workshop.find(x => x.uid === +el.dataset.uid), v = c ? MW.sellValue(D[c.id]) : 1; return after(MW.scrapCard(p, +el.dataset.uid), 'Sold for ' + v + ' Supply.'); }
     case 'play': return after(MW.playTactic(p, +el.dataset.uid), 'Tactic played.');
     case 'acceptDraw': return after(MW.acceptDraw(), 'Added to the Workshop.');
     case 'requisition': return after(MW.requisition(p));
@@ -2492,7 +2497,8 @@ function showRules() {
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
     ['Build', [['Start', 'Each side starts with mecha ready to deploy, each on a different chassis from its doctrine (Assault brings an extra one), and ' + C.EP + ' engineering actions a round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) take effect when collected: Supply Drop, Overtime Shift, Tech Requisition, Field Repairs.'],
       ['Build', 'You get ' + C.EP + ' engineering actions a round. Fitting or repairing a part uses one and costs Supply; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads can ram and shove an adjacent enemy, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
-      ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Sell unused cards: parts 1 Supply, weapons 2, special parts 3, special weapons 4. Short on cards? Requisition one more from the Arsenal for ' + C.REQ_COST + ' Supply.']]],
+      ['Reading a card', 'Every card has the same layout. Top left: its type (chassis, legs, aux, or the weapon mount it needs: gun, energy, melee, heavy). Middle: two numbers (weapons: damage and range; chassis: HP and size; legs: move and the heaviest chassis they carry). Bottom left: its one special rule as a word. Bottom right: its weight in capacity pips, and a flame if it runs hot. Tap i for every detail.'],
+      ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Sell unused cards from their i details: parts 1 Supply, weapons 2, special parts 3, special weapons 4. Short on cards? Requisition one more from the Arsenal for ' + C.REQ_COST + ' Supply.']]],
     ['Fight', [['Turns', 'Mecha on the field at once: Assault 4, Experimental 3, Armored 2. Commanders alternate activating one mech, two actions each: move, fire a weapon (each once per activation), overwatch, brace, salvage, or return to base.'],
       ['Shooting', 'Centre mass hits a random part. Aiming costs 10% accuracy, 25% for the core. Ruins give 20% cover. Rocks block direct fire; indirect weapons ignore them.'],
       ['Disarmed', 'A mech with no working weapon can Detonate: its core blasts every tile within 2 (full damage next to it, half at range 2), flattens ruins, knocks objectives back to neutral and hits an adjacent enemy base. Or Strip it in the field: special parts go back to the Workshop, standard parts give 1 Supply each.'],
@@ -2820,7 +2826,7 @@ document.addEventListener('click', async e => {
 // tapping an icon or stat names it, since phones have no hover
 function needFlash(k) {
   document.querySelectorAll('.res [data-res="' + k + '"]').forEach(cell => { cell.classList.remove('flash'); void cell.offsetWidth; cell.classList.add('flash'); });
-  toast(k === 'ep' ? 'No engineering actions left this round. Each build gets ' + C.EP + '; end the build to continue.' : 'Not enough Supply. Sell cards you won\'t use, or hold depots for more income.');
+  toast(k === 'ep' ? 'No engineering actions left this round. Each build gets ' + C.EP + '; end the build to continue.' : 'Not enough Supply. Sell cards you won\'t use (tap i on a card), or hold depots for more income.');
 }
 // what each stat and icon means, matched against the name it carries
 const GLOSSARY = [
