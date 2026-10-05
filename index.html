@@ -70,6 +70,9 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 .nrow b { display: block; font-size: 14px; line-height: 1.2; }
 .nrow small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .nrow .row { flex: none; }
+.net-join { display: flex; gap: 8px; }
+.net-join input { font: inherit; font-family: var(--mono); font-size: 18px; letter-spacing: .25em; text-transform: uppercase; padding: 7px 10px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 3px; flex: 1; min-width: 0; }
+.nrow .code { font-family: var(--mono); font-weight: 600; letter-spacing: .12em; color: var(--ink); }
 .menu-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .menu-acts #resume { grid-column: 1 / -1; }
 .menu-acts .btn { justify-content: center; text-align: center; }
@@ -791,7 +794,7 @@ button.rost { cursor: pointer; }
     </div>
     <div id="online" class="menu" hidden>
       <div class="phead"><h2>Online match</h2><span class="lbl">Two devices</span></div>
-      <p class="note">Host a match, then your opponent opens this page on their device and joins it. The host commands Azure, the guest commands Ember.</p>
+      <p class="note">Host a match and send your opponent its 5-letter code; they join it from their own device. The host commands Azure, the guest commands Ember.</p>
       <div class="net-pick">
         <label class="lbl" for="net-doc">Your doctrine</label>
         <select id="net-doc"></select>
@@ -805,6 +808,10 @@ button.rost { cursor: pointer; }
         <div class="netlist" id="net-mine"><p class="note">Loading…</p></div>
       </div>
       <div class="sec">
+        <span class="lbl">Join with a code</span>
+        <div class="net-join"><input id="net-code" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE" aria-label="Match code"><button type="button" class="btn primary" id="net-join" data-net="join" data-code="">Join</button></div>
+      </div>
+      <div class="sec" id="net-open-sec">
         <span class="lbl">Open matches to join</span>
         <div class="netlist" id="net-open"><p class="note">Loading…</p></div>
       </div>
@@ -2608,6 +2615,8 @@ $('#net-back').addEventListener('click', () => { closeLobby(); $('#menu').hidden
 function openLobby() {
   $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = false;
   netMsg('');
+  // the desktop build has no shared match list: matches are joined by code
+  $('#net-open-sec').hidden = !!window.MW_STANDALONE;
   $('#net-doc').innerHTML = '<option value="random">Random doctrine</option>' + Object.keys(MW.DOCTRINES).map(id => '<option value="' + id + '">' + DOC_NAME(id) + '</option>').join('');
   $('#net-map').innerHTML = MW.MAP_IDS.map(id => '<option value="' + id + '">' + MW.MAPS[id].name + '</option>').join('') + '<option value="random">Random map</option>';
   $('#net-map').value = mapChoice();
@@ -2632,7 +2641,8 @@ async function renderLobby(snap) {
     const info = document.createElement('span'), b = document.createElement('b'), sm = document.createElement('small');
     const seat = d.hostId === ME ? 0 : 1, other = seat ? d.hostId : d.guestId;
     b.textContent = d.status === 'waiting' ? 'Waiting for an opponent' : 'vs ' + who(other);
-    sm.textContent = (seat ? 'Ember' : 'Azure') + ' · ' + DOC_NAME(seat ? d.guestDoctrine : d.hostDoctrine) + ' · ' + (d.status === 'waiting' ? 'hosted ' + ago(d.createdAt) : 'round ' + ((d.state && d.state.round) || 1));
+    sm.textContent = (seat ? 'Ember' : 'Azure') + ' · ' + DOC_NAME(seat ? d.guestDoctrine : d.hostDoctrine) + ' · ' + (d.status === 'waiting' ? 'hosted ' + ago(d.createdAt) : 'round ' + ((d.state && d.state.round) || 1)) + ' · code ';
+    const cd = document.createElement('span'); cd.className = 'code'; cd.textContent = d.code; sm.append(cd);
     info.append(b, sm);
     const acts = document.createElement('span'); acts.className = 'row';
     if (d.status === 'playing') acts.innerHTML = '<button type="button" class="btn sm primary" data-net="resume" data-code="' + d.code + '">Resume</button>';
@@ -2659,7 +2669,8 @@ function pickDoctrine() {
   return d;
 }
 function writeFailed(e) {
-  return e && e.code === 'invalid_argument' ? 'You can see matches but not play: the artifact\'s owner needs to invite you as an Editor from the Share menu.'
+  return e && e.code === 'host_offline' ? 'Could not reach that match. Check the code, and that the host has the game open.'
+    : e && e.code === 'invalid_argument' ? 'You can see matches but not play: the artifact\'s owner needs to invite you as an Editor from the Share menu.'
     : e && e.code === 'quota_exceeded' ? 'The match list is full. End some old matches and try again.'
     : 'That did not go through. Check your connection and try again.';
 }
@@ -2672,10 +2683,18 @@ $('#net-host').addEventListener('click', async () => {
     netMsg('');
   } catch (e) { netMsg(writeFailed(e)); }
 });
+$('#net-code').addEventListener('input', e => {
+  const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+  e.target.value = v; $('#net-join').dataset.code = v;
+});
+$('#net-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('#net-join').click(); });
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-net]');
   if (!b || b.disabled) return;
-  const code = b.dataset.code, ref = NETDB.doc('matches/' + code);
+  const code = b.dataset.code;
+  if (!code || code.length !== 5) { netMsg('Type the 5-letter code your opponent sent you.'); return; }
+  netMsg('');
+  const ref = NETDB.doc('matches/' + code);
   b.disabled = true;
   try {
     if (b.dataset.net === 'cancel') { await ref.delete(); if (ui.waitingCode === code) ui.waitingCode = null; }
@@ -2685,7 +2704,9 @@ document.addEventListener('click', async e => {
       const lease = await ref.acquire({ holder: ME, ttlMs: 8000 });
       if (!lease.acquired) { netMsg('Someone else is joining that match. Pick another or try again shortly.'); return; }
       const snap = await ref.get(), d = snap.exists ? snap.data() : null;
-      if (!d || d.status !== 'waiting' || d.guestId) { netMsg('That match has already started.'); return; }
+      if (!d) { netMsg('No match with that code. Check it with the host.'); return; }
+      if (d.hostId === ME) { netMsg('That is your own match. Your opponent joins it with this code.'); return; }
+      if (d.status !== 'waiting' || d.guestId) { netMsg('That match has already started.'); return; }
       const mine = pickDoctrine();
       MW.newGame({ map: d.map || 'open', players: [{ name: 'Azure', doctrine: d.hostDoctrine, isAI: false }, { name: 'Ember', doctrine: mine, isAI: false }] });
       const state = clone(MW.S);
