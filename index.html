@@ -67,13 +67,15 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 .newbie b { color: var(--good); }
 body.first .mode.train { order: -1; border-color: var(--good); }
 /* the training coach: a card that says what to do next, and a pulse on what to tap */
-#coach { position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 34; width: min(440px, calc(100vw - 24px)); background: var(--ink); color: var(--bg); border-left: 4px solid var(--good); border-radius: 4px; padding: 9px 12px 8px; box-shadow: 0 6px 18px rgba(0,0,0,.28); font-size: 14px; line-height: 1.4; }
+#coach, #fnote { position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 34; width: min(440px, calc(100vw - 24px)); background: var(--ink); color: var(--bg); border-left: 4px solid var(--good); border-radius: 4px; padding: 9px 12px 8px; box-shadow: 0 6px 18px rgba(0,0,0,.28); font-size: 14px; line-height: 1.4; }
 #coach.low { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
-#coach .ch { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
-#coach .ch b { color: var(--good); opacity: 1; }
-#coach .cr { display: flex; justify-content: flex-end; gap: 8px; margin-top: 7px; }
-#coach .cr button { font: 600 13px var(--body); border-radius: 3px; padding: 4px 12px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--bg) 40%, transparent); background: transparent; color: var(--bg); }
-#coach .cr button.go { background: var(--good); border-color: var(--good); color: #fff; }
+#coach .ch, #fnote .ch { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
+#coach .ch b, #fnote .ch b { color: var(--good); opacity: 1; }
+#coach .cr, #fnote .cr { display: flex; justify-content: flex-end; gap: 8px; margin-top: 7px; }
+#coach .cr button, #fnote .cr button { font: 600 13px var(--body); border-radius: 3px; padding: 4px 12px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--bg) 40%, transparent); background: transparent; color: var(--bg); }
+#coach .cr button.go, #fnote .cr button.go { background: var(--good); border-color: var(--good); color: #fff; }
+#fnote { border-left-color: var(--accent); }
+#fnote .ch b { color: var(--accent); }
 #coach .wait { font-size: 12px; opacity: .7; font-style: italic; }
 .coach-hl { animation: coachPulse 1.3s ease-in-out infinite; position: relative; z-index: 2; }
 @keyframes coachPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 70%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--good) 0%, transparent), 0 0 0 3px var(--good); } }
@@ -2033,6 +2035,8 @@ function renderWin() {
 /* ---------- Training: a scripted first battle with a coach ---------- */
 // each step says what to do; it moves on by itself once the player has done it (done), or on Next
 const myMechs = () => S.mechs.filter(m => m.owner === viewer());
+// a part the player fitted themselves, rather than one the army was issued
+const fittedNew = () => S.mechs.filter(m => m.owner === viewer()).concat(S.players[viewer()].hangar).some(m => ['torso', 'legs', 'armL', 'armR'].some(k => m.slots[k] && !m.slots[k].issued) || m.slots.aux.some(Boolean));
 const COACH = [
   { t: 'Welcome, commander. You win by reaching <b>' + C.VP_WIN + ' victory points</b> or by destroying the enemy base. This training walks you through one round. You command <b>Azure</b>, at the bottom of the map.', next: 'Start' },
   { t: 'Every round opens with new cards from your Arsenal. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
@@ -2048,8 +2052,58 @@ const COACH = [
   { t: '<b>Objectives</b> score points. Hold a <b>radar</b> (or an uplink) at the end of a round, or a <b>depot on the enemy half</b> (marked ★), and you score. Depots also pay Supply. Move onto one to take it.', next: 'Got it' },
   { t: 'Activate your other mecha the same way. When you are done, they can hold position. The round ends once everyone has acted.', done: () => S.round >= 2 || S.phase === 'over' },
   { t: '<b>Resolution</b> just played: heat cooled, base turrets fired, and points were scored. Your points are the ★ at the top. Keep an eye on <b>heat</b>: a mech over its limit at round end is damaged and shuts down.', next: 'Next', low: true },
-  { t: 'That is the loop: <b>build, deploy, fight, resolve</b>. In the build, tap a step on the strip to fit new parts. The <b>Rules</b> button has the full field manual. Now win this battle!', next: 'Finish' }
+  { t: 'Round 2 begins. Tap <b>Add to Workshop</b> for this round\'s cards.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
+  { t: 'Time to upgrade. Open the <b>Parts</b> tab: it lists the cards in your Workshop that can go on the selected mech.', hl: '[data-act=wtab][data-tab=cards]', done: () => ui.wtab === 'cards' || fittedNew() },
+  { t: 'Pick a part and tap <b>Fit</b>. Fitting costs Supply (top left of the Workshop) and one engineering action. Cards that cannot go on this mech say why.', hl: '[data-act=install]', done: () => fittedNew() || S.phase !== 'build' },
+  { t: 'That is the loop: <b>build, deploy, fight, resolve</b>. New mechanics get a short note the first time they come up. The <b>Rules</b> button has the full field manual. Now win this battle!', next: 'Finish' }
 ];
+const NOTES = [
+  { id: () => 'doc-' + S.players[viewer()].doctrine, when: () => S.round === 1 && uiPhase() === 'build',
+    t: () => { const d = MW.DOCTRINES[S.players[viewer()].doctrine]; return 'You command <b>' + d.name.replace(' Doctrine', '') + '</b>. ' + (d.perks || []).slice(0, 4).join('. ') + '.'; } },
+  { id: () => 'map-' + S.map, when: () => S.map && S.map !== 'open' && S.round <= 2,
+    t: () => '<b>' + MW.MAP.name + '</b>: ' + MW.MAP.blurb },
+  { id: () => 'fit', when: () => uiPhase() === 'build' && S.round >= 2,
+    t: () => '<b>Fitting parts.</b> Tap a step on the strip (chassis, legs, arms, aux), then pick a card and tap Fit. Each fit costs Supply and one engineering action. Removing a part is free.' },
+  { id: () => 'deploy-limit', when: () => S.phase === 'deploy' && S.current === viewer() && myMechs().length >= MW.fieldMax(viewer()),
+    t: () => '<b>Field limit.</b> Your doctrine can field ' + MW.fieldMax(viewer()) + ' mecha at once. More can wait in the hangar and deploy when a slot frees up.' },
+  { id: () => 'heat', when: () => S.phase === 'combat' && myMechs().some(m => m.heat >= MW.stats(m).heatCap - 1),
+    t: () => '<b>Running hot.</b> A mech of yours is near its heat limit (the flame). If it ends the round above the limit, its core takes damage and it shuts down next round. Hold fire or brace to let it cool.' },
+  { id: () => 'crate', when: () => S.phase === 'combat' && (S.crates || []).length > 0,
+    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> are the points on this map: end a move on one to grab it, for a victory point plus Supply or a special part.' : '<b>Supply crate.</b> A crate has dropped. The first mech to end a move on it grabs Supply or a special part.' },
+  { id: () => 'overwatch', when: () => S.phase === 'combat' && S.mechs.some(m => m.owner !== viewer() && m.overwatch),
+    t: () => '<b>Enemy overwatch.</b> A mech on overwatch shoots the first enemy that ends a move in its range. Those tiles are striped when you move. Wait it out, or send something tough first.' },
+  { id: () => 'damaged', when: () => myMechs().concat(S.players[viewer()].hangar).some(m => ['armL', 'armR', 'legs', 'core'].some(k => m.slots[k] && m.slots[k].hp <= 0)),
+    t: () => '<b>Broken part.</b> A destroyed arm loses its weapon; broken legs slow the mech. Return it to base and repair it in the Workshop (costs Supply), or fit a replacement.' },
+  { id: () => 'disarmed', when: () => S.phase === 'combat' && myMechs().some(m => !MW.hasWeapon(m)),
+    t: () => '<b>Disarmed.</b> A mech with no working weapon can still <b>Detonate</b> (a blast that hurts everything within 2 tiles) or <b>Strip</b> itself in the field to recover parts.' },
+  { id: () => 'depot', when: () => S.objectives.some(o => o.type === 'depot' && o.owner === viewer()),
+    t: () => '<b>Depot held.</b> Each depot pays ' + C.DEPOT + ' extra Supply a round. Depots on the enemy half (★) also score a victory point' + (MW.rule('depotVp', true) ? '.' : ', but not on this map.') },
+  { id: () => 'behind', when: () => uiPhase() === 'build' && (S.players[1 - viewer()].vp || 0) > (S.players[viewer()].vp || 0),
+    t: () => '<b>Behind on points.</b> The side that is behind gets bonus Supply each round, more the further behind. Spend it on better parts.' },
+  { id: () => 'lead', when: () => (S.players[viewer()].vp || 0) - (S.players[1 - viewer()].vp || 0) >= C.LEAD_GAP,
+    t: () => '<b>In the lead.</b> While ' + C.LEAD_GAP + ' or more points ahead, objectives score at most ' + C.LEAD_CAP + ' a round. Kills and damage to the enemy base still count in full: press the advantage.' },
+  { id: () => 'base-threat', when: () => S.phase === 'combat' && S.mechs.some(m => m.owner !== viewer() && Math.abs(m.x - S.players[viewer()].base.x) + Math.abs(m.y - S.players[viewer()].base.y) <= C.TURRET_RANGE),
+    t: () => '<b>Enemy at your base.</b> Your base turret fires on the closest enemy within ' + C.TURRET_RANGE + ' tiles at the end of the round. Every ' + C.BASE_VP_PER + ' damage to a base also scores the attacker a point.' }
+];
+function notesSeen() { try { return JSON.parse(localStorage.getItem('mw-notes') || '[]'); } catch (e) { return []; } }
+function tipsOff() { try { return localStorage.getItem('mw-tips') === 'off'; } catch (e) { return false; } }
+function renderNotes() {
+  const old = document.getElementById('fnote');
+  const coaching = S && S.training && S.coach != null && S.coach < COACH.length;
+  if (!S || $('#game').hidden || coaching || tipsOff() || S.phase === 'over' || !isHuman() || !$('#overlay').hidden) { if (old) old.remove(); return; }
+  if (old) return;
+  const seen = notesSeen(), n = NOTES.find(x => { try { return seen.indexOf(x.id()) < 0 && x.when(); } catch (e) { return false; } });
+  if (!n) return;
+  const el = document.createElement('div'); el.id = 'fnote'; el.setAttribute('role', 'status'); el.dataset.note = n.id();
+  el.innerHTML = '<div class="ch"><b>Field note</b></div><div>' + n.t() + '</div><div class="cr"><button type="button" data-act="tipsOff">Turn tips off</button><button type="button" class="go" data-act="noteOk">Got it</button></div>';
+  document.body.appendChild(el);
+}
+function noteDone(off) {
+  const el = document.getElementById('fnote'); if (!el) return;
+  try { const seen = notesSeen(); seen.push(el.dataset.note); localStorage.setItem('mw-notes', JSON.stringify(seen)); if (off) localStorage.setItem('mw-tips', 'off'); } catch (e) { /* storage unavailable */ }
+  el.remove();
+  if (!off) setTimeout(renderNotes, 400);
+}
 function startTraining() {
   MW.newGame({ map: 'open', players: [{ name: 'Azure', doctrine: 'assault', isAI: false }, { name: 'Ember', doctrine: 'armored', isAI: true, persona: 'recruit' }] });
   MW.S.startedAt = Date.now(); MW.S.gameId = 'training-' + MW.S.startedAt; MW.S.training = true; MW.S.coach = 0;
@@ -2060,7 +2114,11 @@ function coachEnd(done) {
   clearTimeout(ui.coachT);
   const el = document.getElementById('coach'); if (el) el.remove();
   document.querySelectorAll('.coach-hl').forEach(x => x.classList.remove('coach-hl'));
-  if (done && S) { S.coach = COACH.length; try { localStorage.setItem('mw-trained', '1'); } catch (e) { /* storage unavailable */ } }
+  if (done && S) {
+    S.coach = COACH.length;
+    // what the training already taught needs no field note
+    try { localStorage.setItem('mw-trained', '1'); const seen = notesSeen(); ['fit', 'doc-' + S.players[viewer()].doctrine].forEach(k => { if (seen.indexOf(k) < 0) seen.push(k); }); localStorage.setItem('mw-notes', JSON.stringify(seen)); } catch (e) { /* storage unavailable */ }
+  }
 }
 function coachNext() { if (!S || S.coach == null) return; S.coach++; if (S.coach >= COACH.length) coachEnd(true); render(); }
 function renderCoach() {
@@ -2092,7 +2150,7 @@ function render() {
   renderTop(); renderFlow(); renderTrack(); renderBoard(); renderDock(); renderWin(); renderReveal();
   if (R3on) mountHangar();
   ui.flash = null; ui.logN = S.logN || 0;
-  renderCoach();
+  renderCoach(); renderNotes();
   saveGameLocal(S);
   const hk = gameId(S) + ':' + S.round + ':' + (S.phase === 'over');
   if (ui.histKey !== hk) { ui.histKey = hk; saveHistory(); }
@@ -2222,6 +2280,10 @@ function onAct(el) {
   if (a === 'training') return startTraining();
   if (a === 'coachNext') return coachNext();
   if (a === 'coachSkip') return coachEnd(true);
+  if (a === 'noteOk') return noteDone(false);
+  if (a === 'tipsOff') return noteDone(true);
+  // turning notes back on shows them all again from the start
+  if (a === 'tipsToggle') { try { if (tipsOff()) { localStorage.removeItem('mw-tips'); localStorage.removeItem('mw-notes'); } else localStorage.setItem('mw-tips', 'off'); } catch (e) { /* storage unavailable */ } return showRules(); }
   if (a === 'ruleTab') { ui.ruleTab = +el.dataset.tab; return showRules(); }
   if (a === 'deckList') return showDeck(el.dataset.doc);
   if (a === 'wtab') { ui.wtab = el.dataset.tab; ui.pg = 0; return render(); }
@@ -2363,7 +2425,7 @@ function showRules() {
   ];
   const cur = Math.min(ui.ruleTab || 0, T.length - 1);
   const o = $('#overlay');
-  o.innerHTML = '<div class="sheet" role="dialog" aria-label="Rules"><div class="phead"><h2>Field manual</h2><button type="button" class="btn sm" data-act="closeOverlay">Close</button></div>' +
+  o.innerHTML = '<div class="sheet" role="dialog" aria-label="Rules"><div class="phead"><h2>Field manual</h2><span class="row"><button type="button" class="btn sm ghost" data-act="tipsToggle">' + (tipsOff() ? 'Field notes: off' : 'Field notes: on') + '</button><button type="button" class="btn sm" data-act="closeOverlay">Close</button></span></div>' +
     '<div class="wtabs">' + T.map((t, i) => '<button type="button" class="wtab' + (i === cur ? ' on' : '') + '" data-act="ruleTab" data-tab="' + i + '">' + t[0] + '</button>').join('') + '</div>' +
     '<dl>' + T[cur][1].map(([a, b]) => '<dt>' + a + '</dt><dd>' + b + '</dd>').join('') + '</dl></div>';
   o.hidden = false;
@@ -2382,6 +2444,7 @@ function showStart() {
   const fresh = !trained && !gamesIndex().length;
   document.body.classList.toggle('first', fresh); $('#newbie').hidden = !fresh;
   coachEnd(false);
+  const fn = document.getElementById('fnote'); if (fn) fn.remove();
 }
 function showGame() {
   applyMapDims();
@@ -2396,6 +2459,7 @@ function showGame() {
 const TAGS = { assault: 'Fast frames, blades and close-range guns.', armored: 'Heavy hulls, shields and long guns.', experimental: 'Energy weapons and unstable reactors.' };
 function openSetup(mode) {
   ui.startMode = mode;
+  if (ui.cmd == null) ui.cmd = gamesIndex().filter(g => g.mode === 'ai' && g.status === 'over').length < 2 ? 'recruit' : 'random';
   const ai = mode === 'ai';
   $('#setup-mode').textContent = ai ? 'Against the AI' : 'Two players';
   $('#leg0').innerHTML = '<span class="who">' + ico('user', 'sm') + (ai ? ' You' : ' Player 1') + '</span><b>Azure</b><small>' + (ai ? 'pick your doctrine' : 'first player') + '</small>';
