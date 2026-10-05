@@ -426,6 +426,19 @@ button.slot:hover { border-color: var(--ink); }
 .tot.tot5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 /* build steps */
 .bsteps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.res .rinc { font-family: var(--mono); font-size: 11px; color: var(--good); margin-left: 4px; align-self: center; white-space: nowrap; }
+/* the build steps laid over the hangar viewer, down its left side */
+.h3d .bsteps { position: absolute; left: 6px; right: 6px; top: 6px; z-index: 2; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.h3d .bstep { background: rgba(14, 20, 27, .82); border-color: #3a4855; color: #eef3f6; padding: 4px 6px; }
+.h3d .bstep small, .h3d .bstep em { color: #a9b6c0; }
+.h3d .bstep.on { outline-color: #f4c431; }
+.h3d .h3d-warn { top: 58px; }
+.h3d .bstep b { font-size: 10px; } .h3d .bstep small { font-size: 10px; }
+/* an empty arm shows the weapon type its mount takes, at the arm itself */
+.hvb-box { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.hvb { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1.5px dashed #f4c431; background: rgba(14, 20, 27, .78); color: #f4c431; cursor: pointer; }
+.hvb .mnt { width: 18px; height: 18px; border: 0; background: none; color: inherit; }
+.hvb .mnt .ico { width: 14px; height: 14px; }
 .bstep { display: flex; align-items: flex-start; gap: 4px; padding: 4px 5px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); min-width: 0; font: inherit; cursor: pointer; }
 .bstep i { font: 700 11px var(--mono); width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--line); color: var(--surface); flex: none; font-style: normal; }
 .bstep span { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
@@ -766,6 +779,19 @@ button.rost { cursor: pointer; }
 .bl { display: flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 11px; font-weight: 600; color: #fff; background: var(--pc); padding: 1px 6px; border-radius: 3px; border: 1px solid rgba(10, 14, 20, .5); }
 .bl .ico { color: #fff; }
 .lbl3 .olab { position: static; transform: none; font-size: 10px; box-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+/* victory points on the map: a plate at each side's end of the board */
+#vpboard { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+.vpp { position: absolute; left: 6px; display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 8px; row-gap: 3px; padding: 5px 9px 6px; background: rgba(14, 20, 27, .82); color: #eef3f6; border-left: 4px solid var(--pc); border-radius: 3px; box-shadow: 0 3px 10px rgba(0,0,0,.25); pointer-events: none; }
+.vpp.top { top: 6px; } .vpp.bot { bottom: 52px; }
+.vpp .vpn { font-family: var(--display); font-weight: 900; font-size: 15px; text-transform: uppercase; letter-spacing: .03em; color: var(--pc); line-height: 1; }
+.vpp .vpv { display: flex; align-items: center; gap: 3px; font-family: var(--display); font-weight: 900; font-size: 24px; line-height: 1; color: #fff; }
+.vpp .vpv .ico { width: 18px; height: 18px; color: #f4c431; }
+.vpp .vpv small { font-size: 13px; color: #a9b6c0; font-weight: 700; }
+.vpp .vpv .delta { font-size: 13px; }
+.vpp .vpbar { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
+.vpp .vpbar i { height: 5px; background: rgba(255,255,255,.16); border-radius: 1px; }
+.vpp .vpbar i.on { background: var(--pc); }
+.vpp.won { box-shadow: 0 0 0 2px #f4c431, 0 3px 10px rgba(0,0,0,.25); }
 .h3d-warn { position: absolute; left: 6px; top: 6px; right: 6px; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; pointer-events: none; }
 .h3d-warn .mwarn { pointer-events: auto; font: 600 12px var(--body); color: #fff; background: #c8322a; border: 1px solid #ff8a80; border-radius: 3px; padding: 3px 8px; animation: mwarn 1.2s ease-in-out infinite; }
 .h3d-warn small { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #ffb4ae; background: rgba(10, 14, 20, .6); padding: 2px 5px; border-radius: 2px; }
@@ -891,6 +917,7 @@ button.rost { cursor: pointer; }
           <div id="labels" aria-hidden="true"></div>
           <div id="floats" aria-hidden="true"></div>
           <div id="announce" aria-hidden="true"></div>
+          <div id="vpboard"></div>
           <div id="camctl">
             <button type="button" data-cam="rotL" title="Turn view left" aria-label="Turn view left"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 3v5h5"/></svg></button>
             <button type="button" data-cam="rotR" title="Turn view right" aria-label="Turn view right"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3v5h-5"/></svg></button>
@@ -1305,13 +1332,26 @@ function renderTop() {
   const side = p => {
     const dep = S.objectives.filter(o => o.type === 'depot' && o.owner === p.id).length;
     return '<div class="side p' + p.id + (S.current === p.id && S.phase !== 'over' ? ' turn' : '') + '"><div class="side-name">' + p.name + (net && net.seat === p.id ? '<em class="you">You</em>' : '') + '<small>' + MW.DOCTRINES[p.doctrine].name.replace(' Doctrine', '') + (p.isAI ? ' · AI' + (p.ai && MW.PERSONAS[p.ai.persona] ? ' ' + MW.PERSONAS[p.ai.persona].name : '') : '') + '</small></div>' +
-      '<div class="basebar' + (('h' + p.id) in prev && p.base.hp < prev['h' + p.id] ? ' hurt' : '') + '"><i style="width:' + Math.min(100, p.base.hp / (p.base.max || C.BASE_HP) * 100) + '%"></i></div>' +
-      '<div class="side-nums"><span title="Base HP">' + si('base') + num('h' + p.id, p.base.hp) + '</span><span title="Supply">' + si('supply') + num('s' + p.id, p.supply) + '</span><span class="inc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</span><span title="Victory points: first to ' + C.VP_WIN + ' wins" data-vp>' + si('star') + num('v' + p.id, ui.vpShow && ui.vpShow[p.id] != null ? ui.vpShow[p.id] : (p.vp || 0)) + '/' + C.VP_WIN + '</span></div></div>';
+      '<div class="side-nums"><span title="Supply">' + si('supply') + num('s' + p.id, p.supply) + '</span></div></div>';
   };
+  renderScore(num);
   $('#top').innerHTML = side(S.players[0]) +
     '<div class="mid"><div class="round">Round ' + S.round + '</div><div class="tools"><button type="button" data-act="rules">Rules</button>' + (R3on ? '<button type="button" data-act="fxToggle" title="Effects level">FX ' + (FXLEVEL === 'low' ? 'low' : 'full') + '</button>' : '') + '<button type="button" data-act="battleMenu">Menu</button></div></div>' +
     side(S.players[1]);
   ui.prev = now;
+}
+// the scoreboard on the map: each side's victory points, next to the end of the map its base is on
+function renderScore(num) {
+  const box = document.getElementById('vpboard');
+  if (!box) return;
+  const bottom = flip() ? 1 : 0;
+  const plate = (p, pos) => {
+    const v = ui.vpShow && ui.vpShow[p.id] != null ? ui.vpShow[p.id] : (p.vp || 0);
+    const segs = Array.from({ length: C.VP_WIN }, (_, i) => '<i' + (i < v ? ' class="on"' : '') + '></i>').join('');
+    return '<div class="vpp p' + p.id + ' ' + pos + (S.phase === 'over' && S.winner === p.id ? ' won' : '') + '" title="Victory points: first to ' + C.VP_WIN + ' wins">' +
+      '<span class="vpn">' + p.name + '</span><span class="vpv" data-vp>' + si('star') + num('v' + p.id, v) + '<small>/' + C.VP_WIN + '</small></span><span class="vpbar" style="grid-template-columns:repeat(' + C.VP_WIN + ',1fr)">' + segs + '</span></div>';
+  };
+  box.innerHTML = plate(S.players[1 - bottom], 'top') + plate(S.players[bottom], 'bot');
 }
 function renderFlow() {
   // three phases a round; the round's resolution plays out as the end of combat
@@ -1591,7 +1631,7 @@ function vpFly(f) {
   document.body.appendChild(el);
   const w = el.offsetWidth, h = el.offsetHeight;
   const cx = stage.left + stage.width / 2 - w / 2, cy = stage.top + stage.height * 0.42 - h / 2;
-  const tgt = document.querySelector('#top .side.p' + f.pid + ' [data-vp]');
+  const tgt = document.querySelector('#vpboard .vpp.p' + f.pid + ' [data-vp]');
   const tr = tgt ? tgt.getBoundingClientRect() : { left: cx, top: 0, width: w, height: h };
   const tx = tr.left + tr.width / 2 - w / 2, ty = tr.top + tr.height / 2 - h / 2;
   const at = (x, y, sc) => 'translate(' + x + 'px,' + y + 'px) scale(' + sc + ')';
@@ -1599,7 +1639,7 @@ function vpFly(f) {
     el.remove();
     if (ui.vpShow) delete ui.vpShow[f.pid];
     renderTop();
-    const t2 = document.querySelector('#top .side.p' + f.pid + ' [data-vp]');
+    const t2 = document.querySelector('#vpboard .vpp.p' + f.pid + ' [data-vp]');
     if (t2 && t2.animate) t2.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.7)', color: 'var(--accent)' }, { transform: 'scale(1)' }], { duration: 450, easing: 'ease-out' });
   };
   if (!el.animate) { setTimeout(done, 1500); return; }
@@ -1888,7 +1928,7 @@ function panelBase(p) {
   if (!m || !build) ui.slotSel = null;
   const tabList = [['frame', 'Frame']].concat(build ? [['cards', 'Parts']] : []).concat([['enemy', 'Enemy']]);
   if (!tabList.some(t => t[0] === ui.wtab)) ui.wtab = 'frame';
-  let h = '<div class="pin"><div class="res"><div title="Supply" aria-label="Supply" data-res="supply">' + ico('supply', 'rico') + rb('supply', p.supply) + '</div><div title="Engineering actions left" aria-label="Engineering" data-res="ep">' + ico('eng', 'rico') + rb('ep', p.ep) + '</div><div title="Cards left in your Arsenal deck" aria-label="Deck">' + ico('deck', 'rico') + '<b>' + p.deck.length + '</b></div><div title="Mecha on the field" aria-label="Fielded">' + ico('torso', 'rico') + '<b>' + MW.fieldMechs(p.id).length + '/' + MW.fieldMax(p.id) + '</b></div></div>' +
+  let h = '<div class="pin"><div class="res"><div title="Supply" aria-label="Supply" data-res="supply">' + ico('supply', 'rico') + rb('supply', p.supply) + '<small class="rinc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</small></div><div title="Engineering actions left" aria-label="Engineering" data-res="ep">' + ico('eng', 'rico') + rb('ep', p.ep) + '</div><div title="Cards left in your Arsenal deck" aria-label="Deck">' + ico('deck', 'rico') + '<b>' + p.deck.length + '</b></div><div title="Mecha on the field" aria-label="Fielded">' + ico('torso', 'rico') + '<b>' + MW.fieldMechs(p.id).length + '/' + MW.fieldMax(p.id) + '</b></div></div>' +
     (m ? '<span class="lbl">' + m.name + ' totals · ' + (MW.issues(m).length ? 'not ready' : MW.role(m)) + '</span>' + statBlock(m, false) : '') + '</div>';
   h += tabs(tabList, ui.wtab, 'wtab') + '<div class="tabbody">';
   const cardHTML = (d, inst) => {
@@ -1922,8 +1962,8 @@ function panelBase(p) {
       const is = MW.issues(m);
       const missing = MW.isBlank(m) ? [] : ['torso', 'legs'].filter(k => !m.slots[k] || m.slots[k].hp <= 0);
       const warn = missing.length ? '<div class="h3d-warn">' + missing.map(k => (build ? '<button type="button" data-act="slot" data-key="' + k + '"' : '<span') + ' class="mwarn">⚠ ' + (m.slots[k] ? MW.slotName(k) + ' destroyed' : 'No ' + MW.slotName(k).toLowerCase()) + (build ? '</button>' : '</span>')).join('') + '<small>Can’t deploy</small></div>' : '';
-      if (build) h += buildSteps(m);
-      h += R3on ? '<div class="h3d" id="h3d">' + warn + '<span class="h3d-hint">' + (build ? 'Tap a part · the chest light is the core · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
+      if (build && !R3on) h += buildSteps(m);
+      h += R3on ? '<div class="h3d" id="h3d">' + (build ? buildSteps(m) : '') + warn + '<span class="h3d-hint">' + (build ? 'Tap a part · the chest light is the core · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
       if (is.length && !MW.isBlank(m)) h += '<p class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</p>';
       if (build) {
         const inst = ui.slotSel && MW.getSlot(m, ui.slotSel);
@@ -2190,7 +2230,9 @@ function mountHangar() {
     const m = p.hangar.find(x => x.uid === ui.hangarSel) || p.hangar[0];
     if (!m) return;
     const build = isHuman() && S.current === p.id && uiPhase() === 'build';
-    window.R3.hangar(el, m, p.id, p.doctrine, { sel: ui.slotSel, ghosts: build, onPick: build ? key => { if (key === 'core') key = 'torso'; const next = key && ui.slotSel !== key ? key : null; if (next === ui.slotSel) return; ui.slotSel = next; render(); } : null });
+    const badges = {};
+    if (build && m && m.slots.torso) ['armL', 'armR'].forEach(k => { if (!m.slots[k]) { const mt = MW.armMount(m, k); badges[k] = '<button type="button" class="hvb" data-act="slot" data-key="' + k + '" title="Empty ' + (k === 'armL' ? 'left' : 'right') + ' arm: takes ' + MW.MOUNT_NAME[mt].toLowerCase() + ' weapons" aria-label="Empty ' + (k === 'armL' ? 'left' : 'right') + ' arm, ' + MW.MOUNT_NAME[mt] + ' mount">' + mountIco(mt) + '</button>'; } });
+    window.R3.hangar(el, m, p.id, p.doctrine, { badges, sel: ui.slotSel, ghosts: build, onPick: build ? key => { if (key === 'core') key = 'torso'; const next = key && ui.slotSel !== key ? key : null; if (next === ui.slotSel) return; ui.slotSel = next; render(); } : null });
   } else if (ui.win === 'mech') {
     const sm = selMech();
     if (sm) window.R3.hangar(el, sm, sm.owner, S.players[sm.owner].doctrine, {});

@@ -1484,7 +1484,7 @@ function loop() {
     const t = clock(), dt = Math.min(0.05, t - last); last = t;
     if (document.hidden) return;
     if (BD && BD.el.isConnected && BD.el.offsetParent !== null) { updateBoard(t, dt); renderBoardFrame(dt); }
-    if (HV && HV.canvas.isConnected && HV.canvas.offsetParent !== null) { updateViewer(t, dt); HV.renderer.render(HV.scene, HV.cam); inkPass(HV.renderer, HV.scene, HV.cam, HV.scene, HV.ink || (HV.ink = {})); }
+    if (HV && HV.canvas.isConnected && HV.canvas.offsetParent !== null) { updateViewer(t, dt); placeBadges(); HV.renderer.render(HV.scene, HV.cam); inkPass(HV.renderer, HV.scene, HV.cam, HV.scene, HV.ink || (HV.ink = {})); }
   };
   requestAnimationFrame(step);
 }
@@ -1862,6 +1862,27 @@ R3.hangar = function (el, m, owner, doctrine, opt) {
     } else { HV.rotT = null; HV.lookT.set(0, 0.95, 0); HV.distT = 4.3; }
   }
   HV.onPick = opt.onPick || null;
+  // floating badges pinned to parts of the mech (empty arms show what they take)
+  let bx = el.querySelector('.hvb-box');
+  if (!bx) { bx = document.createElement('div'); bx.className = 'hvb-box'; el.appendChild(bx); }
+  const bsig = JSON.stringify(opt.badges || {});
+  if (bx.dataset.sig !== bsig) {
+    bx.dataset.sig = bsig; bx.innerHTML = '';
+    HV.badges = {};
+    for (const k in (opt.badges || {})) { const w = document.createElement('div'); w.innerHTML = opt.badges[k]; const b = w.firstElementChild; b.style.display = 'none'; bx.appendChild(b); HV.badges[k] = b; }
+  }
   loop();
 };
+function placeBadges() {
+  if (!HV.badges || !HV.R) return;
+  for (const k in HV.badges) {
+    const b = HV.badges[k], objs = HV.R.slots[k];
+    if (!objs || !objs.length) { b.style.display = 'none'; continue; }
+    const bb = new T.Box3(); objs.forEach(o => bb.expandByObject(o));
+    if (bb.isEmpty()) { b.style.display = 'none'; continue; }
+    const c = new T.Vector3(); bb.getCenter(c); c.project(HV.cam);
+    b.style.display = '';
+    b.style.left = ((c.x + 1) / 2 * 100) + '%'; b.style.top = ((1 - c.y) / 2 * 100) + '%';
+  }
+}
 })();
