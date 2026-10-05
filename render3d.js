@@ -344,6 +344,8 @@ function buildLegs(R, g, id, tc, style, ghost) {
   }
   R.kind = 'biped'; R.hipY = 0.42;
   const heavy = style === 'armored', exp = style === 'experimental';
+  // the leg rig: thigh and shin lengths, ankle-to-sole height, stride and step height (leg units)
+  R.rig = { L1: 0.2, L2: 0.2, sole: heavy ? 0.04 : 0.03, hipH: 0.42, stride: heavy ? 0.22 : style === 'assault' ? 0.28 : 0.25, lift: heavy ? 0.05 : 0.07 };
   const k = (id === 'l_biped' ? 1.18 : id === 's_anchor' ? 1.42 : id === 'l_boost' ? 0.95 : 1) * (heavy ? 1.12 : exp ? 0.92 : 1.05);
   for (const sx of [-1, 1]) {
     const hip = new T.Group(); hip.position.set(sx * (style === 'assault' ? 0.105 : 0.09) * Math.max(1, k * 0.95), 0.42, 0); g.add(hip); R.legs.push(hip);
@@ -353,6 +355,8 @@ function buildLegs(R, g, id, tc, style, ghost) {
     // small: hip joint and piston
     if (!ghost) { mesh(cyl(0.035 * k, 0.035 * k, 0.03, 10), toon(tc.dark), hip, [sx * 0.05 * k, -0.01, 0], [0, 0, Math.PI / 2]); mesh(cyl(0.008, 0.008, 0.16, 6), toon(tc.metal), hip, [0, -0.1, -0.055 * k], null, flat); }
     const knee = new T.Group(); knee.position.y = -0.2; hip.add(knee); hip.userData.knee = knee;
+    // the ankle joint: the foot hangs from it so IK can keep it flat on the ground or roll it
+    const ankle = new T.Group(); ankle.position.y = -0.2; knee.add(ankle); hip.userData.ankle = ankle;
     // medium: knee guard, shaped per army
     if (exp) { if (!ghost) mesh(sph(0.03, 10), glow(tc.glow), knee, [0, 0, 0.02], null, flat); }
     else mesh(wedge(0.08 * k, 0.07, 0.05, heavy ? 1 : 0.6, 1, heavy ? 0 : 0.015), M(heavy ? tc.accent : tc.second), knee, [0, 0.0, 0.055 * k]);
@@ -362,9 +366,9 @@ function buildLegs(R, g, id, tc, style, ghost) {
     mesh(wedge(0.07 * k, 0.12, 0.025, 1.1, 1), M(exp ? tc.second : heavy ? tc.main : tc.second), knee, [0, -0.09, 0.062 * k]);
     if (!ghost) vents(knee, toon(tc.dark), 3, 0.045 * k, 0.022, [0, -0.15, -0.06 * k]);
     // large: foot; small: toe cap and heel spur
-    mesh(wedge(heavy ? 0.16 * k : 0.12 * k, heavy ? 0.07 : 0.05, heavy ? 0.24 * k : 0.19 * k, 0.8, 0.8), M(heavy ? tc.dark : tc.accent), knee, [0, -0.205, 0.025]);
+    mesh(wedge(heavy ? 0.16 * k : 0.12 * k, heavy ? 0.07 : 0.05, heavy ? 0.24 * k : 0.19 * k, 0.8, 0.8), M(heavy ? tc.dark : tc.accent), ankle, [0, -0.005, 0.025]);
     if (heavy && !ghost) { mesh(cyl(0.058 * k, 0.058 * k, 0.03, 6), M(tc.second), knee, [0, -0.01, 0.07 * k], [Math.PI / 2, Math.PI / 6, 0]); mesh(cyl(0.022 * k, 0.022 * k, 0.034, 12), toon(tc.dark), knee, [0, -0.01, 0.075 * k], [Math.PI / 2, 0, 0], flat); }
-    if (!ghost) { mesh(box(0.06 * k, 0.02, 0.03), toon(tc.trim), knee, [0, -0.21, 0.12 * k], null, flat); mesh(cone(0.015, 0.05, 4), toon(tc.dark), knee, [0, -0.2, -0.08 * k], [-Math.PI / 2, 0, 0], flat); }
+    if (!ghost) { mesh(box(0.06 * k, 0.02, 0.03), toon(tc.trim), ankle, [0, -0.01, 0.12 * k], null, flat); mesh(cone(0.015, 0.05, 4), toon(tc.dark), ankle, [0, 0, -0.08 * k], [-Math.PI / 2, 0, 0], flat); }
     if (id === 'l_boost' && !ghost) {
       mesh(wedge(0.05, 0.1, 0.05, 0.7, 0.7), toon(tc.dark), knee, [0, -0.1, -0.075], [0.3, 0, 0]);
       const f = new T.Mesh(cone(0.024, 0.1, 8), glow(tc.thruster, 0.8)); f.position.set(0, -0.17, -0.1); f.rotation.x = -Math.PI / 2 - 0.3; knee.add(f); R.boosters.push(f);
@@ -373,7 +377,7 @@ function buildLegs(R, g, id, tc, style, ghost) {
     if (id === 'l_biped' && !ghost) {
       mesh(wedge(0.03, 0.17, 0.12 * k, 0.8, 1), M(tc.second), hip, [sx * 0.058 * k, -0.09, 0]);
       mesh(cyl(0.048 * k, 0.048 * k, 0.035, 10), M(heavy ? tc.accent : tc.trim), knee, [0, 0, 0.07 * k], [Math.PI / 2, 0, 0]);
-      for (const tx of [-1, 0, 1]) mesh(cone(0.016, 0.06, 4), toon(tc.dark), knee, [tx * 0.035 * k, -0.215, 0.14 * k], [Math.PI / 2, 0, 0], flat);
+      for (const tx of [-1, 0, 1]) mesh(cone(0.016, 0.06, 4), toon(tc.dark), ankle, [tx * 0.035 * k, -0.015, 0.14 * k], [Math.PI / 2, 0, 0], flat);
     }
     // booster legs: big calf thruster pods and thigh fins
     if (id === 'l_boost' && !ghost) {
@@ -390,6 +394,57 @@ function buildLegs(R, g, id, tc, style, ghost) {
       R.stakes.push({ g: st, sx });
     }
   }
+}
+
+/* ---------- walking: two-bone IK on each leg, driven by a gait cycle ---------- */
+// place the ankle of a hip > knee > ankle chain at (ty, tz) from the hip (in the leg's plane); returns the shin angle
+function legIK(hip, ty, tz, L1, L2) {
+  const d = Math.min(L1 + L2 - 1e-4, Math.max(Math.abs(L1 - L2) + 1e-3, Math.hypot(ty, tz)));
+  const phi = Math.atan2(-tz, -ty);                                   // direction from hip to the ankle target
+  const a = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d))));
+  const k = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + L2 * L2 - d * d) / (2 * L1 * L2))));
+  hip.rotation.x = phi - a;                                           // thigh swings forward of the line ...
+  hip.userData.knee.rotation.x = Math.PI - k;                         // ... and the knee bends, shin back
+  return hip.rotation.x + hip.userData.knee.rotation.x;
+}
+const smooth = x => x * x * (3 - 2 * x);
+// one step of the gait. st keeps the phase and blend between frames; speed is the body's ground speed (world units/s).
+// Each leg: 60% stance with the foot planted (sliding back under the hips at exactly the body's speed), heel strike
+// and toe-off; 40% swing, lifting and arcing forward. The pelvis dips at "down" and rises at "passing", twice a cycle.
+function gaitStep(st, R, dt, speed) {
+  const rg = R.rig; if (!rg || !R.legsG) return null;
+  const ws = R.legsG.getWorldScale(new T.Vector3()).z || 1;
+  const vLocal = speed / ws;
+  st.w = (st.w || 0) + ((speed > 0.02 ? 1 : 0) - (st.w || 0)) * Math.min(1, dt * 7);
+  st.phase = ((st.phase || 0) + Math.min(2.2, vLocal * 0.6 / rg.stride) * dt) % 1;
+  const w = st.w, ph = st.phase, out = { swing: [0, 0], bob: 0 };
+  // knees soft at rest and bent while walking: the pelvis drops so the feet can reach a full stride
+  const drop = 0.015 + 0.04 * w;
+  R.legs.forEach((hip, i) => {
+    const p = (ph + (i ? 0.5 : 0)) % 1;
+    let z, y, pitch;
+    if (p < 0.6) {                                                    // stance: planted, rolling heel to toe
+      const s2 = p / 0.6;
+      z = rg.stride * (0.5 - s2); y = 0;
+      pitch = s2 < 0.12 ? -0.3 * (1 - s2 / 0.12) : s2 > 0.82 ? 0.45 * (s2 - 0.82) / 0.18 : 0;
+    } else {                                                          // swing: lift, arc forward, reach for the heel strike
+      const s2 = (p - 0.6) / 0.4;
+      z = rg.stride * (-0.5 + smooth(s2)); y = rg.lift * Math.sin(Math.PI * s2);
+      pitch = 0.45 * (1 - s2) - 0.3 * smooth(s2);
+    }
+    z *= w; y *= w; pitch *= w;
+    const hipY = rg.hipH - drop + (st.bob || 0);
+    const shin = legIK(hip, (rg.sole + y) - hipY, z, rg.L1, rg.L2);
+    if (hip.userData.ankle) hip.userData.ankle.rotation.x = -shin + pitch;
+    out.swing[i] = z / rg.stride;                                     // -0.5 (back) .. 0.5 (forward)
+  });
+  // pelvis: lowest just after each heel strike (down), highest at passing (up)
+  st.bob = -0.012 * w * Math.cos(4 * Math.PI * (ph - 0.1));
+  R.legs.forEach(hip => { hip.position.y = rg.hipH - drop + st.bob; });
+  out.bob = (st.bob - drop) * R.legsG.scale.y;
+  out.roll = Math.sin(2 * Math.PI * ph) * 0.03 * w;
+  out.twist = Math.sin(2 * Math.PI * ph) * 0.09 * w;
+  return out;
 }
 
 // the weapon kit's own paint, shared by every army: a dark body, grey barrels, orange caps and a red sight
@@ -944,6 +999,7 @@ function buildMech(m, owner, doctrine, opt) {
     if (style === 'assault' && R.kind !== 'treads') legsG.scale.set(0.82 + (grow - 1) * 0.3, grow, 0.82 + (grow - 1) * 0.3); else legsG.scale.setScalar(grow);
     R.hipY *= grow; hips.position.y = R.hipY;
   }
+  R.legsG = legsG;
   // the whole machine fits inside one tile on the map: body and legs shrink together if it would not
   let scale = (fid === 't_fortress' ? 1.06 : 1) * (style === 'armored' ? 1.08 : style === 'assault' ? 0.96 : 1);
   root.updateMatrixWorld(true);
@@ -1643,7 +1699,7 @@ R3.fx = function (list) {
       const all = f.path.map(p => tp(p[0], p[1]));
       // a jump is a single hop, high enough to clear what it passes over
       const pts = f.jump ? [all[0], all[all.length - 1]] : all;
-      rec.walk = { pts, t0: clock() + base, dur: f.jump ? 0.35 + 0.12 * (all.length - 1) : 0.26 * (pts.length - 1), hop: f.jump ? 1.1 + 0.1 * (all.length - 1) : 0 };
+      rec.walk = { pts, t0: clock() + base, dur: f.jump ? 0.35 + 0.12 * (all.length - 1) : 0.4 * (pts.length - 1), hop: f.jump ? 1.1 + 0.1 * (all.length - 1) : 0 };
       rec.R.root.position.copy(pts[0]);
       tShot = Math.max(tShot, base + rec.walk.dur + 0.1);
     } else if (f.k === 'deploy') {
@@ -1893,22 +1949,27 @@ function updateRec(rec, t, dt) {
     if (R.kind === 'hover') { hipY += 0.03 * Math.sin(t * 2.2 + rec.phase); if (R.hoverGlow) R.hoverGlow.material.opacity = 0.4 + 0.3 * Math.sin(t * 6); }
     R.hips.position.y = hipY + (moving ? Math.abs(Math.sin(ph)) * 0.02 : Math.sin(ph) * 0.006);
     // walking like a person: the torso counter-twists against the stride and the hips sway a little
-    const gait = R.kind === 'biped' && moving && !kneel && !entr, gk = R.style === 'armored' ? 0.7 : 1;
-    R.torso.rotation.y = gait ? Math.sin(ph) * 0.1 * gk : moving ? 0 : Math.sin(t * 0.6 + rec.phase) * 0.08;
-    R.hips.rotation.z = gait ? Math.sin(ph) * 0.035 * gk : 0;
-    R.armSwing = gait ? Math.sin(ph) * 0.42 * gk : 0;
+    R.torso.rotation.y = moving ? 0 : Math.sin(t * 0.6 + rec.phase) * 0.08;
+    R.hips.rotation.z = 0; R.armSwing = null;
     if (R.head) R.head.rotation.y = Math.sin(t * 0.9 + rec.phase * 2) * 0.35;
     if (R.halo) R.halo.rotation.z = t * 0.7;
     if (R.monoEye) R.monoEye.position.x = Math.sin(t * 1.7 + rec.phase) * 0.032;
     if (R.gyro) { R.gyro.rotation.y = t * 1.1; R.gyro.rotation.x = 0.4 * Math.sin(t * 0.7); }
     if (R.floaters) R.floaters.forEach((g, i) => { g.position.y += (Math.sin(t * 2 + i * 2) * 0.004); g.rotation.x = 0.15 * Math.sin(t * 1.3 + i); });
-    if (R.kind === 'biped') R.legs.forEach((hip, i) => {
-      const s = i ? 1 : -1;
-      if (kneel) { hip.rotation.x = i ? -1.2 : 0.2; hip.userData.knee.rotation.x = i ? 1.6 : 0.9; return; }
-      if (entr) { hip.rotation.x = -0.25; hip.userData.knee.rotation.x = 0.5; return; }
-      hip.rotation.x = moving ? Math.sin(ph) * 0.55 * s : 0;
-      hip.userData.knee.rotation.x = moving ? Math.max(0, Math.sin(ph + (i ? 0 : Math.PI))) * 0.95 : 0;
-    });
+    if (R.kind === 'biped') {
+      if (kneel || entr) R.legs.forEach((hip, i) => {
+        if (kneel) { hip.rotation.x = i ? -1.2 : 0.2; hip.userData.knee.rotation.x = i ? 1.6 : 0.9; }
+        else { hip.rotation.x = -0.25; hip.userData.knee.rotation.x = 0.5; }
+        if (hip.userData.ankle) hip.userData.ankle.rotation.x = -(hip.rotation.x + hip.userData.knee.rotation.x);
+      });
+      else {
+        // ground speed from how far the body moved this frame
+        const p0 = rec.gaitPos || root.position.clone(), sp = moving && dt > 0 ? Math.hypot(root.position.x - p0.x, root.position.z - p0.z) / dt : 0;
+        rec.gaitPos = root.position.clone();
+        const g = gaitStep(rec.gait || (rec.gait = {}), R, dt, sp), gk = R.style === 'armored' ? 0.7 : 1;
+        if (g) { R.hips.position.y += g.bob; R.hips.rotation.z = g.roll * gk; R.torso.rotation.y = g.twist * gk; R.armSwing = g.swing; }
+      }
+    }
     if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = moving ? Math.sin(ph + i * 1.6) * 0.3 : 0; });
     if (R.stakes) R.stakes.forEach(st => { st.g.rotation.z = entr ? st.sx * 0.6 : 0; st.g.position.y = entr ? -0.14 : -0.06; });
     if (R.boosters) R.boosters.forEach(f => { f.visible = moving; f.scale.y = 1 + Math.random() * 0.8; });
@@ -1919,7 +1980,7 @@ function updateRec(rec, t, dt) {
     const a = R.arms[k];
     let rx = 0;
     if (rec.recoil && rec.lastArm === k) { const q = (t - rec.recoil) / 0.25; if (q < 1) rx = Math.sin(q * Math.PI) * 0.35; }
-    const swing = R.armSwing && !(rec.aimT && t - rec.aimT < 1.5) ? (k === 'armL' ? R.armSwing : -R.armSwing) : 0;
+    const swing = R.armSwing && !(rec.aimT && t - rec.aimT < 1.5) ? (k === 'armL' ? -R.armSwing[1] : -R.armSwing[0]) * (R.style === 'armored' ? 0.5 : 0.75) : 0;
     a.arm.rotation.x = -rx - (moving ? 0 : Math.sin(t * 1.3 + rec.phase) * 0.03) + swing;
     // raise to aim while attacking, then drop back to the rest pose
     const aiming = rec.aimT && t - rec.aimT < 1.5 && (!rec.aimKey || rec.aimKey === k);
@@ -2272,17 +2333,21 @@ function pvAnimate(t, dt) {
   const firing = (act === 'fireL' || act === 'fireR') ? pvArmKey(R, act === 'fireL' ? 'armL' : 'armR') : null;
   for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; if (k !== firing) a.el.rotation.x += ((a.rest != null ? a.rest : -Math.PI / 2) - a.el.rotation.x) * Math.min(1, dt * 8); }
   R.torso.rotation.y = 0; R.hips.rotation.z = 0;
-  if (R.legs) R.legs.forEach(hip => { hip.rotation.x = 0; if (hip.userData.knee) hip.userData.knee.rotation.x = 0; });
+  if (R.legs && R.kind !== 'biped') R.legs.forEach(hip => { hip.rotation.x = 0; if (hip.userData.knee) hip.userData.knee.rotation.x = 0; });
+  if (R.kind === 'biped' && act !== 'walk' && act !== 'jump') gaitStep(PV.gait || (PV.gait = {}), R, dt, 0);
   PV.bubble.material.opacity = 0;
   const c = PV.frame.c;
   if (act === 'walk') {
     moving = true;
     const ph = t * 6;
     if (R.kind === 'biped') {
-      const gk = R.style === 'armored' ? 0.7 : 1;
-      R.legs.forEach((hip, i) => { const s = i ? 1 : -1; hip.rotation.x = Math.sin(ph) * 0.55 * s; hip.userData.knee.rotation.x = Math.max(0, Math.sin(ph + (i ? 0 : Math.PI))) * 0.95; });
-      R.torso.rotation.y = Math.sin(ph) * 0.1 * gk; R.hips.rotation.z = Math.sin(ph) * 0.035 * gk;
-      for (const k in R.arms) R.arms[k].arm.rotation.x += (k === 'armL' ? 1 : -1) * Math.sin(ph) * 0.42 * gk;
+      // a treadmill: the stance foot slides back as if the ground moved under it
+      const ws = R.legsG.getWorldScale(new T.Vector3()).z;
+      const g = gaitStep(PV.gait || (PV.gait = {}), R, dt, 1.4 * R.rig.stride * ws / 0.6), gk = R.style === 'armored' ? 0.7 : 1;
+      if (g) {
+        hipY += g.bob; R.hips.rotation.z = g.roll * gk; R.torso.rotation.y = g.twist * gk;
+        for (const k in R.arms) R.arms[k].arm.rotation.x += -(k === 'armL' ? g.swing[1] : g.swing[0]) * (R.style === 'armored' ? 0.5 : 0.75);
+      }
     }
     if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = Math.sin(ph + i * 1.6) * 0.3; });
     hipY += Math.abs(Math.sin(ph)) * 0.02;
