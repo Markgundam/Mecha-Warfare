@@ -14,6 +14,7 @@ const C = {
   BASE_VP_PER: 4,                     // every this much damage dealt to the enemy base is worth a victory point (0 = off)
   VP_ROUND_CAP: 2,                    // most victory points one side can score from objectives in a round (0 = no cap)
   LEAD_GAP: 2, LEAD_CAP: 1, LEAD_UNTIL: 99, // once ahead by LEAD_GAP points, objectives earn at most LEAD_CAP a round, up to round LEAD_UNTIL
+  START_ARMS: 'all',                  // opening mecha: 'lead' arms only the first in both mounts, 'all' arms every mount that fits
   REQ_COST: 5,                        // supply to requisition one extra card from the Arsenal during the build (0 = off)
   BOUNTY: 0                           // points the trailing side earns per kill on the leader (0 = off)
 };
@@ -176,15 +177,15 @@ const DOCTRINES = {
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 2 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per 2 enemy mecha destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (ram), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { fieldMax: 2, plate: 3, plateRegen: 2, steady: 15, control: 2, killVp: 0.5, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 3 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per 2 enemy mecha destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (ram), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { fieldMax: 2, plate: 3, plateRegen: 3, steady: 15, control: 2, killVp: 0.5, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, l_quad: 3, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 4, w_shield: 1, a_plate: 3, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_anchor: 2, s_frame: 1, x_supply: 2, x_overtime: 2, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +7 heat every 4 rounds', 'Draws 3 cards a round instead of 2', 'Issue parts: Prototype Chassis (two energy mounts), Hover Skirt, Laser Rifle'],
-    traits: { ap: 3, heatTick: 1.75, draw: 3 },
+    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +2 heat every round', 'Draws 3 cards a round instead of 2', 'Issue parts: Prototype Chassis (two energy mounts), Hover Skirt, Laser Rifle'],
+    traits: { ap: 3, heatTick: 2, draw: 3 },
     deck: { l_hover: 3, l_quad: 1, l_biped: 1, t_proto: 3, t_assault: 1, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 2, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 1, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
@@ -216,8 +217,8 @@ const MAPS = {
     rocks: [[3, 2], [4, 2], [6, 2], [7, 2], [3, 5], [4, 5], [6, 5], [7, 5]],
     ruins: [[2, 1], [8, 6], [4, 0], [6, 7], [3, 3], [7, 4], [3, 4], [7, 3], [8, 1], [2, 6]],
     rules: {},
-    traits: { assault: { startMechs: 2 }, armored: { control: 1 }, experimental: { heatTick: 2 } },
-    notes: 'Assault starts with 2 mecha; Armored holds objectives only from an adjacent tile; Experimental gains +2 heat every round.'
+    traits: { assault: { startMechs: 2 }, armored: { control: 1 }, experimental: { heatTick: 2.5 } },
+    notes: 'Assault starts with 2 mecha; Armored holds objectives only from an adjacent tile; Experimental reactors gain +2.5 heat a round.'
   },
   uplink: {
     name: 'Uplink', goal: 'King of the hill',
@@ -227,8 +228,8 @@ const MAPS = {
     rocks: [[4, 1], [4, 5], [2, 2], [6, 4]],
     ruins: [[3, 2], [5, 4], [3, 4], [5, 2], [1, 1], [7, 5]],
     rules: { depotVp: false, uplinkVp: 2, baseHp: 6 },
-    traits: { assault: { startMechs: 4 } },
-    notes: 'Bases +6 HP. Assault starts with 4 mecha.'
+    traits: { assault: { draw: 3 } },
+    notes: 'Bases +6 HP. Assault draws 3 cards a round.'
   },
   salvage: {
     name: 'Scrapyard', goal: 'Salvage race',
@@ -337,6 +338,8 @@ function partsOf(m) {
 // doctrine traits: what sets each army apart beyond its deck
 const ISSUE = { assault: ['t_assault', 'l_boost', 'w_scatter', 'w_blade'], armored: ['t_heavy', 'l_treads', 'w_missile'], experimental: ['t_proto', 'l_hover', 'w_laser'] };
 const issuedTo = p => (p && ISSUE[p.doctrine]) || [];
+// the chassis each doctrine's opening mecha are built on, in order: the issue chassis first, then others from its deck
+const START_CHASSIS = { assault: ['t_assault', 't_skirm', 't_light', 't_assault'], armored: ['t_heavy', 't_fortress'], experimental: ['t_proto', 'c_sing'] };
 // the old separate cores are gone from play: chassis carry their own reactor now
 for (const id of ['b_core', 'c_heavy', 'c_compact', 'c_fusion']) DEFS[id].hidden = true;
 const standardFor = p => Object.values(DEFS).filter(d => (d.basic && !d.hidden) || issuedTo(p).includes(d.id)).map(d => d.id);
@@ -469,10 +472,12 @@ function newGame(opts) {
     for (let j = 0; j < (docTrait(p.doctrine, 'startMechs') || 2); j++) {
       const m = blankMech(p);
       // the army opens with its own signature machines: issue chassis, issue legs, a weapon in each mount that takes one
-      const iss = ISSUE[o.doctrine] || [], ch = iss.find(id => DEFS[id].slot === 'torso') || 'b_torso', lg = iss.find(id => DEFS[id].slot === 'legs') || 'b_legs';
+      const iss = ISSUE[o.doctrine] || [], line = START_CHASSIS[o.doctrine] || [], lg = iss.find(id => DEFS[id].slot === 'legs') || 'b_legs';
+      const ch = line[j % Math.max(1, line.length)] || iss.find(id => DEFS[id].slot === 'torso') || 'b_torso';
       m.slots.torso = mk(ch, true); m.slots.torso.issued = true; m.slots.core = mk('r_' + ch, true); m.slots.legs = mk(lg, true); m.slots.legs.issued = true;
       const guns = ['b_gun'].concat(iss.filter(id => DEFS[id].slot === 'arm'));
-      for (const k of ['armR', 'armL']) { const g = guns.slice().reverse().find(id => fitsMount(armMount(m, k), DEFS[id])); if (g && (k === 'armR' || j === 0)) { m.slots[k] = mk(g, true); m.slots[k].issued = true; } }
+      // the lead mech is armed in both mounts; the others carry one weapon, in whichever mount takes one
+      for (const k of ['armR', 'armL']) { const g = guns.slice().reverse().find(id => fitsMount(armMount(m, k), DEFS[id])); if (g && (j === 0 || C.START_ARMS === 'all' || !m.slots.armR)) { m.slots[k] = mk(g, true); m.slots[k].issued = true; if (j > 0 && C.START_ARMS !== 'all') break; } }
       p.hangar.push(m);
     }
   });
@@ -1973,7 +1978,7 @@ const api = {
   get W() { return W; }, get H() { return H; }, C, DEFS, DOCTRINES, REQUIRED,
   get S() { return S; },
   load(s) { S = s; if (S) setMap(S.map || 'open'); return S; },
-  setMap, MAPS, MAP_IDS, get MAP() { return MAP; }, rule, objVp,
+  setMap, MAPS, MAP_IDS, get MAP() { return MAP; }, rule, objVp, START_CHASSIS,
   setRng(f) { rnd = f; },
   newGame, terrain, baseAt, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,

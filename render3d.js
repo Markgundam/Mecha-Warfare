@@ -1658,7 +1658,7 @@ function makeViewer() {
   for (const sx of [-1, 1]) {
     for (const z of [-0.45, 0.25]) mesh(box(0.06, 2.6, 0.06), toon(0x9aa2aa), env, [sx * 1.05, 1.3, z]);
     for (const yy of [0.6, 1.3, 2.0]) { mesh(box(0.06, 0.06, 0.76), toon(0xe0b43a), env, [sx * 1.05, yy, -0.1]); mesh(box(0.06, 0.04, 0.8), toon(0x7a828a), env, [sx * 1.05, yy - 0.2, -0.1], [0.75, 0, 0], flat); }
-    mesh(box(0.5, 0.05, 0.7), toon(0x6a727a), env, [sx * 0.78, 1.55, -0.1]);
+    mesh(box(0.5, 0.05, 0.7), toon(0x6a727a), env, [sx * 1.32, 1.55, -0.1]);
   }
   mesh(box(4.4, 3.2, 0.1), toon(0x26303a), env, [0, 1.5, -1.35], null, { t: 0.02 });
   for (let i = 0; i < 5; i++) mesh(box(0.7, 0.04, 0.02), glow(0xffd88a), env, [-1.6 + i * 0.8, 2.6, -1.29], null, flat);
@@ -1802,7 +1802,16 @@ R3.hangar = function (el, m, owner, doctrine, opt) {
   if (sig !== HV.sig) {
     while (HV.holder.children.length) HV.holder.remove(HV.holder.children[0]);
     HV.R = null;
-    if (m) { const R = buildMech(m, owner, doctrine, { ghosts: !!opt.ghosts }); R.root.scale.multiplyScalar(2.05); HV.holder.add(R.root); HV.R = R; }
+    if (m) {
+      const R = buildMech(m, owner, doctrine, { ghosts: !!opt.ghosts }); R.root.scale.multiplyScalar(2.05); HV.holder.add(R.root); HV.R = R;
+      const ry = HV.holder.rotation.y; HV.holder.rotation.y = 0; HV.scene.updateMatrixWorld(true);
+      const bb = new T.Box3().setFromObject(R.root);
+      HV.holder.rotation.y = ry;
+      // farthest reach from the turning axis, and height under the lamps
+      const reach = Math.max(...[bb.min.x, bb.max.x].flatMap(x => [bb.min.z, bb.max.z].map(z => Math.hypot(x, z))));
+      const k = Math.min(1, 0.98 / Math.max(0.01, reach), 2.4 / Math.max(0.01, bb.max.y));
+      if (k < 1) R.root.scale.multiplyScalar(k);
+    }
     HV.sig = sig;
     measureSlots();
   }
