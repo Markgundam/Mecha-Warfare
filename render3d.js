@@ -780,17 +780,18 @@ function buildPack(bp, tc, style, w, h, R) {
     // exhaust inside, a side stripe and vents, joined by a spine block; thrusters underneath
     mesh(wedge(w * 0.42, h * 0.75, 0.08, 1.1, 1), toon(tc.accent), bp, [0, 0, -0.01]);
     for (const sx of [-1, 1]) {
-      const pod = new T.Group(); pod.position.set(sx * w * 0.26, h * 0.35, -0.08); pod.rotation.set(-0.35, 0, sx * -0.28); bp.add(pod);
-      const L2 = h * 1.25, P = 0.13;
-      mesh(box(P, L2, P * 0.95), toon(tc.main), pod, [0, L2 * 0.35, 0]);
-      mesh(box(P * 1.04, L2 * 0.5, P * 0.5), toon(tc.second), pod, [0, L2 * 0.3, -P * 0.25], null, flat);
-      mesh(box(P * 0.82, 0.03, P * 0.78), toon(INK), pod, [0, L2 * 0.85 + 0.002, 0], null, flat);
-      mesh(box(P * 0.6, 0.012, P * 0.55), glow(tc.thruster, 0.9), pod, [0, L2 * 0.85 + 0.004, 0], null, flat);
-      mesh(box(P * 1.06, 0.03, P * 1.0), toon(tc.dark), pod, [0, L2 * 0.82, 0]);
-      vents(pod, toon(tc.dark), 4, P * 0.6, 0.022, [0, L2 * 0.42, P * 0.48]);
-      mesh(box(0.012, L2 * 0.6, 0.012), toon(tc.trim), pod, [sx * P * 0.51, L2 * 0.38, P * 0.3], null, flat);
-      mesh(cyl(P * 0.42, P * 0.48, 0.05, 18), toon(tc.dark), pod, [0, -L2 * 0.15, 0]);
-      mesh(tor(P * 0.36, 0.008), glow(tc.thruster, 0.8), pod, [0, -L2 * 0.18, 0], [Math.PI / 2, 0, 0], flat);
+      // flat against the back and low: the top of each pod stays under the shoulder line, below the head
+      const pod = new T.Group(); pod.position.set(sx * w * 0.24, -h * 0.45, -0.02); pod.rotation.set(-0.12, 0, sx * -0.18); bp.add(pod);
+      const L2 = h * 1.0, P = 0.13;
+      mesh(box(P, L2, P * 0.45), toon(tc.main), pod, [0, L2 * 0.35, 0]);
+      mesh(box(P * 1.04, L2 * 0.5, P * 0.25), toon(tc.second), pod, [0, L2 * 0.3, -P * 0.12], null, flat);
+      mesh(box(P * 0.82, 0.03, P * 0.36), toon(INK), pod, [0, L2 * 0.85 + 0.002, 0], null, flat);
+      mesh(box(P * 0.6, 0.012, P * 0.24), glow(tc.thruster, 0.9), pod, [0, L2 * 0.85 + 0.004, 0], null, flat);
+      mesh(box(P * 1.06, 0.03, P * 0.5), toon(tc.dark), pod, [0, L2 * 0.82, 0]);
+      vents(pod, toon(tc.dark), 4, P * 0.6, 0.022, [0, L2 * 0.42, -P * 0.23], [0, Math.PI, 0]);
+      mesh(box(0.012, L2 * 0.6, 0.012), toon(tc.trim), pod, [sx * P * 0.51, L2 * 0.38, -P * 0.1], null, flat);
+      mesh(box(P * 0.9, 0.05, P * 0.4), toon(tc.dark), pod, [0, -L2 * 0.15, 0]);
+      mesh(box(P * 0.7, 0.01, P * 0.28), glow(tc.thruster, 0.8), pod, [0, -L2 * 0.18, 0], null, flat);
       thr(sx * w * 0.14, -h * 0.36, -0.01);
     }
   } else if (style === 'armored') {
