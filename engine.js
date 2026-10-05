@@ -286,6 +286,8 @@ function partsOf(m) {
 // doctrine traits: what sets each army apart beyond its deck
 const ISSUE = { assault: ['t_assault', 'l_boost', 'w_scatter', 'w_blade'], armored: ['t_heavy', 'l_treads', 'w_missile'], experimental: ['t_proto', 'l_hover', 'w_laser'] };
 const issuedTo = p => (p && ISSUE[p.doctrine]) || [];
+// the old separate cores are gone from play: chassis carry their own reactor now
+for (const id of ['b_core', 'c_heavy', 'c_compact', 'c_fusion']) DEFS[id].hidden = true;
 const standardFor = p => Object.values(DEFS).filter(d => (d.basic && !d.hidden) || issuedTo(p).includes(d.id)).map(d => d.id);
 for (const [doc, add] of Object.entries({ assault: { l_boost: 1, w_blade: 1, t_skirm: 1 }, armored: { l_treads: 1, t_heavy: 1, w_missile: 1 }, experimental: { t_proto: 1, l_hover: 1 } })) {
   const dk = DOCTRINES[doc].deck;

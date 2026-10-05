@@ -1647,7 +1647,7 @@ function makeViewer() {
   for (let i = 0; i < 5; i++) mesh(box(0.7, 0.04, 0.02), glow(0xffd88a), env, [-1.6 + i * 0.8, 2.6, -1.29], null, flat);
   for (let i = 0; i < 6; i++) mesh(box(0.02, 2.6, 0.02), toon(0x1a2128), env, [-2 + i * 0.8, 1.4, -1.29], null, flat);
   const holder = new T.Group(); scene.add(holder);
-  HV = { renderer, canvas, scene, cam, holder, rot: 0.5, rotT: null, drag: null, R: null, sig: null, onPick: null, lastInput: 0,
+  HV = { renderer, canvas, scene, cam, holder, rot: 0, rotT: null, drag: null, R: null, sig: null, onPick: null, lastInput: 0,
     dist: 4.3, distT: 4.3, look: new T.Vector3(0, 0.95, 0), lookT: new T.Vector3(0, 0.95, 0), zoomU: 1, sel: null };
   canvas.addEventListener('wheel', e => { e.preventDefault(); HV.zoomU = Math.max(0.45, Math.min(1.4, HV.zoomU * Math.exp(e.deltaY * 0.0015))); }, { passive: false });
   // drag to turn the mech, tap to pick a part
@@ -1684,7 +1684,8 @@ function updateViewer(t, dt) {
   if (w && h && (HV.w !== w || HV.h !== h)) { HV.w = w; HV.h = h; HV.renderer.setSize(w, h, false); HV.cam.aspect = w / h; HV.cam.updateProjectionMatrix(); }
   const k = 1 - Math.exp(-dt * 5);
   if (HV.rotT != null) { let d = HV.rotT - HV.rot; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; HV.rot += d * k; }
-  else if (!HV.drag && !HV.sel && t - HV.lastInput > 2.5) HV.rot += dt * 0.35;
+  // idle: sway gently about the front view instead of spinning round, so left and right stay where the Workshop says they are
+  else if (!HV.drag && !HV.sel && t - HV.lastInput > 2.5) HV.rot += (0.3 * Math.sin(t * 0.45) - HV.rot) * Math.min(1, dt * 1.2);
   HV.holder.rotation.y = HV.rot;
   HV.dist += (HV.distT - HV.dist) * k; HV.look.lerp(HV.lookT, k);
   const dir = new T.Vector3(0, 0.12, 1).normalize();
