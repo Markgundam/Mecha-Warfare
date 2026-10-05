@@ -136,18 +136,27 @@ fieldset.seat { --sc: var(--p0); --ss: var(--p0-soft); border-left: 4px solid va
 fieldset.seat .opts { gap: 6px; }
 fieldset.mapsel { border: 0; border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 3px 8px 6px; border-radius: 3px; margin: 0; }
 fieldset.mapsel .seathead b { color: var(--ink); }
-#setup .opts.maps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.mapopt { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 4px !important; text-align: center; }
+#setup[data-step="1"] .s2, #setup[data-step="2"] .s1 { display: none !important; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+#setup .opts.maps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 700px) { #setup .opts.maps { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.mapopt { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px !important; text-align: center; }
+.mapopt small { font-size: 11px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; line-height: 1.2; }
+.mapopt.maprand { grid-column: 1 / -1; flex-direction: row; justify-content: center; gap: 10px; padding-block: 8px !important; }
+.mapinfo { padding: 8px 2px 0; }
+.mapinfo b { font-family: var(--display); font-size: 20px; font-weight: 900; text-transform: uppercase; margin-right: 8px; }
+.mapinfo small { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.mapinfo p { margin: 4px 0 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
 .mapopt input { position: absolute; opacity: 0; pointer-events: none; }
 .mapopt b { font-size: 12px; line-height: 1.1; font-family: var(--body); font-weight: 600; text-transform: none; }
 .mapopt:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--accent); background: var(--raised); }
 .mapopt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-.minimap { width: 100%; max-width: 54px; height: auto; display: block; }
+.minimap { width: auto; height: clamp(60px, 14vh, 118px); display: block; }
+@media (max-height: 700px) { .mapopt { gap: 2px; padding-block: 5px !important; } .mapinfo { padding-top: 4px; } .mapinfo p { font-size: 12px; line-height: 1.35; } }
 .minimap .t { fill: var(--tile); } .minimap .r { fill: var(--rock); } .minimap .u { fill: var(--ruin); }
 .minimap .b0 { fill: var(--p0); } .minimap .b1 { fill: var(--p1); }
 .minimap .o-depot { fill: var(--good); } .minimap .o-radar { fill: var(--c-energy); } .minimap .o-uplink { fill: var(--accent); } .minimap .o-repair { fill: var(--muted); } .minimap .o-crate { fill: none; stroke: var(--accent); stroke-width: .12; stroke-dasharray: .2 .15; }
-.mapq { font-family: var(--display); font-size: 26px; font-weight: 900; color: var(--muted); line-height: 1; aspect-ratio: 7 / 9; width: 100%; max-width: 54px; display: grid; place-items: center; border: 1px dashed var(--line); }
-#mapblurb { margin: 4px 0 0; font-size: 13px; }
+.mapq { font-family: var(--display); font-size: 22px; font-weight: 900; color: var(--muted); line-height: 1; width: 30px; height: 30px; display: grid; place-items: center; border: 1px dashed var(--line); }
 fieldset.seat .decklist { margin-top: 4px; border: 0; background: none; }
 fieldset.seat .decklist .btn { min-height: 0; padding-block: 3px; }
 fieldset.seat.p1 { --sc: var(--p1); --ss: var(--p1-soft); }
@@ -801,26 +810,31 @@ button.rost { cursor: pointer; }
       </div>
       <div class="row"><button class="btn ghost" type="button" id="net-back">‹ Back</button></div>
     </div>
-    <form id="setup" class="menu" hidden>
-      <div class="phead"><h2>Choose doctrines</h2><span class="lbl" id="setup-mode"></span></div>
+    <form id="setup" class="menu" data-step="1" hidden>
+      <div class="phead s1"><h2>Choose doctrines</h2><span class="lbl" id="setup-mode"></span></div>
+      <div class="phead s2"><h2>Choose battlefield</h2><span class="lbl" id="setup-vs"></span></div>
       <div class="dlegend" id="dlegend"></div>
-      <fieldset class="seat p0">
+      <fieldset class="seat p0 s1">
         <legend class="seathead" id="leg0">Azure doctrine</legend>
         <div class="opts" id="doc0"></div>
         <div class="decklist" id="deck0"></div>
       </fieldset>
-      <fieldset class="seat p1">
+      <fieldset class="seat p1 s1">
         <legend class="seathead" id="leg1">Ember doctrine</legend>
         <div class="opts" id="doc1"></div>
         <div class="decklist" id="deck1"></div>
       </fieldset>
-      <fieldset class="mapsel">
-        <legend class="seathead"><b>Battlefield</b><small id="mapgoal"></small></legend>
+      <fieldset class="mapsel s2">
+        <legend class="vh">Battlefield</legend>
         <div class="opts maps" id="mapopts"></div>
-        <p class="note" id="mapblurb"></p>
+        <div class="mapinfo"><b id="mapname"></b><small id="mapgoal"></small><p id="mapblurb"></p></div>
       </fieldset>
-      <div class="row">
+      <div class="row s1">
         <button class="btn ghost" type="button" id="back">‹ Back</button>
+        <button class="btn primary grow" type="submit" id="next">Next: battlefield ›</button>
+      </div>
+      <div class="row s2">
+        <button class="btn ghost" type="button" id="back2">‹ Doctrines</button>
         <button class="btn primary grow" type="submit" id="go">Start battle</button>
       </div>
     </form>
@@ -2297,6 +2311,7 @@ function openSetup(mode) {
   $('#leg0').innerHTML = '<span class="who">' + ico('user', 'sm') + (ai ? ' You' : ' Player 1') + '</span><b>Azure</b><small>' + (ai ? 'pick your doctrine' : 'first player') + '</small>';
   $('#leg1').innerHTML = '<span class="who">' + (ai ? ico('cpu', 'sm') + ' AI' : ico('user', 'sm') + ' Player 2') + '</span><b>Ember</b><small>' + (ai ? 'the computer opponent' : 'second player') + '</small>';
   $('#menu').hidden = true; $('#setup').hidden = false;
+  setupStep(1);
   updateDeckLists();
 }
 const GROUPS = [['torso', 'Frames'], ['core', 'Cores'], ['legs', 'Legs'], ['arm', 'Arms'], ['aux', 'Aux'], ['special', 'Specials'], ['event', 'Events']];
@@ -2385,12 +2400,13 @@ function miniMap(id) {
 function mapChoice() { try { const v = localStorage.getItem('mw-map'); return v && (MW.MAPS[v] || v === 'random') ? v : 'open'; } catch (e) { return 'open'; } }
 function buildMaps() {
   const cur = mapChoice();
-  $('#mapopts').innerHTML = MW.MAP_IDS.map(id => '<label class="opt mapopt" title="' + MW.MAPS[id].blurb + '"><input type="radio" name="map" value="' + id + '"' + (id === cur ? ' checked' : '') + '>' + miniMap(id) + '<b>' + MW.MAPS[id].name + '</b></label>').join('') +
-    '<label class="opt mapopt" title="Picked when the battle starts."><input type="radio" name="map" value="random"' + (cur === 'random' ? ' checked' : '') + '><span class="mapq">?</span><b>Random</b></label>';
+  $('#mapopts').innerHTML = MW.MAP_IDS.map(id => '<label class="opt mapopt" title="' + MW.MAPS[id].blurb + '"><input type="radio" name="map" value="' + id + '"' + (id === cur ? ' checked' : '') + '>' + miniMap(id) + '<b>' + MW.MAPS[id].name + '</b><small>' + MW.MAPS[id].goal + '</small></label>').join('') +
+    '<label class="opt mapopt maprand" title="Picked when the battle starts."><input type="radio" name="map" value="random"' + (cur === 'random' ? ' checked' : '') + '><span class="mapq">?</span><b>Random</b></label>';
   updateMapInfo();
 }
 function updateMapInfo() {
   const el = document.querySelector('input[name=map]:checked'), id = el ? el.value : 'open', M = MW.MAPS[id];
+  $('#mapname').textContent = M ? M.name : 'Random';
   $('#mapgoal').textContent = M ? M.goal + ' · ' + M.W + '×' + M.H : 'Any of the ' + MW.MAP_IDS.length;
   $('#mapblurb').textContent = M ? M.blurb + (M.notes ? ' Map balance: ' + M.notes : '') : 'One of the battlefields, picked at random when the battle starts.';
 }
@@ -2425,8 +2441,20 @@ document.addEventListener('click', e => {
   if (a && !a.disabled) return onAct(a);
   if (e.target.id === 'overlay') $('#overlay').hidden = true;
 });
+// setup comes in two steps, each one screen: doctrines, then the battlefield
+function setupStep(n) {
+  $('#setup').dataset.step = n;
+  if (n === 2) {
+    const f = new FormData($('#setup')), nm = v => v === 'random' ? 'Random' : DOC_NAME(v);
+    $('#setup-vs').textContent = nm(f.get('doc0')) + ' vs ' + nm(f.get('doc1'));
+    updateMapInfo();
+  }
+  $('#start').scrollTop = 0;
+}
+$('#back2').addEventListener('click', () => setupStep(1));
 $('#setup').addEventListener('submit', e => {
   e.preventDefault();
+  if ($('#setup').dataset.step !== '2') return setupStep(2);
   const f = new FormData(e.target), keys = Object.keys(MW.DOCTRINES);
   let d1 = f.get('doc1');
   if (d1 === 'random') d1 = keys[Math.floor(Math.random() * keys.length)];
