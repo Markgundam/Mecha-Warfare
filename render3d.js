@@ -756,14 +756,15 @@ function buildPack(bp, tc, style, w, h, R) {
     // behind the shoulders, reaching above the head and below the waist; thrusters underneath
     mesh(wedge(w * 0.5, h * 0.6, 0.07, 1.2, 1), toon(tc.accent), bp);
     for (const sx of [-1, 1]) {
-      const fan = new T.Group(); fan.position.set(sx * w * 0.18, h * 0.3, -0.05); fan.rotation.set(0.2, sx * 0.3, sx * -0.2); bp.add(fan);
+      // the fans hinge high on the back and sweep down and out behind the legs
+      const fan = new T.Group(); fan.position.set(sx * w * 0.22, h * 0.55, -0.05); fan.rotation.set(0.3, sx * 0.3, -sx * (Math.PI - 0.55)); bp.add(fan);
       // three broad, layered wing panels, the outer ones shorter and fanned a little further out
       for (let i = 0; i < 3; i++) {
         const len = h * (1.95 - i * 0.3), wd = 0.13 - i * 0.015, blade = new T.Group();
-        blade.position.set(sx * i * 0.05, -i * 0.04, -i * 0.018); blade.rotation.z = sx * -0.17 * i; fan.add(blade);
-        mesh(wedge(wd, len, 0.018, 0.55, 1), toon(i === 1 ? tc.main : tc.second), blade, [sx * wd * 0.3, len * 0.15, 0]);
-        mesh(box(wd * 0.22, len * 0.75, 0.02), toon(i === 1 ? tc.second : tc.main), blade, [sx * wd * 0.62, len * 0.1, 0.001], null, flat);
-        mesh(box(wd * 0.7, 0.014, 0.021), toon(tc.trim), blade, [sx * wd * 0.3, len * 0.5, 0.002], null, flat);
+        blade.position.set(sx * i * 0.05, -i * 0.04, -i * 0.018); blade.rotation.z = sx * 0.17 * i; fan.add(blade);
+        mesh(wedge(wd, len, 0.018, 0.55, 1), toon(i === 1 ? tc.main : tc.second), blade, [sx * wd * 0.3, len * 0.47, 0]);
+        mesh(box(wd * 0.22, len * 0.75, 0.02), toon(i === 1 ? tc.second : tc.main), blade, [sx * wd * 0.62, len * 0.42, 0.001], null, flat);
+        mesh(box(wd * 0.7, 0.014, 0.021), toon(tc.trim), blade, [sx * wd * 0.3, len * 0.8, 0.002], null, flat);
       }
       thr(sx * w * 0.14, -h * 0.36, -0.01);
     }
