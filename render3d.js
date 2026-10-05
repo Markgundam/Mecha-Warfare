@@ -348,7 +348,8 @@ function buildLegs(R, g, id, tc, style, ghost) {
     mesh(wedge(0.07 * k, 0.12, 0.025, 1.1, 1), M(exp ? tc.second : heavy ? tc.main : tc.second), knee, [0, -0.09, 0.062 * k]);
     if (!ghost) vents(knee, toon(tc.dark), 3, 0.045 * k, 0.022, [0, -0.15, -0.06 * k]);
     // large: foot; small: toe cap and heel spur
-    mesh(wedge(0.12 * k, 0.05, 0.19 * k, 0.8, 0.8), M(heavy ? tc.dark : tc.accent), knee, [0, -0.205, 0.025]);
+    mesh(wedge(heavy ? 0.16 * k : 0.12 * k, heavy ? 0.07 : 0.05, heavy ? 0.24 * k : 0.19 * k, 0.8, 0.8), M(heavy ? tc.dark : tc.accent), knee, [0, -0.205, 0.025]);
+    if (heavy && !ghost) { mesh(cyl(0.058 * k, 0.058 * k, 0.03, 6), M(tc.second), knee, [0, -0.01, 0.07 * k], [Math.PI / 2, Math.PI / 6, 0]); mesh(cyl(0.022 * k, 0.022 * k, 0.034, 12), toon(tc.dark), knee, [0, -0.01, 0.075 * k], [Math.PI / 2, 0, 0], flat); }
     if (!ghost) { mesh(box(0.06 * k, 0.02, 0.03), toon(tc.trim), knee, [0, -0.21, 0.12 * k], null, flat); mesh(cone(0.015, 0.05, 4), toon(tc.dark), knee, [0, -0.2, -0.08 * k], [-Math.PI / 2, 0, 0], flat); }
     if (id === 'l_boost' && !ghost) {
       mesh(wedge(0.05, 0.1, 0.05, 0.7, 0.7), toon(tc.dark), knee, [0, -0.1, -0.075], [0.3, 0, 0]);
@@ -572,11 +573,17 @@ function shoulderArmor(sh, sx, tc, style, k) {
     mesh(cone(0.016, 0.07, 4), toon(tc.trim), sh, [sx * 0.035, 0.1, -0.02], [0, 0, sx * -0.2], flat);
     mesh(box(0.012, 0.01, 0.1 * k), toon(tc.accent), sh, [sx * 0.06 * k, 0.005, 0], [0, 0, sx * -0.3], flat);
   } else if (style === 'armored') {
-    // large: drum pauldron; medium: layered rim plate and hazard band; small: rivets
-    mesh(cyl(0.075 * k, 0.075 * k, 0.13 * k, 12), toon(tc.main), sh, [sx * 0.025, 0.02, 0], [0, 0, Math.PI / 2]);
-    mesh(cyl(0.08 * k, 0.08 * k, 0.03 * k, 12), toon(tc.second), sh, [sx * 0.085 * k, 0.02, 0], [0, 0, Math.PI / 2]);
-    mesh(box(0.02, 0.03, 0.13 * k), toon(tc.accent), sh, [sx * 0.02, 0.09 * k, 0], null, flat);
-    rivets(sh, toon(tc.dark), [[sx * 0.1 * k, 0.06, 0.03], [sx * 0.1 * k, 0.06, -0.03], [sx * 0.1 * k, -0.02, 0.05]].map(q => [q[0], q[1], q[2]]));
+    // large: a ball joint and an arched pauldron of three heavy plates curving over it
+    mesh(sph(0.075 * k, 18), toon(tc.dark), sh, [sx * 0.03, 0.01, 0]);
+    mesh(cyl(0.052 * k, 0.052 * k, 0.02, 18), toon(tc.second), sh, [sx * (0.03 + 0.072 * k), 0.01, 0], [0, 0, Math.PI / 2]);
+    mesh(box(0.012, 0.012, 0.07 * k), toon(INK), sh, [sx * (0.03 + 0.083 * k), 0.01, 0], [0.6, 0, 0], flat);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mesh(cyl(0.007, 0.007, 0.008, 6), toon(tc.metal), sh, [sx * (0.03 + 0.083 * k), 0.01 + Math.cos(a) * 0.038 * k, Math.sin(a) * 0.038 * k], [0, 0, Math.PI / 2], flat); }
+    const R0 = 0.11 * k;
+    for (const [i, a] of [[0, 0.15], [1, 0.75], [2, 1.35]]) {
+      const plate = mesh(box(0.11 * k, 0.06 * k, 0.24 * k), toon(i === 1 ? tc.second : tc.main), sh, [sx * (0.03 + (R0 + 0.012 * k) * Math.sin(a)), 0.01 + (R0 + 0.012 * k) * Math.cos(a), 0], [0, 0, -sx * a]);
+      rivets(plate, toon(tc.dark), [[-0.03 * k, 0.017 * k, 0.07 * k], [0.03 * k, 0.017 * k, -0.07 * k]].map(q => [q[0], q[1], q[2]]));
+    }
+    mesh(box(0.1 * k, 0.012, 0.02), toon(tc.accent), sh, [sx * (0.03 + R0 * Math.sin(0.15)), 0.01 + R0 + 0.02 * k, 0.09 * k], [0, 0, -sx * 0.15], flat);
   } else {
     // large: smooth cowl; medium: tall fin; small: glowing edge
     mesh(sph(0.065 * k, 10), toon(tc.main), sh, [sx * 0.015, 0.02, 0]);
@@ -599,13 +606,12 @@ function buildHead(hd, tc, style) {
     mesh(box(0.02, 0.02, 0.02), toon(tc.second), hd, [0, 0.09, 0.05]);
     for (const sx of [-1, 1]) { mesh(cyl(0.007, 0.007, 0.03, 8), toon(INK), hd, [sx * 0.04, 0.072, 0.072], [Math.PI / 2, 0, 0]); }
   } else if (style === 'armored') {
-    // large: low armoured dome; medium: visor band and ear blocks; small: antenna and rivets
-    mesh(wedge(0.13, 0.08, 0.12, 0.8, 0.8), toon(tc.second), hd, [0, 0.04, 0]);
-    mesh(box(0.11, 0.022, 0.02), toon(tc.dark), hd, [0, 0.045, 0.058]);
-    mesh(box(0.1, 0.012, 0.012), glow(tc.eye), hd, [0, 0.045, 0.067], null, flat);
-    for (const sx of [-1, 1]) mesh(box(0.025, 0.05, 0.06), toon(tc.main), hd, [sx * 0.068, 0.035, 0]);
-    mesh(cyl(0.006, 0.006, 0.09, 5), toon(INK), hd, [0.05, 0.11, -0.03]);
-    mesh(box(0.04, 0.012, 0.03), toon(tc.accent), hd, [0, 0.085, 0.02], null, flat);
+    // a low armoured sensor hood: a sloped cowl with a vent grille, three round lenses in a dark band
+    mesh(wedge(0.15, 0.085, 0.13, 0.75, 0.7, -0.01), toon(tc.second), hd, [0, 0.03, -0.01]);
+    mesh(box(0.13, 0.04, 0.025), toon(tc.dark), hd, [0, 0.035, 0.056]);
+    for (const x of [-0.035, 0, 0.035]) { mesh(cyl(0.013, 0.013, 0.012, 14), toon(tc.metal), hd, [x, 0.035, 0.07], [Math.PI / 2, 0, 0], flat); mesh(cyl(0.008, 0.008, 0.013, 12), glow(tc.eye), hd, [x, 0.035, 0.071], [Math.PI / 2, 0, 0], flat); }
+    vents(hd, toon(tc.dark), 4, 0.07, 0.011, [0, 0.074, 0.02], [-0.6, 0, 0]);
+    mesh(cyl(0.006, 0.006, 0.08, 5), toon(INK), hd, [0.055, 0.1, -0.04]);
   } else {
     // large: ovoid sensor head; medium: crest fin and collar; small: mono-eye on its rail, whiskers
     mesh(sph(0.06, 14), toon(tc.main), hd, [0, 0.05, 0]);
@@ -647,6 +653,11 @@ function buildChest(frame, tc, style, fid, w, h, dp, cy) {
     // small: hazard stripes, rivets, unit number plate
     for (let i = 0; i < 4; i++) mesh(box(w * 0.08, h * 0.08, 0.012), toon(i % 2 ? tc.dark : tc.accent), frame, [-w * 0.3 + i * w * 0.08, cy - h * 0.32, dp * 0.47], [0, 0, 0.6], flat);
     rivets(frame, toon(tc.dark), [[-w * 0.38, cy + h * 0.32, dp * 0.6], [w * 0.38, cy + h * 0.32, dp * 0.6], [-w * 0.38, cy - h * 0.02, dp * 0.6], [w * 0.38, cy - h * 0.02, dp * 0.6]]);
+    // dreadnought hull: a tall trapezoid sarcophagus plate, a vent grille above it and a grille under the belly
+    mesh(wedge(w * 0.62, h * 0.78, dp * 0.12, 0.72, 1), toon(tc.main), frame, [0, cy + h * 0.02, dp * 0.66]);
+    mesh(wedge(w * 0.42, h * 0.3, dp * 0.06, 0.7, 1), toon(tc.second), frame, [0, cy - h * 0.14, dp * 0.74]);
+    vents(frame, toon(tc.dark), 5, w * 0.3, h * 0.05, [0, cy + h * 0.3, dp * 0.73]);
+    for (let i = 0; i < 5; i++) mesh(box(0.012, h * 0.16, dp * 0.3), toon(tc.dark), frame, [(-2 + i) * w * 0.1, cy - h * 0.55, dp * 0.36], null, flat);
     mesh(box(w * 0.18, h * 0.12, 0.012), toon(tc.trim), frame, [w * 0.22, cy - h * 0.32, dp * 0.47], null, flat);
   } else {
     // large: a sculpted, rounded shell, wider at the chest
@@ -805,7 +816,8 @@ function buildMech(m, owner, doctrine, opt) {
   const hips = new T.Group(); hips.position.y = R.hipY; root.add(hips); R.hips = hips;
   const torso = new T.Group(); hips.add(torso); R.torso = torso;
   const fid = S.torso ? S.torso.id : 'b_torso';
-  const [w0, h, dp] = FRAME_DIM[fid] || FRAME_DIM.b_torso;
+  const [w0, h0, dp] = FRAME_DIM[fid] || FRAME_DIM.b_torso;
+  const h = h0 * (style === 'armored' ? 1.2 : 1);   // armoured hulls stand tall, like a dreadnought sarcophagus
   const w = w0 * (style === 'armored' ? 1.1 : style === 'experimental' ? 0.95 : 1);
   const k = (fid === 't_fortress' ? 1.3 : fid === 't_heavy' || fid === 's_frame' ? 1.15 : fid === 't_light' || fid === 't_skirm' ? 0.86 : 1) * (style === 'armored' ? 1.15 : 1);
   const cy = 0.08 + h / 2;
@@ -857,7 +869,7 @@ function buildMech(m, owner, doctrine, opt) {
       continue;
     }
     const def = Dd[inst.id], cat = def.cat;
-    const ak = style === 'armored' ? 1.2 : style === 'experimental' ? 0.85 : 1;
+    const ak = style === 'armored' ? 1.45 : style === 'experimental' ? 0.85 : 1;
     const arm = new T.Group(); sh.add(arm);
     mesh(wedge(0.065 * ak, 0.15, 0.075 * ak, 1.15, 1.1), toon(style === 'experimental' ? tc.second : tc.main), arm, [0, -0.075, 0]);
     mesh(cyl(0.007, 0.007, 0.12, 5), toon(tc.metal), arm, [sx * 0.035 * ak, -0.08, -0.02], null, flat);
