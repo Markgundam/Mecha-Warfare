@@ -67,12 +67,12 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 .newbie b { color: var(--good); }
 body.first .mode.train { order: -1; border-color: var(--good); }
 /* the training coach: a card that says what to do next, and a pulse on what to tap */
-#coach, #fnote { position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 34; width: min(440px, calc(100vw - 24px)); background: var(--ink); color: var(--bg); border-left: 4px solid var(--good); border-radius: 4px; padding: 9px 12px 8px; box-shadow: 0 6px 18px rgba(0,0,0,.28); font-size: 14px; line-height: 1.4; }
+#coach, #fnote { position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 34; width: min(440px, calc(100vw - 24px)); background: #16202a; color: #e7eef3; border: 1px solid #33424f; border-left: 4px solid var(--good); border-radius: 4px; padding: 9px 12px 8px; box-shadow: 0 8px 22px rgba(0,0,0,.4); font-size: 14px; line-height: 1.4; }
 #coach.low { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
 #coach .ch, #fnote .ch { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
 #coach .ch b, #fnote .ch b { color: var(--good); opacity: 1; }
 #coach .cr, #fnote .cr { display: flex; justify-content: flex-end; gap: 8px; margin-top: 7px; }
-#coach .cr button, #fnote .cr button { font: 600 13px var(--body); border-radius: 3px; padding: 4px 12px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--bg) 40%, transparent); background: transparent; color: var(--bg); }
+#coach .cr button, #fnote .cr button { font: 600 13px var(--body); border-radius: 3px; padding: 4px 12px; cursor: pointer; border: 1px solid #4a5b69; background: transparent; color: #e7eef3; }
 #coach .cr button.go, #fnote .cr button.go { background: var(--good); border-color: var(--good); color: #fff; }
 #fnote { border-left-color: var(--accent); }
 #fnote .ch b { color: var(--accent); }
@@ -2068,7 +2068,7 @@ const COACH = [
   { t: '<b>Resolution</b> just played: heat cooled, base turrets fired, and points were scored. Your points are the ★ at the top. Keep an eye on <b>heat</b>: a mech over its limit at round end is damaged and shuts down.', next: 'Next', low: true },
   { t: 'Round 2 begins. Tap <b>Add to Workshop</b> for this round\'s cards.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
   { t: 'Time to upgrade. Open the <b>Parts</b> tab: it lists the cards in your Workshop that can go on the selected mech.', hl: '[data-act=wtab][data-tab=cards]', done: () => ui.wtab === 'cards' || fittedNew() },
-  { t: 'Pick a part and tap <b>Fit</b>. Fitting costs Supply (top left of the Workshop) and one engineering action. Cards that cannot go on this mech say why.', hl: '[data-act=install]', done: () => fittedNew() || S.phase !== 'build' },
+  { t: 'Pick a card and tap its gold button. <b>Fit</b> puts the part in an empty slot; <b>Replace</b> swaps out the part already there. Either costs Supply (the box icon at the top of the Workshop) and one engineering action (the wrench).', hl: '[data-act=install]', prefer: b => /^Fit/.test(b.textContent.trim()), done: () => fittedNew() || S.phase !== 'build' },
   { t: 'That is the loop: <b>build, deploy, fight, resolve</b>. New mechanics get a short note the first time they come up. The <b>Rules</b> button has the full field manual. Now win this battle!', next: 'Finish' }
 ];
 const NOTES = [
@@ -2147,12 +2147,24 @@ function renderCoach() {
   if (!el) { el = document.createElement('div'); el.id = 'coach'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
   // the dock redraws on its own, so the coach checks back every half second
   clearTimeout(ui.coachT); ui.coachT = setTimeout(renderCoach, 500);
-  if (st.hl) { const t = [...document.querySelectorAll(st.hl)].find(x => x.offsetParent !== null && !x.disabled); if (t) t.classList.add('coach-hl'); }
-  if (el.dataset.step === String(S.coach)) return;
+  let target = null;
+  if (st.hl) {
+    const vis = [...document.querySelectorAll(st.hl)].filter(x => x.offsetParent !== null && !x.disabled);
+    target = (st.prefer && vis.find(st.prefer)) || vis[0] || null;
+    if (target) target.classList.add('coach-hl');
+  }
+  // never sit on top of the thing the step points at: move to the other edge of the screen instead
+  const place = () => {
+    if (!target) { el.classList.toggle('low', !!st.low); return; }
+    el.classList.toggle('low', !!st.low);
+    const a = el.getBoundingClientRect(), b = target.getBoundingClientRect();
+    if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) el.classList.toggle('low');
+  };
+  if (el.dataset.step === String(S.coach)) { place(); return; }
   el.dataset.step = S.coach;
-  el.classList.toggle('low', !!st.low);
   el.innerHTML = '<div class="ch"><b>Training</b> step ' + (S.coach + 1) + ' of ' + COACH.length + '</div><div' + (st.wait ? ' class="wait"' : '') + '>' + st.t + '</div>' +
     '<div class="cr"><button type="button" data-act="coachSkip">Skip training</button>' + (st.next ? '<button type="button" class="go" data-act="coachNext">' + st.next + '</button>' : '') + '</div>';
+  place();
 }
 
 /* ---------- Flow ---------- */
