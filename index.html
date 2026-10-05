@@ -245,6 +245,9 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 .tile.ruins { background: repeating-linear-gradient(45deg, var(--ruin) 0 3px, var(--tile) 3px 8px); }
 .tile.zone0 { box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--p0) 10%, transparent); }
 .tile.zone1 { box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--p1) 10%, transparent); }
+/* base turret reach: diagonal hatching in the base's colour */
+.tile.tz0 { background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--p0) 16%, transparent) 0 3px, transparent 3px 8px); }
+.tile.tz1 { background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--p1) 16%, transparent) 0 3px, transparent 3px 8px); }
 .tile > svg, .tok { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tile .xy { position: absolute; left: 2px; top: 1px; font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: .7; pointer-events: none; }
 .tile.reach::after, .tile.dep::after, .tile.target::after, .tile.threat::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; }
@@ -1362,6 +1365,9 @@ function renderBoard() {
   }
   if (human && S.phase === 'deploy' && ui.mode === 'deploy') dep = MW.deployTiles(cur.id).filter(t => !MW.mechAt(t[0], t[1]));
   const zones = [MW.deployTiles(0), MW.deployTiles(1)];
+  // where each base turret fires, while that base still stands
+  const turret = {};
+  [0, 1].forEach(i => { if (S.players[i].base.hp > 0) MW.turretTiles(i).forEach(([tx, ty]) => { turret[tx + ',' + ty] = i; }); });
   const ez = sm && sm.x != null && sm.owner !== viewer() ? MW.reachZone(sm) : null;
   const cover = reach ? MW.overwatchCover(S.current) : {};
   const overlay = {}, zoneMap = {}, olabs = [], oddsMap = {};
@@ -1372,6 +1378,7 @@ function renderBoard() {
     const cls = ['tile', ter], lab = [MW.coord(x, y)];
     let inner = '<span class="xy">' + MW.coord(x, y) + '</span>';
     zones.forEach((z, i) => { if (z.some(t => t[0] === x && t[1] === y)) cls.push('zone' + i); });
+    if (turret[k] != null) { cls.push('tz' + turret[k]); lab.push('in range of the ' + S.players[turret[k]].name + ' base turret'); }
     if (ter === 'rock') { inner += '<svg viewBox="0 0 40 40"><path d="M5 33l5-17 9-9 11 6 6 20z" fill="var(--rock)"/><path d="M19 7l-3 14 8 12" fill="none" stroke="var(--tile)" stroke-width="1.5" opacity=".6"/></svg>'; lab.push('rock'); }
     if (ter === 'ruins') lab.push('ruins');
     if (b != null) {
@@ -1414,12 +1421,12 @@ function renderBoard() {
     h += '<button type="button" class="' + cls.join(' ') + '" data-x="' + x + '" data-y="' + y + '" aria-label="' + lab.join(', ') + '">' + inner + '</button>';
   }
   $('#board').innerHTML = h;
-  if (R3on) sync3d(overlay, zoneMap, olabs, oddsMap);
+  if (R3on) sync3d(overlay, zoneMap, olabs, oddsMap, turret);
   playFx(S.fx || []);
   MW.clearFx();
 }
 // labels that float over the 3D map: mech status, base HP, objective and crate tags, hit chances
-function sync3d(overlay, zoneMap, olabs, oddsMap) {
+function sync3d(overlay, zoneMap, olabs, oddsMap, turret) {
   const parts = [], anchors = [];
   const add = (html, a) => { parts.push('<div class="lbl3">' + html + '</div>'); anchors.push(a); };
   for (const m of S.mechs) {
@@ -1449,7 +1456,7 @@ function sync3d(overlay, zoneMap, olabs, oddsMap) {
   const reach = sm && human && S.phase === 'combat' && ui.mode === 'move' && sm.owner === S.current && !MW.actGuard(sm) ? MW.reachable(sm) : null;
   const plan = reach ? [[sm.x, sm.y]].concat(Object.keys(reach).filter(k => reach[k] > 0).map(k => k.split(',').map(Number))) : null;
   const cam = human && S.phase === 'deploy' && ui.mode === 'deploy' ? { deploy: S.current } : frame ? { frame, key: sm.uid + ':' + ui.weaponKey + ':' + sm.x + ',' + sm.y } : plan && plan.length > 1 ? { plan, key: sm.uid + ':' + sm.x + ',' + sm.y } : sm ? { sel: sm.uid } : {};
-  window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, sel: ui.sel, active: S.active, cam, labels: ui.curLabels });
+  window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, turret: turret || {}, sel: ui.sel, active: S.active, cam, labels: ui.curLabels });
 }
 function applyLabels(n, quiet) {
   const box = $('#labels');
@@ -2433,7 +2440,7 @@ function showRules() {
     ['Map', [['Battlefields', MW.MAP_IDS.map(id => '<b>' + MW.MAPS[id].name + '</b> (' + MW.MAPS[id].goal.toLowerCase() + '): ' + MW.MAPS[id].blurb + (MW.MAPS[id].notes ? ' <i>' + MW.MAPS[id].notes + '</i>' : '')).join('<br>') + (S && S.map ? '<br>This battle: <b>' + MW.MAP.name + '</b>.' : '')],
       ['Objectives', 'End a round on a depot or radar to hold it. Depots add ' + C.DEPOT + ' Supply a round (' + C.DEPOT_EXTRA + ' for each past the ' + (C.DEPOT_FULL === 2 ? 'second' : C.DEPOT_FULL + 'th') + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
       ['Crates', 'Every other round a crate drops on the centre line: +' + C.CRATE_SUPPLY + ' Supply or a special card, taken by the first mech to end a move on it.'],
-      ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution. Returning to base vents heat and restocks ammo.'],
+      ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution; its reach is tinted and outlined in the base\'s colour on the map. Returning to base vents heat and restocks ammo.'],
       ['Salvage', 'Wrecks hold ' + C.SCRAP + ' Supply plus any special parts that survived, free to fit.']]]
   ];
   const cur = Math.min(ui.ruleTab || 0, T.length - 1);

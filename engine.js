@@ -317,6 +317,11 @@ function deployTiles(pid) {
   }
   return out;
 }
+function turretTiles(pid) {
+  const b = BASE_POS[pid], out = [];
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) if ((x !== b.x || y !== b.y) && man(x, y, b.x, b.y) <= C.TURRET_RANGE) out.push([x, y]);
+  return out;
+}
 const inDeployZone = m => deployTiles(m.owner).some(([x, y]) => x === m.x && y === m.y);
 
 /* ---------- Mech model ---------- */
@@ -1987,7 +1992,7 @@ const api = {
   load(s) { S = s; if (S) setMap(S.map || 'open'); return S; },
   setMap, MAPS, MAP_IDS, get MAP() { return MAP; }, rule, objVp, START_CHASSIS,
   setRng(f) { rnd = f; },
-  newGame, terrain, baseAt, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
+  newGame, terrain, baseAt, turretTiles, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
   acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, canRam, ramTargets, ram, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,

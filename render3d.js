@@ -911,7 +911,29 @@ function buildBoard(S) {
     if (base != null) buildBase(p, k, base);
   }
   for (const o of S.objectives) buildObjective(o);
+  BD.turretRings = [0, 1].map(pid => buildTurretRing(pid, S));
   ST.hasBoard = true;
+}
+function buildTurretRing(pid, S) {
+  const MW = window.MW, inside = {}, g = new T.Group();
+  for (const [x, y] of MW.turretTiles(pid)) inside[key(x, y)] = true;
+  const b = S.players[pid].base; inside[key(b.x, b.y)] = true;
+  const mat = new T.MeshBasicMaterial({ color: TEAM[pid].ring, transparent: true, opacity: 1, depthWrite: false });
+  for (const k in inside) {
+    const [x, y] = k.split(',').map(Number), p = tp(x, y);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (inside[key(x + dx, y + dy)]) continue;
+      // the edge between this tile and the one outside, drawn as three dashes
+      const q = tp(x + dx, y + dy), mx = (p.x + q.x) / 2, mz = (p.z + q.z) / 2, alongX = dy === 0;
+      for (const o of [-0.32, 0, 0.32]) {
+        const d = new T.Mesh(alongX ? new T.BoxGeometry(0.24, 0.016, 0.075) : new T.BoxGeometry(0.075, 0.016, 0.24), mat);
+        d.position.set(alongX ? mx + o : mx, 0.02, alongX ? mz : mz + o);
+        d.renderOrder = 3; g.add(d);
+      }
+    }
+  }
+  BD.group.add(g);
+  return g;
 }
 function propGroup(k, p) { const pg = new T.Group(); pg.position.copy(p); pg.userData.tile = k; BD.group.add(pg); return pg; }
 function windows(parent, w, h, d, y0, rows) {
@@ -1088,10 +1110,17 @@ R3.sync = function (v) {
   for (const k in BD.ov) {
     const ov = BD.ov[k], kind = v.overlay[k];
     ov.userData.kind = kind || null;
-    if (!kind) { const z = v.zones[k]; if (z != null) { ov.material.color.setHex(zoneCol[z]); ov.material.opacity = 0.14; } else ov.material.opacity = 0; continue; }
+    if (!kind) {
+      const z = v.zones[k], tz = v.turret ? v.turret[k] : null;
+      if (z != null) { ov.material.color.setHex(zoneCol[z]); ov.material.opacity = 0.26; }
+      else if (tz != null) { ov.material.color.setHex(zoneCol[tz]); ov.material.opacity = 0.17; }
+      else ov.material.opacity = 0;
+      continue;
+    }
     ov.material.color.setHex(OV_COL[kind] || 0xffffff);
     ov.material.opacity = OV_OP[kind] || 0.35;
   }
+  if (BD.turretRings) BD.turretRings.forEach((g, i) => { g.visible = v.S.players[i].base.hp > 0; });
   BD.labels = v.labels || [];
   BD.baseHp = v.baseHp;
   const c = v.cam || {};
