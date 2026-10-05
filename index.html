@@ -329,7 +329,9 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 .rv-head h2 { font-size: clamp(28px, 7vw, 44px); color: var(--pc); line-height: 1; margin-top: 4px; }
 .rv-cards { display: flex; gap: 10px; justify-content: center; perspective: 900px; width: 100%; }
 .rcard { flex: 1 1 0; min-width: 0; max-width: 240px; min-height: 210px; background: var(--raised); border: 2px solid var(--ink); border-top: 6px solid var(--cc, var(--ink)); padding: 14px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0; animation: dealin .65s cubic-bezier(.2, .8, .2, 1) forwards; }
-.rcard h3 { font-size: 22px; line-height: 1; }
+.rcard h3 { font-size: 22px; line-height: 1; min-height: 2em; display: flex; align-items: center; justify-content: center; text-align: center; }
+.rcard > .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.rcard .ftags { margin-top: auto; width: 100%; min-height: 20px; }
 .rcard .chips { justify-content: center; }
 .badge.big { width: 58px; height: 58px; } .badge.big .ico { width: 36px; height: 36px; }
 .rv-foot { display: flex; flex-direction: column; gap: 8px; align-items: center; }
@@ -411,7 +413,7 @@ button.slot:hover { border-color: var(--ink); }
 .mnt .ico { width: 13px; height: 13px; }
 .mnt-any { border-style: dashed; }
 .cpips { font-size: 15px; line-height: 1; letter-spacing: -1px; color: var(--accent); white-space: nowrap; } .cpips i { font-style: normal; color: var(--line); } .cpips.over { color: var(--bad); }
-.rcard .face, .rcard .ftags { justify-content: center; } .rcard { --fi: 26px; } .rcard .fi.big { font-size: 20px; }
+.rcard .face { justify-content: center; } .rcard { --fi: 26px; } .rcard .fi.big { font-size: 20px; }
 .pinfo { --fi: 24px; }
 /* (earlier face styles kept below for the build steps and totals) */
 .fs { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 14px; }
@@ -424,6 +426,8 @@ button.slot:hover { border-color: var(--ink); }
 .tg.mode, .tg.trait { color: var(--ink); }
 .szb { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 2px; border-radius: 2px; background: var(--ink); color: var(--surface); font: 700 10px var(--mono); }
 .cface .card-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+/* every card in a row lines up: the keyword row and the button sit at the bottom */
+.cface .ftags { margin-top: auto; } .cface .ftags + .row, .cface .face + .row { margin-top: auto; }
 .ib.pi { width: 20px; height: 20px; font-size: 11px; flex: none; }
 .card.hurt { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--warn) 60%, transparent); }
 .capcell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 3px; } .capcell b { font-family: var(--mono); font-size: 12px; } .capcell.over b { color: var(--bad); }
@@ -1071,6 +1075,7 @@ const kind = d => d.cat || d.slot;
 // the card's type: chassis, legs, aux, or for an arm part the mount it fits (gun, energy, melee, heavy, universal)
 const cardKind = d => (d.slot === 'arm' ? (d.weapon ? MW.mountOf(d) : 'any') : d.slot === 'core' ? 'torso' : d.slot);
 const KIND_ICO = { gun: 'ammo', energy: 'energy', melee: 'melee', heavy: 'artillery', any: 'univ', torso: 'torso', legs: 'legs', aux: 'aux', tactic: 'tactic', event: 'event' };
+const KIND_NAME = { gun: 'Gun', energy: 'Energy', melee: 'Melee', heavy: 'Heavy', any: 'Universal', torso: 'Chassis', legs: 'Legs', aux: 'Aux', tactic: 'Tactic', event: 'Event' };
 const kindIco = (d, cls) => ico(KIND_ICO[cardKind(d)] || cardKind(d), cls);
 // one word for the part's special rule; anything more lives in the details sheet
 const CHASSIS_KW = { b_torso: 'Universal', t_skirm: 'Quick', t_light: 'Evasive', t_assault: 'Brawler', t_heavy: 'Armoured', t_fortress: 'Bulwark', t_proto: 'Focus', c_sing: 'Volatile', s_frame: 'Shielded', s_core: 'Self-repair' };
@@ -2050,7 +2055,7 @@ function swapWarn(m, d, el) {
 }
 function revealCard(d, i) {
   if (d.event) return '<div class="rcard event k-event" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico('event') + '</span><span class="now">Event · takes effect now</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
-  return '<div class="rcard k-' + cardKind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + kindIco(d) + '</span><span class="lbl">' + (d.special ? '<span class="star">★ Special</span> · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
+  return '<div class="rcard k-' + cardKind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + kindIco(d) + '</span><span class="lbl">' + (d.special ? '<span class="star">★</span> ' : '') + KIND_NAME[cardKind(d)] + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
 }
 function renderReveal() {
   const el = $('#reveal'), p = S.players[S.current];
