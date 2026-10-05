@@ -1,6 +1,6 @@
-/* Builds dist/MechaWarfare.zip: a Windows .exe (Node single executable) that serves the game locally.
+/* Builds dist/MechaWarfare.zip: a small Windows .exe that serves the game locally and opens the browser.
    Run from the repo root:  node desktop/build.js
-   Needs network the first time (three.js, PeerJS and postject are fetched). */
+   Needs network the first time (three.js and PeerJS are fetched). */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -36,16 +36,12 @@ const get = url => new Promise((res, rej) => https.get(url, r => {
   for (const f of ['engine.js', 'render3d.js']) fs.copyFileSync(path.join(ROOT, f), path.join(APP, f));
   fs.copyFileSync(path.join(D, 'standalone.js'), path.join(APP, 'standalone.js'));
 
-  // single executable: blob of server.js + assets injected into a copy of node.exe
-  const assets = {};
-  for (const f of fs.readdirSync(APP)) assets[f] = path.join(APP, f);
-  const cfg = { main: path.join(D, 'server.js'), output: path.join(DIST, 'sea-prep.blob'), disableExperimentalSEAWarning: true, assets };
-  fs.writeFileSync(path.join(DIST, 'sea-config.json'), JSON.stringify(cfg, null, 2));
-  execSync('"' + process.execPath + '" --experimental-sea-config "' + path.join(DIST, 'sea-config.json') + '"', { stdio: 'inherit' });
+  // the launcher: a small C# program compiled with the .NET Framework compiler that ships with Windows,
+  // with the game files embedded as resources (about 1 MB, nothing to install)
+  const csc = path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
   const exe = path.join(DIST, 'MechaWarfare.exe');
-  fs.copyFileSync(process.execPath, exe);
-  try { execSync('signtool remove /s "' + exe + '"', { stdio: 'ignore' }); } catch (e) { /* no signtool: the old signature is just invalidated */ }
-  execSync('npx --yes postject@1.0.0-alpha.6 "' + exe + '" NODE_SEA_BLOB "' + cfg.output + '" --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --overwrite', { stdio: 'inherit' });
+  const res = fs.readdirSync(APP).map(f => '-resource:"' + path.join(APP, f) + '",' + f).join(' ');
+  execSync('"' + csc + '" -nologo -target:exe -optimize+ -out:"' + exe + '" ' + res + ' "' + path.join(D, 'launcher', 'MechaWarfare.cs') + '"', { stdio: 'inherit' });
 
   fs.writeFileSync(path.join(DIST, 'README.txt'), [
     'MECHA WARFARE',

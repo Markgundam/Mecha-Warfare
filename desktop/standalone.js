@@ -151,7 +151,12 @@
     delete L.pend[m.id];
     if (m.error) p.rej(err(m.error)); else p.res(m);
   }
-  function rpc(code, msg) {
+  // a host that has only just come online may not be reachable yet: try once more before giving up
+  function rpc(code, msg, tries) {
+    tries = tries == null ? 2 : tries;
+    return rpc1(code, msg).catch(e => (e.code === 'host_offline' && tries > 1 ? new Promise(r => setTimeout(r, 3000)).then(() => rpc(code, msg, tries - 1)) : Promise.reject(e)));
+  }
+  function rpc1(code, msg) {
     return link(code).then(L => new Promise((res, rej) => {
       const id = ++L.n;
       L.pend[id] = { res, rej };
