@@ -985,6 +985,19 @@ function buildObjective(o) {
     mesh(cyl(0.006, 0.006, 0.16, 4), toon(INK), dish, [0, 0.03, 0.1], [Math.PI / 2 - 0.5, 0, 0], flat);
     rec.dish = dish;
     rec.light = mesh(sph(0.03, 8), glow(ownerColor(o)), pg, [0, 0.98, 0], null, flat);
+  } else if (o.type === 'uplink') {
+    // a broad gold-trimmed plinth so it reads from above, a lattice mast, and a turning ring with a beacon
+    mesh(cyl(0.42, 0.46, 0.12, 8), toon(0x5f676f), pg, [0, 0.06, 0], null, { recv: true });
+    mesh(cyl(0.36, 0.4, 0.04, 8), toon(0xc39a3e), pg, [0, 0.14, 0]);
+    mesh(cyl(0.22, 0.28, 0.14, 8), toon(0x858d95), pg, [0, 0.23, 0]);
+    for (const a of [0, 2.09, 4.19]) mesh(box(0.04, 1.0, 0.04), toon(0x9aa2aa), pg, [Math.cos(a) * 0.11, 0.78, Math.sin(a) * 0.11], [Math.sin(a) * 0.08, 0, -Math.cos(a) * 0.08]);
+    for (let i = 0; i < 3; i++) mesh(cyl(0.13 - i * 0.025, 0.13 - i * 0.025, 0.03, 6), toon(0x7c848c), pg, [0, 0.5 + i * 0.25, 0]);
+    const spin = new T.Group(); spin.position.y = 1.18; pg.add(spin);
+    mesh(tor(0.3, 0.035), toon(0xc39a3e), spin, [0, 0, 0], [Math.PI / 2, 0, 0]);
+    mesh(box(0.66, 0.03, 0.06), toon(0xd8dee4), spin, [0, 0, 0]);
+    rec.dish = spin;
+    rec.light = mesh(sph(0.09, 10), glow(ownerColor(o)), pg, [0, 1.36, 0], null, flat);
+    ring.scale.setScalar(1.12);
   } else {
     mesh(cyl(0.4, 0.42, 0.05, 20), toon(0x4a5058), pg, [0, 0.025, 0], null, { recv: true });
     mesh(box(0.38, 0.006, 0.09), glow(0x8fbf9c), pg, [0, 0.052, 0], null, flat);
@@ -998,7 +1011,7 @@ function buildObjective(o) {
 }
 
 /* ---------- mech records on the board ---------- */
-const MS = 1.15; // mech scale on the map: about one tile tall
+let MS = 1.15; // mech scale on the map: about one tile tall, a little smaller on wide maps
 function newRec(m, S) {
   const doc = S.players[m.owner] ? S.players[m.owner].doctrine : 'assault';
   const R = buildMech(m, m.owner, doc, {});
@@ -1425,6 +1438,7 @@ function nuke(f, rec) {
 // a fresh battle: clear everything the last one left on the board
 R3.reset = function () {
   if (!BD) return;
+  MS = window.MW.W > 10 ? 0.98 : window.MW.W > 9 ? 1.06 : 1.15;
   while (BD.group.children.length) BD.group.remove(BD.group.children[0]);
   Object.assign(BD, { recs: {}, tiles: {}, ov: {}, props: {}, objs: {}, wrecks: {}, crates: {}, queue: [], anims: [], labels: [], shake: 0, base0: null, base1: null });
   BD.parts = new Particles(BD.group, 260);
@@ -1458,6 +1472,9 @@ function project(v) {
 }
 R3.project = (x, y, h) => BD ? project(tp(x, y, h || 0)) : { x: 0, y: 0 };
 function positionLabels() {
+  // zoomed out to the overview, labels shrink to just the HP bar; zoomed in they show everything
+  const box0 = BD.labels.length && BD.labels[0].el && BD.labels[0].el.parentNode;
+  if (box0) box0.classList.toggle('compact', BD.rig.zoom < 1.3 && window.MW.W > 9);
   for (const L of BD.labels) {
     let p;
     if (L.uid != null) { const rec = BD.recs[L.uid]; if (!rec) { L.el.style.display = 'none'; continue; } p = rec.R.root.position.clone(); p.y += L.h; }

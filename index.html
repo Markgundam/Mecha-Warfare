@@ -134,6 +134,20 @@ legend { padding: 0; margin-bottom: 6px; }
 .opt:has(input:checked) { border-color: var(--ink); background: var(--raised); box-shadow: inset 4px 0 0 var(--accent); }
 fieldset.seat { --sc: var(--p0); --ss: var(--p0-soft); border-left: 4px solid var(--sc); background: color-mix(in srgb, var(--ss) 55%, transparent); padding: 3px 8px 6px; border-radius: 3px; }
 fieldset.seat .opts { gap: 6px; }
+fieldset.mapsel { border: 0; border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 3px 8px 6px; border-radius: 3px; margin: 0; }
+fieldset.mapsel .seathead b { color: var(--ink); }
+#setup .opts.maps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.mapopt { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 4px !important; text-align: center; }
+.mapopt input { position: absolute; opacity: 0; pointer-events: none; }
+.mapopt b { font-size: 12px; line-height: 1.1; font-family: var(--body); font-weight: 600; text-transform: none; }
+.mapopt:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--accent); background: var(--raised); }
+.mapopt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.minimap { width: 100%; max-width: 54px; height: auto; display: block; }
+.minimap .t { fill: var(--tile); } .minimap .r { fill: var(--rock); } .minimap .u { fill: var(--ruin); }
+.minimap .b0 { fill: var(--p0); } .minimap .b1 { fill: var(--p1); }
+.minimap .o-depot { fill: var(--good); } .minimap .o-radar { fill: var(--c-energy); } .minimap .o-uplink { fill: var(--accent); } .minimap .o-repair { fill: var(--muted); } .minimap .o-crate { fill: none; stroke: var(--accent); stroke-width: .12; stroke-dasharray: .2 .15; }
+.mapq { font-family: var(--display); font-size: 26px; font-weight: 900; color: var(--muted); line-height: 1; aspect-ratio: 7 / 9; width: 100%; max-width: 54px; display: grid; place-items: center; border: 1px dashed var(--line); }
+#mapblurb { margin: 4px 0 0; font-size: 13px; }
 fieldset.seat .decklist { margin-top: 4px; border: 0; background: none; }
 fieldset.seat .decklist .btn { min-height: 0; padding-block: 3px; }
 fieldset.seat.p1 { --sc: var(--p1); --ss: var(--p1-soft); }
@@ -684,6 +698,9 @@ button.rost { cursor: pointer; }
 #camctl button { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 82%, transparent); color: var(--text); backdrop-filter: blur(3px); }
 #camctl button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #labels { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
+#labels.compact .mlrow, #labels.compact .odd3 + .mlrow { display: none; }
+#labels.compact .lbl3 > .ml { transform: translate(-50%, -100%) scale(.78); }
+#labels.compact .lbl3 > .bl { transform: translate(-50%, -50%) scale(.85); }
 .lbl3 { position: absolute; left: 0; top: 0; will-change: transform; }
 .lbl3 > * { transform: translate(-50%, -100%); }
 .lbl3 > .ol3 { transform: translate(-50%, -30%); }
@@ -769,6 +786,7 @@ button.rost { cursor: pointer; }
       <div class="net-pick">
         <label class="lbl" for="net-doc">Your doctrine</label>
         <select id="net-doc"></select>
+        <select id="net-map" aria-label="Battlefield"></select>
         <div class="netdeck" id="net-deck"></div>
         <button type="button" class="btn primary" id="net-host">Host a match</button>
       </div>
@@ -795,6 +813,11 @@ button.rost { cursor: pointer; }
         <legend class="seathead" id="leg1">Ember doctrine</legend>
         <div class="opts" id="doc1"></div>
         <div class="decklist" id="deck1"></div>
+      </fieldset>
+      <fieldset class="mapsel">
+        <legend class="seathead"><b>Battlefield</b><small id="mapgoal"></small></legend>
+        <div class="opts maps" id="mapopts"></div>
+        <p class="note" id="mapblurb"></p>
       </fieldset>
       <div class="row">
         <button class="btn ghost" type="button" id="back">‹ Back</button>
@@ -844,7 +867,12 @@ button.rost { cursor: pointer; }
 'use strict';
 const MW = window.MW, D = MW.DEFS, C = MW.C;
 const $ = s => document.querySelector(s);
-const COLS = MW.H, ROWS = MW.W;                 // portrait: engine x runs bottom-to-top, engine y left-to-right
+let COLS = MW.H, ROWS = MW.W;                   // portrait: engine x runs bottom-to-top, engine y left-to-right
+function applyMapDims() {
+  COLS = MW.H; ROWS = MW.W;
+  document.querySelector('.board').style.gridTemplateColumns = 'repeat(' + COLS + ', minmax(0, 1fr))';
+  document.getElementById('fx').setAttribute('viewBox', '0 0 ' + COLS + ' ' + ROWS);
+}
 let net = null, NETDB = null, NETUSER = null, ME = null;   // online match: { code, seat, rev, ref, unsub, writing, pending }
 // the guest sees the map turned around so their own base is at the bottom
 const flip = () => !!net && net.seat === 1;
@@ -867,7 +895,7 @@ function gameSeat(st, mode) { if (!net && viewing(st)) return viewing(st).seat; 
 function gameSummary(st) {
   const mode = gameMode(st);
   return { id: gameId(st), at: Date.now(), startedAt: st.startedAt || null, mode, code: net ? net.code : viewing(st) ? viewing(st).code : null, seat: gameSeat(st, mode),
-    round: st.round, phase: st.phase, status: st.phase === 'over' ? 'over' : 'playing', winner: st.winner, winReason: st.winReason || null,
+    map: st.map || 'open', round: st.round, phase: st.phase, status: st.phase === 'over' ? 'over' : 'playing', winner: st.winner, winReason: st.winReason || null,
     players: st.players.map(p => ({ name: p.name, doctrine: p.doctrine, isAI: !!p.isAI, vp: p.vp || 0, baseHp: p.base.hp })) };
 }
 function saveGameLocal(st) {
@@ -902,9 +930,10 @@ const GONE_SVG = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M11 11l18
 const OBJ_SVG = {
   depot: '<path d="M20 9l11 11-11 11L9 20z" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M20 15l5 5-5 5-5-5z" fill="currentColor"/>',
   radar: '<circle cx="20" cy="26" r="3" fill="currentColor"/><path d="M12 20a11 11 0 0 1 16 0M8 15a17 17 0 0 1 24 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>',
-  repair: '<path d="M17 9h6v8h8v6h-8v8h-6v-8H9v-6h8z" fill="none" stroke="currentColor" stroke-width="2.5"/>'
+  repair: '<path d="M17 9h6v8h8v6h-8v8h-6v-8H9v-6h8z" fill="none" stroke="currentColor" stroke-width="2.5"/>',
+  uplink: '<path d="M20 12v22M14 34h12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="20" cy="11" r="4" fill="currentColor"/><path d="M11 6a12 12 0 0 0 0 10M29 6a12 12 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
 };
-const OBJ_NAME = { depot: 'Supply depot', radar: 'Radar station', repair: 'Repair station' };
+const OBJ_NAME = { depot: 'Supply depot', radar: 'Radar station', repair: 'Repair station', uplink: 'Uplink' };
 const ICONS = {
   ap: '<path d="M3 12h14M13 7l5 5-5 5"/><path d="M9 4v16"/>',
   arc: '<path d="M3 19c2-9 8-13 15-10"/><path d="M14 5l4 4-5 2"/>',
@@ -1303,10 +1332,10 @@ function renderBoard() {
       inner += '<svg class="basegfx p' + b + '" viewBox="0 0 40 40"><path d="M20 3l14 8v18l-14 8-14-8V11z" fill="currentColor"/><path d="M20 9l9 5v12l-9 5-9-5V14z" fill="none" stroke="var(--bg)" stroke-width="1.5"/><text x="20" y="24" text-anchor="middle">' + bp.base.hp + '</text></svg>';
       lab.push(bp.name + ' base, ' + bp.base.hp + ' hit points');
     }
-    if (o) { inner += '<svg class="obj' + (o.owner != null ? ' own' + o.owner : '') + '" viewBox="0 0 40 40"' + (m ? ' style="opacity:.3"' : '') + '>' + OBJ_SVG[o.type] + '</svg>'; if (!m) { const ol = '<span class="olab">' + (o.type === 'depot' ? '+' + C.DEPOT + ico('supply') : o.type === 'radar' ? '+' + C.RADAR_ACC + '%' + ico('ballistic') : '+' + C.STATION_REPAIR + ico('hp')) + (o.type !== 'repair' && MW.scores(o, viewer()) ? ico('star', 'vpstar') : '') + '</span>'; inner += ol; olabs.push({ x, y, html: ol }); }
-    if (o.type !== 'repair' && MW.scores(o, viewer())) lab.push('scores a victory point for you'); if (o.owner != null) cls.push('owned' + o.owner); lab.push(OBJ_NAME[o.type] + (o.owner != null ? ' held by ' + S.players[o.owner].name : '')); }
+    if (o) { inner += '<svg class="obj' + (o.owner != null ? ' own' + o.owner : '') + '" viewBox="0 0 40 40"' + (m ? ' style="opacity:.3"' : '') + '>' + OBJ_SVG[o.type] + '</svg>'; if (!m) { const ol = '<span class="olab">' + (o.type === 'depot' ? '+' + C.DEPOT + ico('supply') : o.type === 'radar' ? '+' + C.RADAR_ACC + '%' + ico('ballistic') : o.type === 'uplink' ? '×' + MW.objVp(o) : '+' + C.STATION_REPAIR + ico('hp')) + (o.type !== 'repair' && MW.scores(o, viewer()) ? ico('star', 'vpstar') : '') + '</span>'; inner += ol; olabs.push({ x, y, html: ol }); }
+    if (o.type !== 'repair' && MW.scores(o, viewer())) lab.push('scores ' + (MW.objVp(o) > 1 ? MW.objVp(o) + ' victory points' : 'a victory point') + ' for you'); if (o.owner != null) cls.push('owned' + o.owner); lab.push(OBJ_NAME[o.type] + (o.owner != null ? ' held by ' + S.players[o.owner].name : '')); }
     const cr = MW.crateAt(x, y);
-    if (cr) { inner += '<svg class="crate" viewBox="-5 -5 34 34">' + ICONS.event + '</svg>' + (m ? '' : '<span class="olab">' + (cr.kind === 'supply' ? '+' + cr.amount + ico('supply') : '★') + '</span>'); lab.push('supply crate'); }
+    if (cr) { inner += '<svg class="crate" viewBox="-5 -5 34 34">' + ICONS.event + '</svg>' + (m ? '' : '<span class="olab">' + (cr.kind === 'supply' ? '+' + cr.amount + ico('supply') : '★') + (MW.rule('crateVp', 0) ? ico('star', 'vpstar') : '') + '</span>'); lab.push(MW.rule('crateVp', 0) ? 'salvage crate, worth a victory point' : 'supply crate'); }
     if (w) { inner += '<svg viewBox="0 0 40 40"' + (m ? ' style="opacity:.4"' : '') + '><circle class="wglow" cx="20" cy="22" r="15"/><path d="M6 32l6-10 5 4 6-11 6 8 5 9z" fill="var(--muted)"/><path d="M10 12l5 5m0-5l-5 5M27 8l4 4m0-4l-4 4" stroke="var(--muted)" stroke-width="1.6"/></svg>'; lab.push('wreck'); }
     if (m) {
       const st = MW.stats(m);
@@ -2227,7 +2256,8 @@ function showRules() {
       ['Adapting', 'Each round a commander reads the board and picks a stance: defending its base when threatened, raiding objectives when behind, pressing the base when ahead, regrouping when outnumbered. It grows warier when it loses mecha and turns to defence when its base is hit.'],
       ['Learning', 'Commanders remember their wars in this browser. Each keeps a proven playbook and now and then tries a variation, keeping it if it wins more, and leaning away from whatever cost it past wars.']]],
     ['Doctrines', Object.keys(MW.DOCTRINES).map(id => [DOC_NAME(id), MW.DOCTRINES[id].blurb + ' ' + (MW.DOCTRINES[id].perks || []).join(' · ') + '.'])],
-    ['Map', [['Objectives', 'End a round on a depot or radar to hold it. Depots add ' + C.DEPOT + ' Supply a round (' + C.DEPOT_EXTRA + ' for each past the ' + (C.DEPOT_FULL === 2 ? 'second' : C.DEPOT_FULL + 'th') + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
+    ['Map', [['Battlefields', MW.MAP_IDS.map(id => '<b>' + MW.MAPS[id].name + '</b> (' + MW.MAPS[id].goal.toLowerCase() + '): ' + MW.MAPS[id].blurb + (MW.MAPS[id].notes ? ' <i>' + MW.MAPS[id].notes + '</i>' : '')).join('<br>') + (S && S.map ? '<br>This battle: <b>' + MW.MAP.name + '</b>.' : '')],
+      ['Objectives', 'End a round on a depot or radar to hold it. Depots add ' + C.DEPOT + ' Supply a round (' + C.DEPOT_EXTRA + ' for each past the ' + (C.DEPOT_FULL === 2 ? 'second' : C.DEPOT_FULL + 'th') + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
       ['Crates', 'Every other round a crate drops on the centre line: +' + C.CRATE_SUPPLY + ' Supply or a special card, taken by the first mech to end a move on it.'],
       ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution. Returning to base vents heat and restocks ammo.'],
       ['Salvage', 'Wrecks hold ' + C.SCRAP + ' Supply plus any special parts that survived, free to fit.']]]
@@ -2250,6 +2280,7 @@ function showStart() {
   $('#menu').hidden = false; $('#setup').hidden = true; $('#recent').hidden = true;
 }
 function showGame() {
+  applyMapDims();
   if (R3on) window.R3.reset();
   $('#start').hidden = true; $('#game').hidden = false;
   ui.sel = null; ui.mode = 'idle'; ui.phaseKey = ''; ui.hangarSel = null; ui.slotSel = null;
@@ -2337,7 +2368,34 @@ function showDeck(id) {
   o.innerHTML = '<div class="sheet" role="dialog" aria-label="Deck list"><div class="phead"><h2>' + DOC_NAME(id) + ' doctrine</h2><button type="button" class="btn sm" data-act="closeOverlay">Close</button></div>' + perkList(id) + deckBar(id) + weaponMix(id) + '<div class="decklist">' + html + '</div></div>';
   o.hidden = false;
 }
+// a small top-down plan of a map, oriented as in play: Azure's base at the bottom
+function miniMap(id) {
+  const M = MW.MAPS[id], W = M.W, H = M.H, cell = (x, y) => [y, W - 1 - x];
+  let g = '';
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+    const [c, r] = cell(x, y), k = x + ',' + y;
+    const cls = M.rocks.some(p => p[0] === x && p[1] === y) ? 'r' : M.ruins.some(p => p[0] === x && p[1] === y) ? 'u' : 't';
+    g += '<rect class="' + cls + '" x="' + (c + .06) + '" y="' + (r + .06) + '" width=".88" height=".88"/>';
+  }
+  if (M.rules.cratePairs) { const [lo, hi] = M.rules.crateBand; const [c0, r0] = cell(hi, 0); g += '<rect class="o-crate" x="' + (c0 + .1) + '" y="' + (r0 + .1) + '" width="' + (H - .2) + '" height="' + (hi - lo + 1 - .2) + '"/>'; }
+  M.obj.forEach(([x, y, t]) => { const [c, r] = cell(x, y); g += t === 'uplink' ? '<rect class="o-uplink" x="' + (c + .15) + '" y="' + (r + .15) + '" width=".7" height=".7" transform="rotate(45 ' + (c + .5) + ' ' + (r + .5) + ')"/>' : '<circle class="o-' + t + '" cx="' + (c + .5) + '" cy="' + (r + .5) + '" r=".28"/>'; });
+  M.bases.forEach(([x, y], i) => { const [c, r] = cell(x, y); g += '<rect class="b' + i + '" x="' + (c + .06) + '" y="' + (r + .06) + '" width=".88" height=".88" rx=".2"/>'; });
+  return '<svg class="minimap" viewBox="0 0 ' + H + ' ' + W + '" aria-hidden="true">' + g + '</svg>';
+}
+function mapChoice() { try { const v = localStorage.getItem('mw-map'); return v && (MW.MAPS[v] || v === 'random') ? v : 'open'; } catch (e) { return 'open'; } }
+function buildMaps() {
+  const cur = mapChoice();
+  $('#mapopts').innerHTML = MW.MAP_IDS.map(id => '<label class="opt mapopt" title="' + MW.MAPS[id].blurb + '"><input type="radio" name="map" value="' + id + '"' + (id === cur ? ' checked' : '') + '>' + miniMap(id) + '<b>' + MW.MAPS[id].name + '</b></label>').join('') +
+    '<label class="opt mapopt" title="Picked when the battle starts."><input type="radio" name="map" value="random"' + (cur === 'random' ? ' checked' : '') + '><span class="mapq">?</span><b>Random</b></label>';
+  updateMapInfo();
+}
+function updateMapInfo() {
+  const el = document.querySelector('input[name=map]:checked'), id = el ? el.value : 'open', M = MW.MAPS[id];
+  $('#mapgoal').textContent = M ? M.goal + ' · ' + M.W + '×' + M.H : 'Any of the ' + MW.MAP_IDS.length;
+  $('#mapblurb').textContent = M ? M.blurb + (M.notes ? ' Map balance: ' + M.notes : '') : 'One of the battlefields, picked at random when the battle starts.';
+}
 function buildSetup() {
+  buildMaps();
   const docs = Object.entries(MW.DOCTRINES);
   const pic = id => { const src = R3on && MW.DOCTRINES[id] ? window.R3.portrait(id) : null; return src ? '<img class="opt-mech" src="' + src + '" alt="" aria-hidden="true">' : ''; };
   const opt = (name, id, title, text, checked) => '<label class="opt' + (MW.DOCTRINES[id] ? ' has-mech' : ' opt-random') + '" title="' + text + '"><input type="radio" name="' + name + '" id="' + name + '-' + id + '" value="' + id + '"' + (checked ? ' checked' : '') + '>' + (MW.DOCTRINES[id] ? pic(id) + '<b>' + title + '</b>' : '<span class="rnd-ico" aria-hidden="true">?</span><b>' + title + '</b><span>' + text + '</span>') + '</label>';
@@ -2348,6 +2406,7 @@ function buildSetup() {
 }
 document.addEventListener('change', e => {
   if (e.target.name === 'doc0' || e.target.name === 'doc1') updateDeckLists();
+  if (e.target.name === 'map') { updateMapInfo(); try { localStorage.setItem('mw-map', e.target.value); } catch (err) { /* storage unavailable */ } }
   if (e.target.id === 'net-doc') updateNetDeck();
 });
 function updateNetDeck() {
@@ -2372,7 +2431,7 @@ $('#setup').addEventListener('submit', e => {
   let d1 = f.get('doc1');
   if (d1 === 'random') d1 = keys[Math.floor(Math.random() * keys.length)];
   const cs = document.getElementById('cmd1'); ui.cmd = cs ? cs.value : 'random';
-  MW.newGame({ players: [{ name: 'Azure', doctrine: f.get('doc0'), isAI: false }, { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai', persona: ui.cmd !== 'random' ? ui.cmd : null }] });
+  MW.newGame({ map: f.get('map') || 'open', players: [{ name: 'Azure', doctrine: f.get('doc0'), isAI: false }, { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai', persona: ui.cmd !== 'random' ? ui.cmd : null }] });
   MW.S.startedAt = Date.now();
   MW.S.gameId = (ui.startMode === 'ai' ? 'ai-' : 'local-') + MW.S.startedAt;
   ui.endShown = null; ui.histKey = null; ui.viewMeta = null;
@@ -2404,7 +2463,7 @@ function rgLine(g) {
   const [a, b] = g.players;
   const score = g.seat != null ? (g.players[g.seat].vp + '–' + g.players[1 - g.seat].vp) : (a.vp + '–' + b.vp);
   const ph = { build: 'build', deploy: 'deployment', action: 'battle', resolve: 'battle', draw: 'draw', over: 'ended' }[g.phase] || g.phase;
-  return 'Round ' + g.round + (g.status === 'over' ? '' : ' · ' + ph) + ' · ' + score + ' pts · ' + ago(g.at);
+  return (MW.MAPS[g.map] || MW.MAPS.open).name + ' · R' + g.round + (g.status === 'over' ? '' : ' ' + ph) + ' · ' + score + ' pts · ' + ago(g.at);
 }
 async function showRecent() {
   $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#recent').hidden = false;
@@ -2522,6 +2581,8 @@ function openLobby() {
   $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = false;
   netMsg('');
   $('#net-doc').innerHTML = '<option value="random">Random doctrine</option>' + Object.keys(MW.DOCTRINES).map(id => '<option value="' + id + '">' + DOC_NAME(id) + '</option>').join('');
+  $('#net-map').innerHTML = MW.MAP_IDS.map(id => '<option value="' + id + '">' + MW.MAPS[id].name + '</option>').join('') + '<option value="random">Random map</option>';
+  $('#net-map').value = mapChoice();
   updateNetDeck();
   if (ui.lobbyUnsub) return;
   ui.lobbyUnsub = NETDB.collection('matches').orderBy('createdAt', 'desc').limit(60).onSnapshot(renderLobby, () => netMsg('The match list could not load. Go back and open Online match again.'));
@@ -2555,7 +2616,7 @@ async function renderLobby(snap) {
     const row = document.createElement('div'); row.className = 'nrow';
     const info = document.createElement('span'), b = document.createElement('b'), sm = document.createElement('small');
     b.textContent = who(d.hostId) + ' is hosting';
-    sm.textContent = 'You would play Ember · they play ' + DOC_NAME(d.hostDoctrine) + ' · ' + ago(d.createdAt);
+    sm.textContent = 'You would play Ember · they play ' + DOC_NAME(d.hostDoctrine) + ' · ' + ((MW.MAPS[d.map] || MW.MAPS.open).name) + ' · ' + ago(d.createdAt);
     info.append(b, sm);
     const acts = document.createElement('span'); acts.className = 'row';
     acts.innerHTML = '<button type="button" class="btn sm primary" data-net="join" data-code="' + d.code + '">Join</button>';
@@ -2577,7 +2638,8 @@ function writeFailed(e) {
 $('#net-host').addEventListener('click', async () => {
   const code = Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
   try {
-    await NETDB.doc('matches/' + code).set({ v: 3, code, status: 'waiting', hostId: ME, hostDoctrine: pickDoctrine(), guestId: null, guestDoctrine: null, createdAt: Date.now(), rev: 0, state: null });
+    const mv = $('#net-map').value, map = MW.MAPS[mv] ? mv : MW.MAP_IDS[Math.floor(Math.random() * MW.MAP_IDS.length)];
+    await NETDB.doc('matches/' + code).set({ v: 3, code, status: 'waiting', hostId: ME, hostDoctrine: pickDoctrine(), map, guestId: null, guestDoctrine: null, createdAt: Date.now(), rev: 0, state: null });
     ui.waitingCode = code;
     netMsg('');
   } catch (e) { netMsg(writeFailed(e)); }
@@ -2597,7 +2659,7 @@ document.addEventListener('click', async e => {
       const snap = await ref.get(), d = snap.exists ? snap.data() : null;
       if (!d || d.status !== 'waiting' || d.guestId) { netMsg('That match has already started.'); return; }
       const mine = pickDoctrine();
-      MW.newGame({ players: [{ name: 'Azure', doctrine: d.hostDoctrine, isAI: false }, { name: 'Ember', doctrine: mine, isAI: false }] });
+      MW.newGame({ map: d.map || 'open', players: [{ name: 'Azure', doctrine: d.hostDoctrine, isAI: false }, { name: 'Ember', doctrine: mine, isAI: false }] });
       const state = clone(MW.S);
       await ref.update({ guestId: ME, guestDoctrine: mine, status: 'playing', rev: 1, state, startedAt: Date.now() });
       enterMatch(Object.assign({}, d, { guestId: ME, guestDoctrine: mine, status: 'playing', rev: 1, state }));

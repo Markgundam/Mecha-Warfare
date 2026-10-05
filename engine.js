@@ -2,7 +2,7 @@
 (function (root) {
 'use strict';
 
-const W = 9, H = 7;
+let W = 9, H = 7;   // set by the map in play
 const C = {
   EP: 5, START_SUPPLY: 10, INCOME: 4, DEPOT: 2, BASE_HP: 20,
   HAND_START: 4, DRAW: 2, WORKSHOP_MAX: 10, FIELD_MAX: 3, HANGAR_MAX: 3,
@@ -195,18 +195,69 @@ const CALLSIGNS = [
 ];
 
 /* ---------- Battlefield ---------- */
-// 9 x 7 field, point-symmetric so neither side has the better half
-const OBJ = [
-  { x: 2, y: 5, type: 'depot' }, { x: 3, y: 1, type: 'depot' }, { x: 6, y: 1, type: 'depot' }, { x: 5, y: 5, type: 'depot' },
-  { x: 4, y: 0, type: 'radar' }, { x: 4, y: 6, type: 'radar' }, { x: 4, y: 3, type: 'repair' }
-];
-const ROCKS = [[2, 2], [6, 4], [3, 3], [5, 3]];
-const RUINS = [[2, 1], [6, 5], [3, 4], [5, 2], [2, 3], [6, 3]];
-const TERRAIN = {};
-ROCKS.forEach(([x, y]) => { TERRAIN[x + ',' + y] = 'rock'; });
-RUINS.forEach(([x, y]) => { TERRAIN[x + ',' + y] = 'ruins'; });
+// Every map is point-symmetric, (x, y) -> (W-1-x, H-1-y), so neither side has the better half.
+// rules: map-wide changes to how points are scored. traits: per-doctrine balance for this map.
+const MAPS = {
+  open: {
+    name: 'Open Field', goal: 'Capture points',
+    blurb: 'Radars score wherever they stand; depots score on the enemy half. A compact, open field.',
+    W: 9, H: 7, bases: [[0, 3], [8, 3]],
+    obj: [[2, 5, 'depot'], [3, 1, 'depot'], [6, 1, 'depot'], [5, 5, 'depot'], [4, 0, 'radar'], [4, 6, 'radar'], [4, 3, 'repair']],
+    rocks: [[2, 2], [6, 4], [3, 3], [5, 3]],
+    ruins: [[2, 1], [6, 5], [3, 4], [5, 2], [2, 3], [6, 3]],
+    rules: {},
+    traits: {}
+  },
+  lanes: {
+    name: 'Three Lanes', goal: 'Capture points',
+    blurb: 'Rock walls split the field into three lanes. Radars hold the central crossroads; depots and repair pads sit in the outer lanes.',
+    W: 11, H: 8, bases: [[0, 3], [10, 4]],
+    obj: [[2, 0, 'depot'], [8, 7, 'depot'], [6, 1, 'depot'], [4, 6, 'depot'], [5, 3, 'radar'], [5, 4, 'radar'], [5, 0, 'repair'], [5, 7, 'repair']],
+    rocks: [[3, 2], [4, 2], [6, 2], [7, 2], [3, 5], [4, 5], [6, 5], [7, 5]],
+    ruins: [[2, 1], [8, 6], [4, 0], [6, 7], [3, 3], [7, 4], [3, 4], [7, 3], [8, 1], [2, 6]],
+    rules: {},
+    traits: { assault: { startMechs: 2 }, armored: { control: 1 }, experimental: { heatTick: 2 } },
+    notes: 'Assault starts with 2 mecha; Armored holds objectives only from an adjacent tile; Experimental gains +2 heat every round.'
+  },
+  uplink: {
+    name: 'Uplink', goal: 'King of the hill',
+    blurb: 'One uplink in the centre is worth 2 points a round to whoever holds it. Depots only pay Supply, and repair pads wait on the flanks.',
+    W: 9, H: 7, bases: [[0, 3], [8, 3]],
+    obj: [[4, 3, 'uplink'], [2, 0, 'depot'], [6, 6, 'depot'], [2, 6, 'depot'], [6, 0, 'depot'], [4, 0, 'repair'], [4, 6, 'repair']],
+    rocks: [[4, 1], [4, 5], [2, 2], [6, 4]],
+    ruins: [[3, 2], [5, 4], [3, 4], [5, 2], [1, 1], [7, 5]],
+    rules: { depotVp: false, uplinkVp: 2, baseHp: 6 },
+    traits: { assault: { startMechs: 4 } },
+    notes: 'Bases +6 HP. Assault starts with 4 mecha.'
+  },
+  salvage: {
+    name: 'Scrapyard', goal: 'Salvage race',
+    blurb: 'No capture points. Crates drop in pairs every round across the yard; each one grabbed is worth a point plus what is inside.',
+    W: 10, H: 7, bases: [[0, 3], [9, 3]],
+    obj: [[2, 1, 'depot'], [7, 5, 'depot'], [2, 5, 'depot'], [7, 1, 'depot'], [4, 3, 'repair'], [5, 3, 'repair']],
+    rocks: [[3, 2], [6, 4], [3, 4], [6, 2]],
+    ruins: [[4, 1], [5, 5], [4, 5], [5, 1], [2, 3], [7, 3], [1, 0], [8, 6]],
+    rules: { depotVp: false, crateVp: 1, crateEvery: 1, cratePairs: true, crateMax: 6, crateBand: [2, 7], baseHp: 8, crateSupply: 2 },
+    traits: { armored: { killVp: 1, move: 1 } },
+    notes: 'Bases +8 HP, crates hold +2 Supply. Armored moves +1 and scores 1 point per kill.'
+  }
+};
+const MAP_IDS = Object.keys(MAPS);
+let MAP = null, OBJ = [], TERRAIN = {}, BASE_POS = [];
+function setMap(id) {
+  MAP = MAPS[id] || MAPS.open;
+  MAP.id = MAPS[id] ? id : 'open';
+  W = MAP.W; H = MAP.H;
+  OBJ = MAP.obj.map(([x, y, type]) => ({ x, y, type }));
+  TERRAIN = {};
+  MAP.rocks.forEach(([x, y]) => { TERRAIN[x + ',' + y] = 'rock'; });
+  MAP.ruins.forEach(([x, y]) => { TERRAIN[x + ',' + y] = 'ruins'; });
+  BASE_POS = MAP.bases.map(([x, y]) => ({ x, y }));
+  return MAP;
+}
+setMap('open');
+const rule = (k, d) => (MAP.rules[k] != null ? MAP.rules[k] : d);
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-const BASE_POS = [{ x: 0, y: 3 }, { x: W - 1, y: 3 }];
 const REQUIRED = ['torso', 'core', 'legs'];
 const SLOT_NAME = { torso: 'Chassis', core: 'Reactor', legs: 'Legs', armL: 'Left arm', armR: 'Right arm', arm: 'Arm', aux: 'Aux' };
 const SUM = ['evasive', 'meleeBonus', 'bulwark', 'plate', 'energyRange', 'armorAll', 'cooling', 'heatCap', 'capacity', 'power', 'move', 'moveHeat', 'shield', 'selfRepair', 'dmgBonus', 'shotHeat', 'passiveHeat'];
@@ -220,7 +271,7 @@ const terrain = (x, y) => {
   const t = TERRAIN[K(x, y)] || 'open';
   return t === 'ruins' && S && S.flat && S.flat.indexOf(K(x, y)) >= 0 ? 'rubble' : t;
 };
-const baseAt = (x, y) => (x === 0 && y === 3) ? 0 : (x === W - 1 && y === 3) ? 1 : null;
+const baseAt = (x, y) => (x === BASE_POS[0].x && y === BASE_POS[0].y) ? 0 : (x === BASE_POS[1].x && y === BASE_POS[1].y) ? 1 : null;
 const passable = (x, y) => inb(x, y) && terrain(x, y) !== 'rock' && baseAt(x, y) === null;
 const man = (ax, ay, bx, by) => Math.abs(ax - bx) + Math.abs(ay - by);
 const coord = (x, y) => 'ABCDEFGHIJK'[x] + (y + 1);
@@ -295,9 +346,14 @@ for (const [doc, add] of Object.entries({ assault: { l_boost: 1, w_blade: 1, t_s
   for (const k in add) dk[k] = (dk[k] || 0) + add[k];
 }
 const TRAIT_KEYS = ['control', 'fieldMax', 'hangarMax', 'startMechs', 'move', 'ep', 'draw', 'ap', 'plate', 'plateRegen', 'steady', 'turretDmg', 'heatTick'];
+function docTrait(doc, k) {
+  const mt = MAP.traits[doc], t = DOCTRINES[doc] && DOCTRINES[doc].traits;
+  if (mt && mt[k] != null) return mt[k];
+  return t && t[k] != null ? t[k] : null;
+}
 function trait(pid, k) {
-  const p = S && S.players[pid], t = p && DOCTRINES[p.doctrine] && DOCTRINES[p.doctrine].traits;
-  if (t && t[k] != null) return t[k];
+  const p = S && S.players[pid], v = p ? docTrait(p.doctrine, k) : null;
+  if (v != null) return v;
   return { fieldMax: C.FIELD_MAX, hangarMax: C.HANGAR_MAX, startMechs: 2, killVp: 0, baseHp: 0, turretShots: 1, control: 0, move: 0, ep: C.EP, draw: C.DRAW, ap: C.AP, plate: 0, plateRegen: 0, steady: 0, turretDmg: 0, heatTick: 0 }[k];
 }
 const fieldMax = pid => trait(pid, 'fieldMax');
@@ -396,11 +452,13 @@ function role(m) {
 
 /* ---------- Setup ---------- */
 function newGame(opts) {
-  S = { v: 4, crates: [], winReason: null, uid: 1, round: 1, phase: 'build', current: 0, first: rnd() < 0.5 ? 0 : 1, active: null, winner: null, players: [], mechs: [], wrecks: [], objectives: OBJ.map(o => ({ x: o.x, y: o.y, type: o.type, owner: null })), log: [], fx: [] };
+  const mapId = opts.map === 'random' || !opts.map ? (opts.map === 'random' ? MAP_IDS[Math.floor(rnd() * MAP_IDS.length)] : 'open') : opts.map;
+  setMap(mapId);
+  S = { v: 4, map: MAP.id, crates: [], winReason: null, uid: 1, round: 1, phase: 'build', current: 0, first: rnd() < 0.5 ? 0 : 1, active: null, winner: null, players: [], mechs: [], wrecks: [], objectives: OBJ.map(o => ({ x: o.x, y: o.y, type: o.type, owner: null })), log: [], fx: [] };
   opts.players.forEach((o, i) => {
     const ids = [];
     Object.entries(DOCTRINES[o.doctrine].deck).forEach(([id, n]) => { for (let j = 0; j < n; j++) ids.push(id); });
-    const p = { id: i, name: o.name, doctrine: o.doctrine, isAI: !!o.isAI, supply: C.START_SUPPLY, ep: 0, deck: shuffle(ids).map(id => mk(id)), workshop: [], hangar: [], base: { x: BASE_POS[i].x, y: BASE_POS[i].y, hp: C.BASE_HP + (((DOCTRINES[o.doctrine] || {}).traits || {}).baseHp || 0), max: C.BASE_HP + (((DOCTRINES[o.doctrine] || {}).traits || {}).baseHp || 0) }, names: shuffle(CALLSIGNS[i].slice()), lost: 0, kills: 0, vp: 0 };
+    const p = { id: i, name: o.name, doctrine: o.doctrine, isAI: !!o.isAI, supply: C.START_SUPPLY, ep: 0, deck: shuffle(ids).map(id => mk(id)), workshop: [], hangar: [], base: { x: BASE_POS[i].x, y: BASE_POS[i].y, hp: C.BASE_HP + rule('baseHp', 0) + (docTrait(o.doctrine, 'baseHp') || 0), max: C.BASE_HP + rule('baseHp', 0) + (docTrait(o.doctrine, 'baseHp') || 0) }, names: shuffle(CALLSIGNS[i].slice()), lost: 0, kills: 0, vp: 0 };
     S.players.push(p);
     setupCommander(p, o);
     for (let guard = 0; p.workshop.length < C.HAND_START && p.deck.length && guard < 200; guard++) {
@@ -408,7 +466,7 @@ function newGame(opts) {
       if (DEFS[c.id].event) p.deck.unshift(c); else p.workshop.push(c);
     }
     // each side opens with standard mecha ready to deploy; the swarm army brings an extra one
-    for (let j = 0; j < (((DOCTRINES[p.doctrine] || {}).traits || {}).startMechs || 2); j++) {
+    for (let j = 0; j < (docTrait(p.doctrine, 'startMechs') || 2); j++) {
       const m = blankMech(p);
       // the army opens with its own signature machines: issue chassis, issue legs, a weapon in each mount that takes one
       const iss = ISSUE[o.doctrine] || [], ch = iss.find(id => DEFS[id].slot === 'torso') || 'b_torso', lg = iss.find(id => DEFS[id].slot === 'legs') || 'b_legs';
@@ -972,30 +1030,61 @@ function pickupCrate(m) {
     p.supply += c.amount;
     fxFloat(m.x, m.y, '+' + c.amount + ' Supply', 'good');
     log(m.name + ' grabs a supply crate: +' + c.amount + ' Supply.', 'p' + m.owner);
+    salvagePoint(m);
   } else {
     p.workshop.push(mk(c.card, true));
     fxFloat(m.x, m.y, '★ ' + DEFS[c.card].name, 'good');
     log(m.name + ' grabs a crate holding ' + DEFS[c.card].name + '. It goes to the Workshop, free to fit.', 'p' + m.owner);
+    salvagePoint(m);
   }
+}
+// a crate's point is banked now and scored with the rest at the end of the round
+function salvagePoint(m) {
+  if (!rule('crateVp', 0)) return;
+  const p = S.players[m.owner];
+  p.salvage = (p.salvage || 0) + rule('crateVp', 0);
+}
+function crateContents(x, y) {
+  const specials = Object.values(DEFS).filter(d => d.special).map(d => d.id);
+  return rnd() < 0.6 ? { x, y, kind: 'supply', amount: rule('crateSupply', C.CRATE_SUPPLY) } : { x, y, kind: 'card', card: specials[Math.floor(rnd() * specials.length)] };
 }
 function dropCrate() {
   S.crates = S.crates || [];
-  if (S.crates.length >= 2) return;
   const free = (x, y) => passable(x, y) && !mechAt(x, y) && !objAt(x, y) && !wreckAt(x, y) && !crateAt(x, y);
+  if (rule('cratePairs', false)) {
+    // one crate and its mirror image, so both sides are the same distance from salvage
+    if (S.crates.length + 2 > rule('crateMax', 2)) return;
+    const [lo, hi] = rule('crateBand', [0, W - 1]), tiles = [];
+    for (let x = lo; x <= hi; x++) for (let y = 0; y < H; y++) {
+      const mx = W - 1 - x, my = H - 1 - y;
+      if ((x < mx || (x === mx && y < my)) && free(x, y) && free(mx, my)) tiles.push([x, y]);
+    }
+    if (!tiles.length) return;
+    const [x, y] = tiles[Math.floor(rnd() * tiles.length)];
+    for (const [cx, cy] of [[x, y], [W - 1 - x, H - 1 - y]]) {
+      const c = crateContents(cx, cy);
+      S.crates.push(c);
+      fx({ k: 'drop', x: cx, y: cy });
+    }
+    log('Salvage crates land at ' + coord(x, y) + ' and ' + coord(W - 1 - x, H - 1 - y) + '.', 'sys');
+    return;
+  }
+  if (S.crates.length >= 2) return;
   const mid = Math.floor(W / 2);
   let tiles = [];
   for (let y = 0; y < H; y++) if (free(mid, y)) tiles.push([mid, y]);   // the centre column is the same distance from both bases
   if (!tiles.length) for (let x = mid - 1; x <= mid + 1; x++) for (let y = 0; y < H; y++) if (free(x, y)) tiles.push([x, y]);
   if (!tiles.length) return;
   const [x, y] = tiles[Math.floor(rnd() * tiles.length)];
-  const specials = Object.values(DEFS).filter(d => d.special).map(d => d.id);
-  const c = rnd() < 0.6 ? { x, y, kind: 'supply', amount: C.CRATE_SUPPLY } : { x, y, kind: 'card', card: specials[Math.floor(rnd() * specials.length)] };
+  const c = crateContents(x, y);
   S.crates.push(c);
   fx({ k: 'drop', x, y });
   log('A supply crate lands at ' + coord(x, y) + (c.kind === 'supply' ? ': +' + c.amount + ' Supply.' : ' holding ' + DEFS[c.card].name + '.'), 'sys');
 }
 // an objective scores for a player if it is a radar, or a depot on the enemy's half of the map
-function scores(o, pid) { return o.type === 'radar' || (o.type === 'depot' && (pid === 0 ? o.x > (W - 1) / 2 : o.x < (W - 1) / 2)); }
+function scores(o, pid) { return o.type === 'radar' || o.type === 'uplink' || (o.type === 'depot' && rule('depotVp', true) && (pid === 0 ? o.x > (W - 1) / 2 : o.x < (W - 1) / 2)); }
+const objVp = o => (o.type === 'uplink' ? rule('uplinkVp', 2) : 1);
+const OBJ_NAME = { depot: 'supply depot', radar: 'radar station', uplink: 'uplink', repair: 'repair station' };
 // every tile a mech could hit: now, or after one move
 function reachZone(m) {
   const now = {}, later = {}, st = stats(m);
@@ -1322,7 +1411,7 @@ function resolution() {
     } else if (o.owner !== m.owner) {
       o.owner = m.owner;
       fx({ k: 'capture', x: o.x, y: o.y, owner: m.owner });
-      log(S.players[m.owner].name + ' captures the ' + (o.type === 'depot' ? 'supply depot' : 'radar station') + ' at ' + coord(o.x, o.y) + '.', 'p' + m.owner);
+      log(S.players[m.owner].name + ' captures the ' + OBJ_NAME[o.type] + ' at ' + coord(o.x, o.y) + '.', 'p' + m.owner);
     }
   }
   for (const p of S.players) {
@@ -1346,9 +1435,10 @@ function resolution() {
   if (checkWin()) return;
   // victory points: one per depot or radar held at the end of each round, plus pressure on the enemy base
   for (const p of S.players) {
-    let n = S.objectives.filter(o => o.owner === p.id && scores(o, p.id)).length;
+    let n = S.objectives.filter(o => o.owner === p.id && scores(o, p.id)).reduce((a, o) => a + objVp(o), 0);
     if (C.VP_ROUND_CAP) n = Math.min(n, C.VP_ROUND_CAP);
     if (C.LEAD_GAP && S.round <= C.LEAD_UNTIL && (p.vp || 0) - (S.players[1 - p.id].vp || 0) >= C.LEAD_GAP) n = Math.min(n, C.LEAD_CAP);
+    if (p.salvage) { n += p.salvage; log(p.name + ' earns ' + p.salvage + ' victory point' + (p.salvage > 1 ? 's' : '') + ' for salvage.', 'p' + p.id); p.salvage = 0; }
     if (p.bounty) { n += p.bounty; log(p.name + ' earns ' + p.bounty + ' bounty point' + (p.bounty > 1 ? 's' : '') + ' for kills on the leader.', 'p' + p.id); p.bounty = 0; }
     // attrition armies score for wrecking the enemy force
     if (trait(p.id, 'killVp')) {
@@ -1371,7 +1461,7 @@ function resolution() {
     aiLearn();
     return;
   }
-  if (S.round % C.CRATE_EVERY === 1) dropCrate();
+  if (S.round % rule('crateEvery', C.CRATE_EVERY) === (rule('crateEvery', C.CRATE_EVERY) === 1 ? 0 : 1)) dropCrate();
   S.round++; S.first = 1 - S.first;
   log('Round ' + S.round + ' begins.', 'sys');
   startBuildPhase();
@@ -1514,8 +1604,9 @@ function threatMap(pid) {
 function objWorth(o, pid) {
   if (o.type === 'repair') return 0;
   const me = S.players[pid], foe = S.players[1 - pid], lead = (me.vp || 0) - (foe.vp || 0);
-  let v = scores(o, pid) ? (C.LEAD_GAP && lead >= C.LEAD_GAP ? 3 : 7) : 2.5;
-  if (o.owner === 1 - pid) v += scores(o, 1 - pid) ? 5 : 1.5;
+  const pts = objVp(o);
+  let v = scores(o, pid) ? (C.LEAD_GAP && lead >= C.LEAD_GAP ? 3 : 7) * (pts > 1 ? 1.5 : 1) : 2.5;
+  if (o.owner === 1 - pid) v += scores(o, 1 - pid) ? 5 * pts : 1.5;
   return v;
 }
 // can the side still to act this round bring this enemy down with what it has in range?
@@ -1606,7 +1697,11 @@ function aiGoal(m) {
     if (S.mechs.some(f => f !== m && f.owner === m.owner && man(f.x, f.y, o.x, o.y) < man(m.x, m.y, o.x, o.y))) continue;
     cands.push({ x: o.x, y: o.y, cost: d / (0.5 + 0.5 * aw.objective) * 7 / Math.max(2, objWorth(o, m.owner)), pref: 0 });
   }
-  for (const c of S.crates || []) cands.push({ x: c.x, y: c.y, cost: dTo(c.x, c.y) * 0.6, pref: 0 });
+  const crateW = rule('crateVp', 0) ? 0.35 : 0.6;
+  for (const c of S.crates || []) {
+    if (rule('crateVp', 0) && S.mechs.some(f => f !== m && f.owner === m.owner && man(f.x, f.y, c.x, c.y) < man(m.x, m.y, c.x, c.y))) continue;
+    cands.push({ x: c.x, y: c.y, cost: dTo(c.x, c.y) * crateW / (0.5 + 0.5 * aw.objective), pref: 0 });
+  }
   for (const w of S.wrecks) cands.push({ x: w.x, y: w.y, cost: dTo(w.x, w.y) * 0.9, pref: 0 });
   if (armed) {
     for (const e of S.mechs) if (e.owner !== m.owner) {
@@ -1640,7 +1735,7 @@ function aiBestTile(m) {
     if (aw.cohesion > 0.05 || aw.cohesion < 0.3) { const near = allies.filter(f => man(f.x, f.y, x, y) <= 2).length; v += aw.cohesion * Math.min(2, near) * 1.2 - (aw.cohesion < 0.3 ? (0.3 - aw.cohesion) * 3 * allies.filter(f => man(f.x, f.y, x, y) <= 1).length : 0); }
     if (o && o.type === 'repair' && isDamaged(m)) v += 4;
     if (wreckAt(x, y)) v += 3;
-    if (crateAt(x, y)) v += 8;
+    if (crateAt(x, y)) v += 8 + 6 * rule('crateVp', 0) * aw.objective;
     if (terrain(x, y) === 'ruins') v += 1.5;
     if (dm) v -= (k in dm) ? Math.max(0, dm[k] - goal.pref) : 99;
     if (stay) v += 0.01;
@@ -1875,9 +1970,10 @@ const api = {
   PERSONAS, aiW,
   getAIMemory() { return AIMEM; },
   setAIMemory(m) { AIMEM = m && m.v === 1 && m.personas ? m : { v: 1, personas: {} }; },
-  W, H, C, DEFS, DOCTRINES, REQUIRED,
+  get W() { return W; }, get H() { return H; }, C, DEFS, DOCTRINES, REQUIRED,
   get S() { return S; },
-  load(s) { S = s; return S; },
+  load(s) { S = s; if (S) setMap(S.map || 'open'); return S; },
+  setMap, MAPS, MAP_IDS, get MAP() { return MAP; }, rule, objVp,
   setRng(f) { rnd = f; },
   newGame, terrain, baseAt, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
