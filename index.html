@@ -217,7 +217,7 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 
 /* Phase flow */
 .flow { display: flex; list-style: none; margin: 0; padding: 0; flex: none; }
-.flow li { flex: 1; min-width: 0; text-align: center; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .02em; padding: 5px 2px 5px 11px; background: var(--surface); color: var(--muted); margin-left: -7px; white-space: nowrap; overflow: hidden;
+.flow li { flex: 1; min-width: 0; text-align: center; font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; padding: 8px 2px 8px 12px; background: var(--surface); color: var(--muted); margin-left: -7px; white-space: nowrap; overflow: hidden;
   clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%, 9px 50%); box-shadow: inset 0 -3px 0 var(--pc, var(--line)); }
 .flow li:first-child { margin-left: 0; padding-left: 6px; clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%); }
 .flow li.done { opacity: .55; }
@@ -777,9 +777,9 @@ button.rost { cursor: pointer; }
 
 /* Wide screens: map column plus a side window that stays open */
 @media (min-width: 900px) {
-  .below { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; column-gap: 20px; row-gap: 6px; }
-  .track { grid-column: 1; grid-row: 1; } .stage { grid-column: 1; grid-row: 2; } .dock { grid-column: 1; grid-row: 3; max-height: 40vh; }
-  #win, #win.idle { position: static; display: flex; grid-column: 2; grid-row: 1 / 4; animation: none; border-width: 1px; border-color: var(--line); }
+  .below { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; column-gap: 20px; row-gap: 6px; }
+  .track { grid-column: 1; grid-row: 1; } .stage { grid-column: 1; grid-row: 2; } .flow { grid-column: 1; grid-row: 3; } .dock { grid-column: 1; grid-row: 4; max-height: 40vh; }
+  #win, #win.idle { position: static; display: flex; grid-column: 2; grid-row: 1 / 5; animation: none; border-width: 1px; border-color: var(--line); }
   .side-name { font-size: 26px; }
 }
 @media (max-width: 899px) {
@@ -881,7 +881,6 @@ button.rost { cursor: pointer; }
 
   <section id="game" hidden>
     <header class="top" id="top"></header>
-    <ol class="flow" id="flow" aria-label="Round sequence"></ol>
     <div class="below">
       <div class="track" id="track"></div>
       <div class="stage">
@@ -903,6 +902,7 @@ button.rost { cursor: pointer; }
         </div>
         <div id="toast" hidden></div>
       </div>
+      <ol class="flow" id="flow" aria-label="Round sequence"></ol>
       <div class="dock" id="dock"></div>
       <aside id="win" class="idle"><div id="win-head"></div><div id="win-body"></div></aside>
       <div id="reveal" hidden></div>
@@ -1314,9 +1314,10 @@ function renderTop() {
   ui.prev = now;
 }
 function renderFlow() {
-  const steps = [['Build', 'both', 'Both commanders draw and build at once'], ['Deploy', 'both', S.players[S.first].name + ' deploys first, then ' + S.players[1 - S.first].name], ['Combat', null], ['Resolve', null]];
-  let cur = S.phase === 'build' ? 0 : S.phase === 'deploy' ? 1 : S.phase === 'combat' ? 2 : 3;
-  if (ui.holding && ui.holdPrev === 'combat') cur = 3;
+  // three phases a round; the round's resolution plays out as the end of combat
+  const steps = [['Build', 'both', 'Both commanders draw and build at once'], ['Deploy', 'both', S.players[S.first].name + ' deploys first, then ' + S.players[1 - S.first].name], ['Combat', null, 'Commanders take turns activating one mech; the round resolves at the end']];
+  let cur = S.phase === 'build' ? 0 : S.phase === 'deploy' ? 1 : 2;
+  if (ui.holding && ui.holdPrev === 'combat') cur = 2;
   $('#flow').innerHTML = steps.map((st, i) => {
     const pid = st[1] === 'both' ? null : (i === 2 && cur === 2 ? S.current : null);
     return '<li class="' + (st[1] === 'both' ? 'both' : pid != null ? 'p' + pid : '') + (i < cur ? ' done' : i === cur ? ' on' : '') + '"' + (i === cur ? ' aria-current="step"' : '') + ' title="' + (st[2] || st[0]) + '">' + st[0] + '</li>';
@@ -2052,7 +2053,7 @@ const myMechs = () => S.mechs.filter(m => m.owner === viewer());
 // a part the player fitted themselves, rather than one the army was issued
 const fittedNew = () => S.mechs.filter(m => m.owner === viewer()).concat(S.players[viewer()].hangar).some(m => ['torso', 'legs', 'armL', 'armR'].some(k => m.slots[k] && !m.slots[k].issued) || m.slots.aux.some(Boolean));
 const COACH = [
-  { t: 'Welcome, commander. You win by reaching <b>' + C.VP_WIN + ' victory points</b> or by destroying the enemy base. This training walks you through one round. You command <b>Azure</b>, at the bottom of the map.', next: 'Start' },
+  { t: 'Welcome, commander. You win by reaching <b>' + C.VP_WIN + ' victory points</b> or by destroying the enemy base. This training walks you through one round. You command <b>Azure</b>, at the bottom of the map. The strip under the map shows the phase you are in: <b>Build, Deploy, Combat</b>.', next: 'Start' },
   { t: 'Every round opens with new cards from your Arsenal. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
   { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. The numbered strip shows each step.', hl: '.bsteps', next: 'Next' },
   { t: 'Not sure what something means? <b>Tap any stat or icon</b> for an explanation. Try the heart (HP) or the flame (heat).', hl: '.tot', next: 'Next' },
