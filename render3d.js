@@ -346,7 +346,8 @@ function buildLegs(R, g, id, tc, style, ghost) {
   const heavy = style === 'armored', exp = style === 'experimental';
   const k = (id === 'l_biped' ? 1.18 : id === 's_anchor' ? 1.42 : id === 'l_boost' ? 0.95 : 1) * (heavy ? 1.12 : exp ? 0.92 : 1.05);
   for (const sx of [-1, 1]) {
-    const hip = new T.Group(); hip.position.set(sx * 0.09 * Math.max(1, k * 0.95), 0.42, 0); g.add(hip); R.legs.push(hip);
+    const hip = new T.Group(); hip.position.set(sx * (style === 'assault' ? 0.105 : 0.09) * Math.max(1, k * 0.95), 0.42, 0); g.add(hip); R.legs.push(hip);
+    if (style === 'assault') hip.rotation.z = sx * 0.07;   // a planted, slightly wide stance
     // large: thigh
     mesh(wedge(0.085 * k, 0.2, 0.1 * k, heavy ? 1.1 : 1.15, 1.05), M(tc.main), hip, [0, -0.1, 0]);
     // small: hip joint and piston
@@ -888,7 +889,11 @@ function buildMech(m, owner, doctrine, opt) {
     const arm = new T.Group(); sh.add(arm);
     mesh(wedge(0.065 * ak, 0.15, 0.075 * ak, 1.15, 1.1), toon(style === 'experimental' ? tc.second : tc.main), arm, [0, -0.075, 0]);
     mesh(cyl(0.007, 0.007, 0.12, 5), toon(tc.metal), arm, [sx * 0.035 * ak, -0.08, -0.02], null, flat);
-    const el = new T.Group(); el.position.y = -0.15; el.rotation.x = -Math.PI / 2; arm.add(el);
+    // Assault stands at ease: arms hang a little out from the body, elbows slightly bent, weapons held low;
+    // the others keep their forearms raised, weapons forward
+    const rest = style === 'assault' ? -0.5 : -Math.PI / 2;
+    if (style === 'assault') arm.rotation.z = sx * 0.14;
+    const el = new T.Group(); el.position.y = -0.15; el.rotation.x = rest; arm.add(el);
     mesh(sph(0.036 * ak, 8), toon(tc.dark), el, [0, 0, 0]);
     mesh(wedge(0.08 * ak, 0.14, 0.09 * ak, 1.2, 1.15), toon(style === 'armored' ? tc.second : tc.main), el, [0, -0.075, 0]);
     mesh(wedge(0.07 * ak, 0.09, 0.022, 1.1, 1), toon(style === 'assault' ? tc.second : style === 'armored' ? tc.accent : tc.accent), el, [sx * 0.0, -0.07, 0.048 * ak]);
@@ -909,7 +914,7 @@ function buildMech(m, owner, doctrine, opt) {
       else { wg.position.set(0, 0.048, -0.05); mesh(box(0.024, 0.06, 0.03), toon(KIT.body), wg, [0, -0.04, 0.072], [0.3, 0, 0]); }
     }
     R.muzzles[key] = { o: buildWeapon(wg, inst.id, tc, sx), cat: cat || 'ballistic', spin: wg.userData.spin || null };
-    R.arms[key] = { sh, arm, el };
+    R.arms[key] = { sh, arm, el, rest };
     tag(sh, key);
     if (isHurt(inst)) R.sparks.push(sh);
   }
@@ -1505,6 +1510,7 @@ const ANTICIPATION = 0.42;  // wind-up before any weapon goes off
 // wind-up glow gathering at the weapon that is about to fire, with sparks drawn in toward it
 function charge(att, cat, dur, slotKey) {
   if (!att) return;
+  att.aimT = clock(); att.aimKey = slotKey || null;
   const col = FX_COL[cat] || 0xffffff;
   const m = new T.Mesh(sph(0.05, 10), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
   BD.group.add(m);
@@ -1909,6 +1915,10 @@ function updateRec(rec, t, dt) {
     let rx = 0;
     if (rec.recoil && rec.lastArm === k) { const q = (t - rec.recoil) / 0.25; if (q < 1) rx = Math.sin(q * Math.PI) * 0.35; }
     a.arm.rotation.x = -rx - (moving ? 0 : Math.sin(t * 1.3 + rec.phase) * 0.03);
+    // raise to aim while attacking, then drop back to the rest pose
+    const aiming = rec.aimT && t - rec.aimT < 1.5 && (!rec.aimKey || rec.aimKey === k);
+    const want = aiming ? -Math.PI / 2 : (a.rest != null ? a.rest : -Math.PI / 2);
+    a.el.rotation.x += (want - a.el.rotation.x) * Math.min(1, dt * 10);
   }
   for (const k in R.muzzles) { const sp = R.muzzles[k].spin; if (sp) sp.rotation.z += dt * (rec.spin && t - rec.spin < 0.8 ? 40 : 0.8); }
   // core pulse
@@ -2089,7 +2099,7 @@ R3.snapshot = function (L, doctrine, owner, opt) {
     PR.renderer.setSize(sw, shh, false); PR.cam.aspect = sw / shh; PR.cam.updateProjectionMatrix();
     // a slight stride and raised weapon arm so the pose reads as ready for battle
     if (R.legs[0] && R.kind === 'biped') { R.legs[0].rotation.x = -0.18; R.legs[1].rotation.x = 0.14; }
-    if (R.arms.armR) R.arms.armR.sh.rotation.x = -0.35;
+    if (R.arms.armR && R.style !== 'assault') R.arms.armR.sh.rotation.x = -0.35;
     PR.holder.add(R.root);
     // frame the whole machine
     PR.scene.updateMatrixWorld(true);
