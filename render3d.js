@@ -453,12 +453,13 @@ function quadStep(st, R, dt, speed) {
     // feet are offset against the hub's motion so they stay planted on the ground
     quadSolve(L, Q, L.fx - shx, Q.sole + y * w - hubY, L.fz + z * w - shz);
   });
-  // the upper body rides the hub on a slow, soft spring: it lags each shift, leans into it, overshoots and settles
-  const sp = st.sp || (st.sp = { x: [0, 0], y: [0, 0], z: [0, 0] }), h = Math.min(0.05, dt), om = 4.2, ze = 0.32;
-  for (const [c, tgt] of [['x', shx], ['y', hubY], ['z', shz]]) { const a = sp[c]; a[1] += (om * om * (tgt - a[0]) - 2 * ze * om * a[1]) * h; a[0] += a[1] * h; }
+  // the upper body is fixed to the hub at the waist; only its lean follows the weight shift, on a slow soft spring
+  // that lags, overshoots and settles, pivoting at the waist joint
+  const sp = st.sp || (st.sp = { x: [0, 0], z: [0, 0] }), h = Math.min(0.05, dt), om = 4.2, ze = 0.32;
+  for (const [c, tgt] of [['x', shx], ['z', shz]]) { const a = sp[c]; a[1] += (om * om * (tgt - a[0]) - 2 * ze * om * a[1]) * h; a[0] += a[1] * h; }
   return {
     hubX: shx * k, hubY: hubY * k, hubZ: shz * k,
-    bodyX: sp.x[0] * k, bodyZ: sp.z[0] * k, bob: (sp.y[0] + drop) * k,
+    bodyX: shx * k, bodyZ: shz * k, bob: (hubY + drop) * k,
     // the body tips toward where its weight is going, and the lag swings it a little further
     roll: -sp.x[0] * 1.6 - sp.x[1] * 0.25, pitch: sp.z[0] * 1.3 + sp.z[1] * 0.2,
     yaw: 0.03 * w * Math.sin(st.phase * Math.PI * 2),
