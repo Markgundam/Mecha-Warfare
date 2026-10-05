@@ -520,6 +520,9 @@ button.rost { cursor: pointer; }
 .endsheet.win .es-badge { background: #f4c431; animation: badgespin 1.2s ease-out .2s both; }
 .es-badge .ico { width: 46px; height: 46px; color: #fff; fill: #fff; }
 .endsheet.win .es-badge .ico { color: #8a6400; fill: #fff7d6; }
+.bmenu p { margin: 6px 0 12px; }
+.bm-acts { display: grid; gap: 8px; }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .es-next { font-size: 14px; margin: 10px 0 0; }
 .es-table { display: flex; flex-direction: column; gap: 4px; text-align: left; }
 .es-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 14px; align-items: center; padding: 6px 10px; background: var(--raised); border-left: 4px solid var(--pc, var(--line)); font-family: var(--mono); font-size: 13px; }
@@ -1306,7 +1309,7 @@ function renderTop() {
       '<div class="side-nums"><span title="Base HP">' + si('base') + num('h' + p.id, p.base.hp) + '</span><span title="Supply">' + si('supply') + num('s' + p.id, p.supply) + '</span><span class="inc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</span><span title="Victory points: first to ' + C.VP_WIN + ' wins" data-vp>' + si('star') + num('v' + p.id, ui.vpShow && ui.vpShow[p.id] != null ? ui.vpShow[p.id] : (p.vp || 0)) + '/' + C.VP_WIN + '</span></div></div>';
   };
   $('#top').innerHTML = side(S.players[0]) +
-    '<div class="mid"><div class="round">Round ' + S.round + '</div><div class="tools"><button type="button" data-act="rules">Rules</button>' + (R3on ? '<button type="button" data-act="fxToggle" title="Effects level">FX ' + (FXLEVEL === 'low' ? 'low' : 'full') + '</button>' : '') + '<button type="button" data-act="newGame">' + (ui.confirmNew ? 'Sure?' : 'New') + '</button></div></div>' +
+    '<div class="mid"><div class="round">Round ' + S.round + '</div><div class="tools"><button type="button" data-act="rules">Rules</button>' + (R3on ? '<button type="button" data-act="fxToggle" title="Effects level">FX ' + (FXLEVEL === 'low' ? 'low' : 'full') + '</button>' : '') + '<button type="button" data-act="battleMenu">Menu</button></div></div>' +
     side(S.players[1]);
   ui.prev = now;
 }
@@ -1533,7 +1536,7 @@ function showEnd() {
   // whose eyes: online it is this device's seat; against the AI it is the human; two players on one screen see the winner's view
   const me = net ? net.seat : S.players.some(p => p.isAI) ? S.players.find(p => !p.isAI).id : S.winner;
   const won = me === S.winner, hot = !net && !S.players.some(p => p.isAI);
-  const why = S.winReason === 'points' ? w.name + ' reached ' + w.vp + ' victory points' : l.name + '’s base was destroyed';
+  const why = S.winReason === 'points' ? w.name + ' reached ' + w.vp + ' victory points' : S.winReason === 'concede' ? l.name + ' conceded' : l.name + '’s base was destroyed';
   const row = p => '<div class="es-row p' + p.id + '"><b>' + p.name + '</b><span>' + ico('star', 'sm') + (p.vp || 0) + '</span><span>' + ico('base', 'sm') + p.base.hp + '</span><span title="Kills">✕ ' + (p.kills || 0) + '</span></div>';
   const o = $('#overlay');
   o.innerHTML = '<div class="endsheet ' + (won ? 'win' : 'lose') + ' p' + (won ? w.id : me) + '" role="alertdialog" aria-label="' + (won ? 'Victory' : 'Defeat') + '">' +
@@ -1542,7 +1545,7 @@ function showEnd() {
     '<p>' + why + ' in round ' + S.round + '.' + (hot ? '' : won ? ' The war is yours, commander.' : ' ' + w.name + ' takes the war.') + '</p>' +
     '<div class="es-table">' + row(w) + row(l) + '</div>' +
     (S.training ? '<p class="es-next"><b>Training complete.</b> Next, try <b>Play the AI</b>: your first battles there are against the Recruit too, and field notes explain anything new.</p>' : '') +
-    '<div class="row"><button type="button" class="btn ghost" data-act="closeOverlay">See the battlefield</button><button type="button" class="btn primary grow" data-act="toStart">New battle</button></div></div>';
+    '<div class="row"><button type="button" class="btn ghost" data-act="closeOverlay">See the battlefield</button><button type="button" class="btn primary grow" data-act="toStart">Main menu</button></div></div>';
   o.hidden = false;
   if (won) celebrate([getComputedStyle(document.documentElement).getPropertyValue('--p' + w.id).trim() || '#5fb0ec', '#f4c431', '#ffffff', '#ff6b9a', '#7dffb2']);
 }
@@ -1615,7 +1618,7 @@ function announce() {
   ui.annKey = key;
   const over = S.phase === 'over', combat = S.phase === 'combat';
   const t = over ? S.players[S.winner].name + ' wins' : combat ? 'Combat' : 'Round ' + S.round;
-  const sub = over ? (S.winReason === 'points' ? C.VP_WIN + ' victory points' : 'Enemy base destroyed') : S.players[S.current].name + (combat ? ' activates first' : ' builds first');
+  const sub = over ? (S.winReason === 'points' ? C.VP_WIN + ' victory points' : S.winReason === 'concede' ? S.players[1 - S.winner].name + ' conceded' : 'Enemy base destroyed') : S.players[S.current].name + (combat ? ' activates first' : ' builds first');
   $('#announce').innerHTML = '<div class="announce' + (over ? ' p' + S.winner : '') + '">' + t + '<small>' + sub + '</small></div>';
 }
 function playFx(list) {
@@ -1807,7 +1810,7 @@ function renderDock() {
   if (ui.holding) h += '<div class="dock-h">' + (ui.holdPrev === 'combat' ? 'Resolving the round…' : 'Finishing the last moves…') + '</div>';
   else if (S.phase === 'over') {
     const w = S.players[S.winner];
-    h += '<div class="dock-h p' + w.id + '"><b>' + w.name + ' victorious' + (S.winReason === 'points' ? ' on points' : '') + '.</b> ' + S.players.map(x => x.name + ': ' + (x.vp || 0) + ' VP, base ' + x.base.hp + ', ' + x.kills + ' kills').join(' · ') + '</div><div class="row"><button type="button" class="btn primary grow" data-act="toStart">New battle</button></div>';
+    h += '<div class="dock-h p' + w.id + '"><b>' + w.name + ' victorious' + (S.winReason === 'points' ? ' on points' : '') + '.</b> ' + S.players.map(x => x.name + ': ' + (x.vp || 0) + ' VP, base ' + x.base.hp + ', ' + x.kills + ' kills').join(' · ') + '</div><div class="row"><button type="button" class="btn primary grow" data-act="toStart">Main menu</button></div>';
   } else if (sm && sm.x != null) h += mechDock(sm, true);
   else if (othersTurn()) {
     const am = S.active != null ? MW.fieldMech(S.active) : null;
@@ -2304,6 +2307,17 @@ function onAct(el) {
   if (a === 'findParts') { ui.wtab = 'cards'; ui.pg = 0; return render(); }
   if (a === 'closeOverlay') { $('#overlay').hidden = true; return; }
   if (a === 'toStart') { $('#overlay').hidden = true; document.querySelectorAll('.confetti').forEach(c => c.remove()); return showStart(); }
+  if (a === 'battleMenu') return showBattleMenu(false);
+  if (a === 'concedeAsk') return showBattleMenu(true);
+  if (a === 'concede') {
+    const me = viewer();
+    $('#overlay').hidden = true;
+    if (!MW.concede(me).ok) return;
+    if (net) push();
+    ui.win = null; ui.sel = null;
+    render(); queueEnd();
+    return;
+  }
   if (a === 'newGame') {
     if (ui.confirmNew) { ui.confirmNew = false; return showStart(); }
     ui.confirmNew = true; renderTop();
@@ -2448,6 +2462,20 @@ function showRules() {
   o.innerHTML = '<div class="sheet" role="dialog" aria-label="Rules"><div class="phead"><h2>Field manual</h2><span class="row"><button type="button" class="btn sm ghost" data-act="tipsToggle">' + (tipsOff() ? 'Field notes: off' : 'Field notes: on') + '</button><button type="button" class="btn sm" data-act="closeOverlay">Close</button></span></div>' +
     '<div class="wtabs">' + T.map((t, i) => '<button type="button" class="wtab' + (i === cur ? ' on' : '') + '" data-act="ruleTab" data-tab="' + i + '">' + t[0] + '</button>').join('') + '</div>' +
     '<dl>' + T[cur][1].map(([a, b]) => '<dt>' + a + '</dt><dd>' + b + '</dd>').join('') + '</dl></div>';
+  o.hidden = false;
+}
+// the battle menu: leave (the war stays saved) or concede it
+function showBattleMenu(confirm) {
+  const o = $('#overlay'), over = S.phase === 'over', foe = S.players[1 - viewer()];
+  const hot = !net && !S.players.some(p => p.isAI);
+  o.innerHTML = '<div class="sheet bmenu" role="dialog" aria-label="Battle menu"><div class="phead"><h2>' + (confirm ? 'Concede?' : 'Battle menu') + '</h2></div>' +
+    (confirm
+      ? '<p>' + (hot ? S.players[viewer()].name + ' gives up and ' : 'You give up and ') + '<b>' + foe.name + '</b> wins the war. It counts as a loss.</p>' +
+        '<div class="row"><button type="button" class="btn ghost" data-act="battleMenu">Back</button><button type="button" class="btn danger grow" data-act="concede">Concede the war</button></div>'
+      : '<p class="note">' + (net ? 'Leave the match and come back to it from Online match.' : 'The battle is saved: pick it up again from Continue last battle or Recent games.') + '</p>' +
+        '<div class="bm-acts"><button type="button" class="btn primary" data-act="toStart">Main menu</button>' +
+        (over ? '' : '<button type="button" class="btn danger" data-act="concedeAsk">Concede</button>') +
+        '<button type="button" class="btn ghost" data-act="closeOverlay">Back to the battle</button></div>') + '</div>';
   o.hidden = false;
 }
 function showStart() {

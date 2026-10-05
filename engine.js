@@ -853,6 +853,14 @@ function checkWin() {
   aiLearn();
   return true;
 }
+// a commander gives up the war: the other side wins at once
+function concede(pid) {
+  if (!S || S.phase === 'over') return fail('The war is already over.');
+  S.phase = 'over'; S.winner = 1 - pid; S.winReason = 'concede'; S.active = null;
+  log(S.players[pid].name + ' concedes. ' + S.players[1 - pid].name + ' wins the war.', 'sys');
+  aiLearn();
+  return OK;
+}
 function settle() {
   if (checkWin() || S.phase !== 'combat') return;
   if (S.active != null) {
@@ -1992,7 +2000,7 @@ const api = {
   load(s) { S = s; if (S) setMap(S.map || 'open'); return S; },
   setMap, MAPS, MAP_IDS, get MAP() { return MAP; }, rule, objVp, START_CHASSIS,
   setRng(f) { rnd = f; },
-  newGame, terrain, baseAt, turretTiles, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
+  newGame, concede, terrain, baseAt, turretTiles, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
   acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, canRam, ramTargets, ram, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
