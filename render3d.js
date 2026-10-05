@@ -419,7 +419,7 @@ function gaitStep(st, R, dt, speed) {
   st.phase = ((st.phase || 0) + Math.min(2.2, vLocal * 0.6 / rg.stride) * dt) % 1;
   const w = st.w, ph = st.phase, out = { swing: [0, 0], bob: 0 };
   // knees soft at rest and bent while walking: the pelvis drops so the feet can reach a full stride
-  const drop = 0.015 + 0.04 * w;
+  const drop = 0.015 + 0.04 * w + (st.crouch || 0);
   R.legs.forEach((hip, i) => {
     const p = (ph + (i ? 0.5 : 0)) % 1;
     let z, y, pitch;
@@ -1905,10 +1905,10 @@ function updateRec(rec, t, dt) {
     rec.faceT = Math.atan2(rec.leave.to.x - rec.pos.x, rec.leave.to.z - rec.pos.z);
   }
   // lunge for melee
-  let lungeOff = null;
+  let lungeOff = null, lean = 0;
   if (rec.lunge) {
     const q = (t - rec.lunge.t0) / 0.36;
-    if (q >= 0 && q < 1) { const d = rec.lunge.to.clone().setY(0).sub(rec.pos.clone().setY(0)); lungeOff = d.multiplyScalar(Math.sin(q * Math.PI) * 0.5); }
+    if (q >= 0 && q < 1) { const d = rec.lunge.to.clone().setY(0).sub(rec.pos.clone().setY(0)); lungeOff = d.multiplyScalar(kf(q, [[0, 0], [0.3, -0.12, 'in'], [0.5, 0.55, 'out'], [0.7, 0.45], [1, 0]])); lean = kf(q, [[0, 0], [0.3, -0.15, 'in'], [0.5, 0.35, 'out'], [1, 0]]); }
     if (q >= 1) rec.lunge = null;
   }
   if (!rec.walk && !rec.leave) root.position.copy(rec.pos);
@@ -1920,7 +1920,13 @@ function updateRec(rec, t, dt) {
   }
   root.rotation.y = rec.face;
   // hit reaction
-  if (rec.hitT && t - rec.hitT < 0.35) { const q = (t - rec.hitT) / 0.35; root.position.x += Math.sin(q * 40) * 0.03 * (1 - q); root.rotation.z = Math.sin(q * 30) * 0.06 * (1 - q); } else root.rotation.z = 0;
+  if (rec.hitT && t - rec.hitT < 0.6) {
+    const q = (t - rec.hitT) / 0.6, kb = kf(q, [[0, 0], [0.12, -0.12, 'out'], [0.6, -0.04], [1, 0]]);
+    root.position.x += Math.sin(rec.face) * kb + Math.sin(q * 40) * 0.025 * Math.max(0, 1 - q * 2); root.position.z += Math.cos(rec.face) * kb;
+    root.rotation.z = Math.sin(q * 30) * 0.06 * Math.max(0, 1 - q * 2); lean += kf(q, [[0, 0], [0.12, -0.35, 'out'], [0.45, -0.08], [0.7, -0.12], [1, 0]]);
+  } else root.rotation.z = 0;
+  // a shot kicks the whole body back a little
+  if (rec.recoil && t - rec.recoil < 0.45) lean += kf((t - rec.recoil) / 0.45, [[0, 0], [0.1, -0.14, 'out'], [0.5, 0.03], [1, 0]]);
   // stripping in the field: parts lift away
   if (rec.strip) {
     const q = (t - rec.strip.t0) / 0.9;
@@ -1939,7 +1945,7 @@ function updateRec(rec, t, dt) {
     const q = (t - rec.dying.t0) / (rec.dying.vapor ? 0.25 : 1.2);
     if (q >= 1) { dropRec(rec); return; }
     if (rec.dying.vapor) { root.scale.setScalar(MS * (1 - q)); }
-    else { R.torso.rotation.x = -q * 1.2; R.hips.position.y = R.hipY * (1 - q * 0.7); y -= q * 0.15; if (Math.random() < 0.5) smoke(root.position.clone().setY(0.4), 1, false); if (Math.random() < 0.3) sparks(root.position.clone().setY(0.4), 0xffe2a0, 3); }
+    else { R.torso.rotation.x = kf(q, [[0, 0], [0.08, -0.35, 'out'], [0.3, 0.2], [0.6, 0.3]]); R.hips.position.y = R.hipY * kf(q, [[0, 1], [0.3, 0.92], [0.55, 0.6, 'in']]); root.rotation.z = kf(q, [[0, 0], [0.3, 0.06], [0.62, -1.35, 'in'], [0.72, -1.18, 'out'], [0.82, -1.38]]); y += kf(q, [[0, 0], [0.62, -0.05], [0.72, 0.03, 'out'], [0.82, -0.05], [1, -0.2, 'in']]); if (Math.random() < 0.5) smoke(root.position.clone().setY(0.4), 1, false); if (Math.random() < 0.3) sparks(root.position.clone().setY(0.4), 0xffe2a0, 3); }
   } else if (!rec.strip && !rec.charging) {
     // idle and walk cycles
     const ph = t * (moving ? 9 : 1.6) + rec.phase;
@@ -1991,6 +1997,7 @@ function updateRec(rec, t, dt) {
   // core pulse
   if (R.core && R.coreLive && !rec.charging) R.core.scale.setScalar(1 + 0.15 * Math.sin(t * 4 + rec.phase));
   root.position.y = y;
+  if (!rec.dying && !rec.strip) R.torso.rotation.x = lean;
   // brace shield shimmer
   if (rec.braceT && t - rec.braceT < 0.7) { const q = (t - rec.braceT) / 0.7; rec.bubble.material.opacity = 0.6 * (1 - q); rec.bubble.scale.setScalar(0.8 + q * 0.3); }
   else rec.bubble.material.opacity = rec.m && rec.m.braced ? 0.12 : 0;
@@ -2255,10 +2262,10 @@ function makePreview() {
   const holder = new T.Group(); scene.add(holder);
   const fx = new T.Group(); scene.add(fx);
   const ground = new T.Mesh(new T.CircleGeometry(0.6, 40), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false }));
-  ground.rotation.x = -Math.PI / 2; ground.position.y = 0.002; scene.add(ground);
+  ground.rotation.x = -Math.PI / 2; ground.position.y = 0.002; scene.add(ground); ground.scale.setScalar(1);
   const bubble = new T.Mesh(sph(0.62, 24), new T.MeshBasicMaterial({ color: 0x8fdcff, transparent: true, opacity: 0, depthWrite: false }));
   scene.add(bubble);
-  PV = { renderer, scene, cam, holder, fx, bubble, R: null, sig: '', act: 'idle', t0: 0, rot: 0.55, ink: { weight: 1.2 }, parts: [], frame: null, fired: false };
+  PV = { ground, view: 'front', renderer, scene, cam, holder, fx, bubble, R: null, sig: '', act: 'idle', t0: 0, rot: 0.55, ink: { weight: 1.2 }, parts: [], frame: null, fired: false };
   renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;touch-action:none;cursor:grab';
   // drag to turn
   let drag = null;
@@ -2276,15 +2283,16 @@ R3.preview = function (el, L, doctrine, owner) {
   const sig = signature(m) + '|' + doctrine;
   if (sig !== PV.sig) {
     while (PV.holder.children.length) PV.holder.remove(PV.holder.children[0]);
-    PV.R = buildMech(m, owner || 0, doctrine, {}); PV.holder.add(PV.R.root); PV.sig = sig;
+    PV.R = buildMech(m, owner || 0, doctrine, {}); PV.holder.add(PV.R.root); PV.sig = sig; PV.base = PV.R.root.scale.x; PV.gait = {};
     PV.holder.rotation.y = 0; PV.holder.updateMatrixWorld(true);
     const bb = new T.Box3().setFromObject(PV.R.root), c = new T.Vector3(), sz = new T.Vector3(); bb.getCenter(c); bb.getSize(sz);
     PV.frame = { c, h: Math.max(sz.y, sz.x * 1.1, sz.z * 1.1) };
   }
   pvLoop();
 };
-R3.previewPlay = function (act) { if (PV) { PV.act = act; PV.t0 = clock(); PV.fired = false; } };
+R3.previewPlay = function (act) { if (PV) { PV.act = act; PV.t0 = clock(); PV.done = {}; } };
 R3.previewTurn = function (rot) { if (PV) PV.rot = rot; };
+R3.previewView = function (v) { if (PV) PV.view = v; };
 R3.previewOnTurn = function (fn) { if (PV) PV.onRot = fn; };
 let pvLooping = false;
 function pvLoop() {
@@ -2298,8 +2306,10 @@ function pvLoop() {
     if (w && h && (PV.w !== w || PV.h !== h)) { PV.w = w; PV.h = h; PV.renderer.setSize(w, h, false); PV.cam.aspect = w / h; PV.cam.updateProjectionMatrix(); }
     if (!PV.R || !PV.frame) return;
     pvAnimate(t, dt);
-    const f = PV.frame, dist = f.h / (2 * Math.tan(15 * Math.PI / 180)) * 1.3;
-    PV.cam.position.set(f.c.x, f.c.y + dist * 0.18, f.c.z + dist); PV.cam.lookAt(f.c.x, f.c.y * 0.95, f.c.z);
+    // camera: a showroom 3/4 view, the board's isometric angle, or straight down like the overview
+    const f = PV.frame, dist = f.h / (2 * Math.tan(15 * Math.PI / 180)) * (PV.view === 'front' ? 1.3 : 1.7);
+    const el2 = PV.view === 'top' ? 1.35 : PV.view === 'iso' ? 0.62 : 0.18, az = PV.view === 'front' ? 0 : 0.785;
+    PV.cam.position.set(f.c.x + Math.sin(az) * Math.cos(el2) * dist, f.c.y + Math.sin(el2) * dist, f.c.z + Math.cos(az) * Math.cos(el2) * dist); PV.cam.lookAt(f.c.x, f.c.y * 0.8, f.c.z);
     PV.renderer.render(PV.scene, PV.cam);
     inkPass(PV.renderer, PV.scene, PV.cam, PV.holder, PV.ink);
   };
@@ -2323,101 +2333,182 @@ function pvSparks(pos, col) {
     PV.parts.push({ m, t0: clock(), life: 0.6, v: new T.Vector3((Math.random() - 0.5) * 1.6, Math.random() * 1.4, (Math.random() - 0.2) * 1.6) });
   }
 }
-const pvArmKey = (R, want) => (want && R.arms[want] ? want : R.arms.armR ? 'armR' : R.arms.armL ? 'armL' : null);
-function pvAnimate(t, dt) {
-  const R = PV.R, root = R.root, act = PV.act, q = t - PV.t0;
-  PV.holder.rotation.y = PV.rot;
-  root.rotation.set(0, 0, 0); root.position.set(0, 0, 0);
-  let hipY = R.hipY, moving = false;
-  // start from the rest pose every frame, then let the action move things
-  const firing = (act === 'fireL' || act === 'fireR') ? pvArmKey(R, act === 'fireL' ? 'armL' : 'armR') : null;
-  for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; if (k !== firing) a.el.rotation.x += ((a.rest != null ? a.rest : -Math.PI / 2) - a.el.rotation.x) * Math.min(1, dt * 8); }
-  R.torso.rotation.y = 0; R.hips.rotation.z = 0;
-  if (R.legs && R.kind !== 'biped') R.legs.forEach(hip => { hip.rotation.x = 0; if (hip.userData.knee) hip.userData.knee.rotation.x = 0; });
-  if (R.kind === 'biped' && act !== 'walk' && act !== 'jump') gaitStep(PV.gait || (PV.gait = {}), R, dt, 0);
-  PV.bubble.material.opacity = 0;
-  const c = PV.frame.c;
-  if (act === 'walk') {
-    moving = true;
-    const ph = t * 6;
-    if (R.kind === 'biped') {
-      // a treadmill: the stance foot slides back as if the ground moved under it
-      const ws = R.legsG.getWorldScale(new T.Vector3()).z;
-      const g = gaitStep(PV.gait || (PV.gait = {}), R, dt, 1.4 * R.rig.stride * ws / 0.6), gk = R.style === 'armored' ? 0.7 : 1;
-      if (g) {
-        hipY += g.bob; R.hips.rotation.z = g.roll * gk; R.torso.rotation.y = g.twist * gk;
-        for (const k in R.arms) R.arms[k].arm.rotation.x += -(k === 'armL' ? g.swing[1] : g.swing[0]) * (R.style === 'armored' ? 0.5 : 0.75);
-      }
+// keyframes: [[time, value, ease?], ...]; ease 'out' snaps in fast, 'in' starts slow, default eases both ways
+function kf(q, keys) {
+  if (q <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    if (q <= keys[i][0]) {
+      const [t0, v0] = keys[i - 1], [t1, v1, e] = keys[i], u = (q - t0) / (t1 - t0);
+      const k = e === 'out' ? 1 - Math.pow(1 - u, 3) : e === 'in' ? u * u * u : e === 'lin' ? u : u * u * (3 - 2 * u);
+      return v0 + (v1 - v0) * k;
     }
-    if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = Math.sin(ph + i * 1.6) * 0.3; });
-    hipY += Math.abs(Math.sin(ph)) * 0.02;
+  }
+  return keys[keys.length - 1][1];
+}
+// a ring that spreads on the ground: dust, shockwaves, shield pops; reads well from straight above
+function pvRing(x, z, col, size, life) {
+  const m = new T.Mesh(new T.RingGeometry(0.8, 1, 36), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, side: T.DoubleSide, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.01, z); m.scale.setScalar(0.05); PV.fx.add(m);
+  PV.parts.push({ m, t0: clock(), life, ring: size });
+}
+// a slash trail: a flat arc swept around the body at chest height
+function pvArc(c, r, a0, sweep, col, y) {
+  const m = new T.Mesh(new T.RingGeometry(r * 0.72, r, 28, 1, a0, sweep), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(c.x, y, c.z); PV.fx.add(m);
+  PV.parts.push({ m, t0: clock(), life: 0.35 });
+}
+function pvSmoke(p) {
+  for (let i = 0; i < 6; i++) {
+    const m = new T.Mesh(sph(0.06 + Math.random() * 0.05, 8), new T.MeshBasicMaterial({ color: 0x3a3f45, transparent: true, opacity: 0.7, depthWrite: false }));
+    m.position.copy(p).add(new T.Vector3((Math.random() - 0.5) * 0.25, Math.random() * 0.1, (Math.random() - 0.5) * 0.25)); PV.fx.add(m);
+    PV.parts.push({ m, t0: clock() + i * 0.05, life: 1.4, grow: 1.6, v: new T.Vector3((Math.random() - 0.5) * 0.15, 0.35 + Math.random() * 0.2, (Math.random() - 0.5) * 0.15), smoke: true });
+  }
+}
+const pvArmKey = (R, want) => (want && R.arms[want] ? want : R.arms.armR ? 'armR' : R.arms.armL ? 'armL' : null);
+// the body's facing in the scene, so ground effects land in front of it
+function pvFwd() { return new T.Vector3(Math.sin(PV.rot), 0, Math.cos(PV.rot)); }
+function pvAnimate(t, dt) {
+  const R = PV.R, root = R.root, act = PV.act, q = t - PV.t0, base = PV.base || 1;
+  PV.holder.rotation.y = PV.rot;
+  root.rotation.set(0, 0, 0); root.position.set(0, 0, 0); root.scale.setScalar(base);
+  R.torso.rotation.set(0, 0, 0); R.hips.rotation.z = 0;
+  let hipY = R.hipY, moving = false, crouch = 0, speed = 0;
+  // rest pose first; each action then layers its own keyframes on top
+  for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; a.arm.rotation.z = R.style === 'assault' ? (k === 'armL' ? -0.14 : 0.14) : 0; a.el.rotation.x = a.rest != null ? a.rest : -Math.PI / 2; }
+  if (R.legs && R.kind !== 'biped') R.legs.forEach(hip => { hip.rotation.x = 0; if (hip.userData.knee) hip.userData.knee.rotation.x = 0; });
+  PV.bubble.material.opacity = 0; PV.bubble.scale.setScalar(1);
+  const c = PV.frame.c, fwd = pvFwd(), side = k => (k === 'armL' ? -1 : 1);
+  const once = (key, fn) => { if (!PV.done) PV.done = {}; if (!PV.done[key]) { PV.done[key] = true; PV.scene.updateMatrixWorld(true); fn(); } };
+  const muzzleAt = k => { const p = new T.Vector3(); R.muzzles[k].o.getWorldPosition(p); return p; };
+  if (act === 'walk') {
+    moving = true; speed = 1.4 * R.rig.stride * R.legsG.getWorldScale(new T.Vector3()).z / 0.6;
+    root.rotation.x = 0.05;                                              // lean into the walk
     if (R.kind === 'hover') hipY += 0.03 * Math.sin(t * 2.2);
+    if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = Math.sin(t * 6 + i * 1.6) * 0.3; });
   } else if (act === 'fireL' || act === 'fireR') {
+    // anticipation: turn into the shot and raise the weapon; a beat of aim; the kick; follow-through and settle
     const k = pvArmKey(R, act === 'fireL' ? 'armL' : 'armR');
     if (k) {
-      const a = R.arms[k], mz = R.muzzles[k];
-      a.el.rotation.x += (-Math.PI / 2 - a.el.rotation.x) * Math.min(1, dt * 12);
-      if (q > 0.45 && q < 0.75) a.arm.rotation.x = -Math.sin((q - 0.45) / 0.3 * Math.PI) * 0.35;
-      if (mz && mz.spin) mz.spin.rotation.z += dt * (q > 0.3 && q < 1.2 ? 40 : 0.5);
-      if (mz && q > 0.45 && !PV.fired) {
-        PV.fired = true;
-        PV.scene.updateMatrixWorld(true);
-        const p = new T.Vector3(); mz.o.getWorldPosition(p);
+      const a = R.arms[k], sd = side(k), mz = R.muzzles[k];
+      R.torso.rotation.y = kf(q, [[0, 0], [0.25, -0.35 * sd], [0.38, -0.35 * sd], [0.42, 0.05 * sd, 'out'], [0.7, -0.22 * sd], [1.3, 0]]);
+      a.el.rotation.x = kf(q, [[0, a.rest != null ? a.rest : -Math.PI / 2], [0.25, -Math.PI / 2 - 0.08], [1.0, -Math.PI / 2], [1.4, a.rest != null ? a.rest : -Math.PI / 2]]);
+      a.arm.rotation.x = kf(q, [[0, 0], [0.25, -0.15], [0.38, -0.12], [0.42, -0.75, 'out'], [0.62, 0.1], [0.85, -0.08], [1.2, 0]]);
+      a.arm.rotation.z = kf(q, [[0, a.arm.rotation.z], [0.25, -0.12 * sd], [1.2, a.arm.rotation.z]]);
+      root.position.z = kf(q, [[0, 0], [0.38, 0.02], [0.42, -0.09, 'out'], [0.75, 0.01], [1.2, 0]]);
+      root.rotation.x = kf(q, [[0, 0], [0.38, 0.06], [0.42, -0.12, 'out'], [0.75, 0.03], [1.2, 0]]);
+      crouch = kf(q, [[0, 0], [0.3, 0.035], [0.42, 0.06, 'out'], [0.9, 0.01], [1.3, 0]]);
+      if (mz && mz.spin) mz.spin.rotation.z += dt * (q > 0.25 && q < 1.0 ? 45 : 0.5);
+      if (mz && q > 0.2 && q < 0.42) { once('charge', () => pvFlash(muzzleAt(k), FX_COL[mz.cat] || 0xffffff, 0.03, 0.22)); }
+      if (mz && q >= 0.42) once('fire', () => {
+        const p = muzzleAt(k), col = FX_COL[mz.cat] || 0xffffff;
         const dir = new T.Vector3(0, 0, 1).applyQuaternion(mz.o.getWorldQuaternion(new T.Quaternion())).normalize();
-        const col = FX_COL[mz.cat] || 0xffffff;
-        pvFlash(p, col, 0.05, 0.25);
+        pvFlash(p, col, 0.14, 0.35); pvFlash(p, 0xffffff, 0.07, 0.15);
         if (mz.cat !== 'melee' && mz.cat !== 'support') pvTracer(p, dir, col);
-      }
+        pvRing(p.x, p.z, col, 0.7, 0.5);
+      });
     }
-    if (q > 1.6) PV.act = 'idle';
+    if (q > 1.5) PV.act = 'idle';
   } else if (act === 'melee') {
+    // anticipation: crouch and coil away; the strike: lunge and sweep; follow-through: overswing, then recover
     const k = Object.keys(R.muzzles).find(kk => R.muzzles[kk].cat === 'melee' || R.muzzles[kk].cat === 'siege') || pvArmKey(R);
     if (k) {
-      const a = R.arms[k];
-      const wind = Math.min(1, q / 0.35), slash = Math.max(0, Math.min(1, (q - 0.35) / 0.2));
-      a.arm.rotation.x = -1.6 * wind + 2.2 * slash;
-      a.el.rotation.x = -Math.PI / 2 + 0.6 * slash;
-      if (slash > 0.5 && !PV.fired) { PV.fired = true; PV.scene.updateMatrixWorld(true); const p = new T.Vector3(); R.muzzles[k].o.getWorldPosition(p); pvSparks(p, FX_COL.melee); }
+      const a = R.arms[k], sd = side(k);
+      R.torso.rotation.y = kf(q, [[0, 0], [0.32, 0.75 * sd, 'in'], [0.44, -0.85 * sd, 'out'], [0.7, -0.55 * sd], [1.25, 0]]);
+      a.arm.rotation.x = kf(q, [[0, 0], [0.32, 0.9, 'in'], [0.44, -1.5, 'out'], [0.62, -1.1], [1.25, 0]]);
+      a.arm.rotation.z = kf(q, [[0, a.arm.rotation.z], [0.32, 0.55 * sd], [0.44, -0.45 * sd, 'out'], [1.25, a.arm.rotation.z]]);
+      a.el.rotation.x = kf(q, [[0, a.rest != null ? a.rest : -Math.PI / 2], [0.32, -2.1], [0.44, -1.2, 'out'], [1.25, a.rest != null ? a.rest : -Math.PI / 2]]);
+      root.position.z = kf(q, [[0, 0], [0.32, -0.05], [0.44, 0.2, 'out'], [0.8, 0.16], [1.25, 0]]);
+      root.rotation.x = kf(q, [[0, 0], [0.32, -0.08], [0.44, 0.2, 'out'], [0.8, 0.1], [1.25, 0]]);
+      crouch = kf(q, [[0, 0], [0.32, 0.07, 'in'], [0.44, 0.03, 'out'], [0.8, 0.05], [1.25, 0]]);
+      if (q >= 0.36) once('slash', () => {
+        const wp = new T.Vector3(); root.getWorldPosition(wp);
+        const yaw = Math.atan2(fwd.x, fwd.z);
+        pvArc(wp, 0.55, -yaw + Math.PI / 2 - 1.3 * sd - (sd < 0 ? 1.4 : 0), 2.6, FX_COL.melee, c.y * 1.05);
+      });
+      if (q >= 0.44) once('hit', () => { const p = muzzleAt(k); pvSparks(p, FX_COL.melee); pvFlash(p, 0xffffff, 0.06, 0.15); });
     }
-    if (q > 1.2) PV.act = 'idle';
-  } else if (act === 'jump') {
-    moving = true;
-    const k = Math.min(1, q / 1.1);
-    root.position.y = Math.sin(k * Math.PI) * 0.45;
-    if (R.kind === 'biped') R.legs.forEach(hip => { hip.rotation.x = -0.4 * Math.sin(k * Math.PI); hip.userData.knee.rotation.x = 0.9 * Math.sin(k * Math.PI); });
     if (q > 1.4) PV.act = 'idle';
+  } else if (act === 'jump') {
+    // crouch, stretch on launch, a tucked arc with the shadow shrinking, squash on landing and recover
+    moving = q > 0.3 && q < 1.15;
+    const air = q < 0.32 ? 0 : q > 1.12 ? 0 : Math.sin((q - 0.32) / 0.8 * Math.PI);
+    root.position.y = air * 0.55;
+    root.position.z = kf(q, [[0, 0], [0.32, 0], [1.12, 0.12], [1.6, 0]]);
+    crouch = kf(q, [[0, 0], [0.3, 0.1, 'in'], [0.38, 0, 'out'], [0.7, 0.07], [1.08, 0.02], [1.16, 0.11, 'out'], [1.6, 0]]);
+    const sq = kf(q, [[0, 1], [0.3, 0.9], [0.38, 1.1, 'out'], [0.6, 1], [1.12, 1.04], [1.16, 0.86, 'out'], [1.45, 1]]);
+    root.scale.set(base / Math.sqrt(sq), base * sq, base / Math.sqrt(sq));
+    for (const k in R.arms) { R.arms[k].arm.rotation.x = kf(q, [[0, 0], [0.3, 0.7], [0.4, -0.9, 'out'], [1.1, -0.3], [1.2, 0.5], [1.6, 0]]); }
+    if (q >= 0.33) once('launch', () => { const wp = new T.Vector3(); root.getWorldPosition(wp); pvRing(wp.x, wp.z, 0xd9d2c3, 0.75, 0.5); });
+    if (q >= 1.13) once('land', () => { const wp = new T.Vector3(); root.getWorldPosition(wp); pvRing(wp.x, wp.z, 0xd9d2c3, 0.9, 0.55); pvSparks(new T.Vector3(wp.x, 0.05, wp.z), 0xcbbf9e); });
+    if (q > 1.7) PV.act = 'idle';
   } else if (act === 'brace') {
-    hipY -= 0.04 * Math.min(1, q * 4);
-    for (const k in R.arms) R.arms[k].arm.rotation.x = -0.5 * Math.min(1, q * 4);
-    PV.bubble.material.opacity = 0.25 * Math.min(1, q * 3) * (0.8 + 0.2 * Math.sin(t * 6));
+    // a small rise, then drop into a guard with both arms crossed; the shield pops with an overshoot
+    crouch = kf(q, [[0, 0], [0.12, -0.015], [0.3, 0.08, 'out'], [2.0, 0.07], [2.4, 0]]);
+    for (const k in R.arms) {
+      const a = R.arms[k], sd = side(k);
+      a.arm.rotation.x = kf(q, [[0, 0], [0.3, -1.05, 'out'], [2.0, -1.0], [2.4, 0]]);
+      a.arm.rotation.z = kf(q, [[0, a.arm.rotation.z], [0.3, -0.55 * sd, 'out'], [2.0, -0.5 * sd], [2.4, a.arm.rotation.z]]);
+      a.el.rotation.x = kf(q, [[0, a.rest != null ? a.rest : -Math.PI / 2], [0.3, -1.9, 'out'], [2.0, -1.9], [2.4, a.rest != null ? a.rest : -Math.PI / 2]]);
+    }
+    root.rotation.x = kf(q, [[0, 0], [0.3, 0.12, 'out'], [2.0, 0.1], [2.4, 0]]);
+    const pop = kf(q, [[0, 0], [0.28, 0], [0.38, 1.18, 'out'], [0.5, 0.96], [0.6, 1], [2.0, 1], [2.3, 0]]);
+    PV.bubble.scale.setScalar(Math.max(0.01, pop)); PV.bubble.material.opacity = 0.3 * Math.min(1, pop) * (0.85 + 0.15 * Math.sin(t * 6));
     PV.bubble.position.copy(c);
-    if (q > 2.2) PV.act = 'idle';
+    if (q >= 0.3) once('pop', () => pvRing(c.x, c.z, 0x8fdcff, 0.85, 0.5));
+    if (q > 2.5) PV.act = 'idle';
   } else if (act === 'hit') {
-    const k = Math.max(0, 1 - q / 0.5);
-    root.position.x = Math.sin(q * 60) * 0.03 * k; root.rotation.x = -0.18 * k;
-    if (!PV.fired) { PV.fired = true; const p = new T.Vector3(c.x, c.y * 1.1, c.z + 0.12); pvSparks(p, 0xffc46a); pvFlash(p, 0xff8a4a, 0.08, 0.3); }
-    if (q > 0.9) PV.act = 'idle';
+    // knocked back and twisted, arms flung out, then a staggered recovery
+    root.position.z = kf(q, [[0, 0], [0.08, -0.2, 'out'], [0.4, -0.14], [0.9, 0]]);
+    root.rotation.x = kf(q, [[0, 0], [0.08, -0.42, 'out'], [0.3, -0.14], [0.45, -0.22], [0.9, 0]]);
+    R.torso.rotation.y = kf(q, [[0, 0], [0.08, 0.6, 'out'], [0.35, -0.15], [0.6, 0.06], [0.9, 0]]);
+    crouch = kf(q, [[0, 0], [0.12, 0.06, 'out'], [0.5, 0.03], [0.9, 0]]);
+    for (const k in R.arms) { const sd = side(k); R.arms[k].arm.rotation.x = kf(q, [[0, 0], [0.08, 0.6, 'out'], [0.5, 0.1], [0.9, 0]]); R.arms[k].arm.rotation.z = kf(q, [[0, R.arms[k].arm.rotation.z], [0.08, 0.5 * sd, 'out'], [0.9, R.arms[k].arm.rotation.z]]); }
+    once('impact', () => { const p = new T.Vector3(c.x, c.y * 1.1, c.z).addScaledVector(fwd, 0.12); pvSparks(p, 0xffc46a); pvFlash(p, 0xff8a4a, 0.1, 0.3); pvFlash(p, 0xffffff, 0.05, 0.1); });
+    if (q > 1.0) PV.act = 'idle';
   } else if (act === 'destroyed') {
-    const k = Math.min(1, q / 1.2);
-    root.rotation.z = -1.3 * k * k; root.position.y = -0.15 * k; root.position.x = 0.25 * k * k;
-    if (!PV.fired && q > 0.2) { PV.fired = true; pvFlash(c.clone(), 0xff7a2a, 0.15, 0.6); pvSparks(c.clone(), 0xff9a3a); }
-    if (q > 3) PV.act = 'idle';
+    // stagger, knees buckle, topple, a bounce on impact and a blast with smoke
+    root.position.z = kf(q, [[0, 0], [0.1, -0.16, 'out'], [0.4, 0.04], [1.0, 0.06]]);
+    root.rotation.x = kf(q, [[0, 0], [0.1, -0.4, 'out'], [0.4, 0.25], [0.7, 0.15], [1.0, 0.1]]);
+    R.torso.rotation.y = kf(q, [[0, 0], [0.1, 0.6, 'out'], [0.4, -0.3], [0.8, 0.35]]);
+    crouch = kf(q, [[0, 0], [0.1, 0.05], [0.4, 0.03], [0.65, 0.17, 'in']]);
+    root.rotation.z = kf(q, [[0, 0], [0.55, 0.08], [0.95, -1.4, 'in'], [1.07, -1.22, 'out'], [1.2, -1.4]]);
+    root.position.x = kf(q, [[0, 0], [0.55, 0], [0.95, -0.34, 'in'], [1.2, -0.38]]);
+    root.position.y = kf(q, [[0, 0], [0.95, -0.06], [1.07, 0.03, 'out'], [1.2, -0.07]]);
+    for (const k in R.arms) R.arms[k].arm.rotation.x = kf(q, [[0, 0], [0.1, 0.7, 'out'], [0.4, -0.5], [0.95, -1.1], [1.1, -0.7]]);
+    if (q >= 0.1) once('stagger', () => { pvSparks(new T.Vector3(c.x, c.y, c.z), 0xffb04a); pvFlash(c.clone(), 0xff9a3a, 0.08, 0.25); });
+    if (q >= 0.95) once('crash', () => { const wp = new T.Vector3(); root.getWorldPosition(wp); pvRing(wp.x - 0.2, wp.z, 0xd9d2c3, 1.0, 0.6); pvFlash(new T.Vector3(c.x - 0.15, c.y * 0.6, c.z), 0xff7a2a, 0.2, 0.7); pvSmoke(new T.Vector3(c.x - 0.15, c.y * 0.5, c.z)); });
+    if (q > 3.2) PV.act = 'idle';
   }
-  if (R.hips) R.hips.position.y = hipY + (moving ? 0 : Math.sin(t * 1.6) * 0.006);
-  if (R.head) R.head.rotation.y = Math.sin(t * 0.9) * 0.3;
+  // the legs: IK keeps the feet planted through every crouch, and walks on the spot
+  if (R.kind === 'biped') {
+    const st = PV.gait || (PV.gait = {});
+    st.crouch = crouch;
+    const g = gaitStep(st, R, dt, speed), gk = R.style === 'armored' ? 0.7 : 1;
+    if (g) {
+      hipY += g.bob; R.hips.rotation.z += g.roll * gk; R.torso.rotation.y += g.twist * gk;
+      if (act === 'walk') for (const k in R.arms) R.arms[k].arm.rotation.x += -(k === 'armL' ? g.swing[1] : g.swing[0]) * (R.style === 'armored' ? 0.55 : 0.85);
+    }
+  } else hipY -= crouch * (R.legsG ? R.legsG.scale.y : 1);
+  if (R.hips) R.hips.position.y = hipY + (moving ? 0 : Math.sin(t * 1.6) * 0.004);
+  if (R.head) R.head.rotation.y = Math.sin(t * 0.9) * 0.3 + R.torso.rotation.y * -0.4;
   if (R.halo) R.halo.rotation.z = t * 0.7;
   if (R.gyro) { R.gyro.rotation.y = t * 1.1; R.gyro.rotation.x = 0.4 * Math.sin(t * 0.7); }
   if (R.core && R.coreLive) R.core.scale.setScalar(1 + 0.15 * Math.sin(t * 4));
-  if (R.thrusters) R.thrusters.forEach(f => { f.visible = moving && R.kind !== 'treads'; f.scale.y = 1 + Math.random(); });
+  if (R.thrusters) R.thrusters.forEach(f => { f.visible = moving && R.kind !== 'treads'; f.scale.y = 1 + Math.random() * (act === 'jump' ? 2 : 1); });
   if (R.boosters) R.boosters.forEach(f => { f.visible = moving; f.scale.y = 1 + Math.random() * 0.8; });
   for (const k in R.muzzles) { const sp = R.muzzles[k].spin; if (sp && act !== 'fireL' && act !== 'fireR') sp.rotation.z += dt * 0.8; }
+  // the shadow follows the body and shrinks as it leaves the ground
+  if (PV.ground) { const wp = new T.Vector3(); root.getWorldPosition(wp); PV.ground.position.x = wp.x; PV.ground.position.z = wp.z; const hgt = Math.max(0, root.position.y); PV.ground.scale.setScalar(1 - Math.min(0.55, hgt * 0.9)); PV.ground.material.opacity = 0.14 * (1 - Math.min(0.6, hgt)); }
+
   // effects age out
   for (let i = PV.parts.length - 1; i >= 0; i--) {
     const p = PV.parts[i], k = (t - p.t0) / p.life;
     if (k >= 1) { PV.fx.remove(p.m); PV.parts.splice(i, 1); continue; }
-    if (p.m.material) p.m.material.opacity = 1 - k;
+    if (k < 0) { p.m.visible = false; continue; } p.m.visible = true;
+    if (p.m.material) p.m.material.opacity = (p.smoke ? 0.7 : p.ring ? 0.9 : 1) * (1 - k);
     if (p.grow) p.m.scale.setScalar(1 + k * p.grow);
-    if (p.v) { p.m.position.addScaledVector(p.v, dt); p.v.y -= dt * 3; }
+    if (p.ring) p.m.scale.setScalar(0.05 + p.ring * (1 - Math.pow(1 - k, 2)));
+    if (p.v) { p.m.position.addScaledVector(p.v, dt); if (!p.smoke) p.v.y -= dt * 3; }
   }
 }
 })();
