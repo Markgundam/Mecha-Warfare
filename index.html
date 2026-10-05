@@ -517,6 +517,7 @@ button.rost { cursor: pointer; }
 .endsheet.win .es-badge { background: #f4c431; animation: badgespin 1.2s ease-out .2s both; }
 .es-badge .ico { width: 46px; height: 46px; color: #fff; fill: #fff; }
 .endsheet.win .es-badge .ico { color: #8a6400; fill: #fff7d6; }
+.es-next { font-size: 14px; margin: 10px 0 0; }
 .es-table { display: flex; flex-direction: column; gap: 4px; text-align: left; }
 .es-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 14px; align-items: center; padding: 6px 10px; background: var(--raised); border-left: 4px solid var(--pc, var(--line)); font-family: var(--mono); font-size: 13px; }
 .es-row.p0 { --pc: var(--p0); } .es-row.p1 { --pc: var(--p1); }
@@ -709,6 +710,8 @@ button.rost { cursor: pointer; }
 /* card action labels wrap to a second line rather than clip */
 .cardgrid .card .row .btn:first-child, .cardlist .card .row .btn:first-child { white-space: normal; text-align: center; line-height: 1.1; height: auto; min-height: 30px; padding-block: 3px; }
 .sheet .wtab { font-size: 12px; padding: 6px 2px; }
+.sheet .wtabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+.sheet .wtab { border-radius: 3px; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; flex: none; font-family: var(--mono); font-size: 12px; }
 .slotline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; flex: none; }
 .slotline .note { flex: 1; min-width: 0; }
@@ -1531,6 +1534,7 @@ function showEnd() {
     '<h2>' + (hot ? w.name + ' wins' : won ? 'Victory' : 'Defeat') + '</h2>' +
     '<p>' + why + ' in round ' + S.round + '.' + (hot ? '' : won ? ' The war is yours, commander.' : ' ' + w.name + ' takes the war.') + '</p>' +
     '<div class="es-table">' + row(w) + row(l) + '</div>' +
+    (S.training ? '<p class="es-next"><b>Training complete.</b> Next, try <b>Play the AI</b>: your first battles there are against the Recruit too, and field notes explain anything new.</p>' : '') +
     '<div class="row"><button type="button" class="btn ghost" data-act="closeOverlay">See the battlefield</button><button type="button" class="btn primary grow" data-act="toStart">New battle</button></div></div>';
   o.hidden = false;
   if (won) celebrate([getComputedStyle(document.documentElement).getPropertyValue('--p' + w.id).trim() || '#5fb0ec', '#f4c431', '#ffffff', '#ff6b9a', '#7dffb2']);
@@ -2277,7 +2281,7 @@ function onAct(el) {
   if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } return renderTop(); }
   if (a === 'rules') { ui.ruleTab = 0; return showRules(); }
   if (a === 'recent') return showRecent();
-  if (a === 'training') return startTraining();
+  if (a === 'training') { $('#overlay').hidden = true; return startTraining(); }
   if (a === 'coachNext') return coachNext();
   if (a === 'coachSkip') return coachEnd(true);
   if (a === 'noteOk') return noteDone(false);
@@ -2374,7 +2378,10 @@ function onAct(el) {
   }
   if (!sm || sm.x == null) return;
   switch (a) {
-    case 'weapon': if (ui.mode === 'fire' && ui.weaponKey === el.dataset.key) { ui.mode = 'move'; ui.pendingTarget = null; } else { ui.mode = 'fire'; ui.weaponKey = el.dataset.key; ui.pendingTarget = null; } return render();
+    case 'weapon': if (ui.mode === 'fire' && ui.weaponKey === el.dataset.key) { ui.mode = 'move'; ui.pendingTarget = null; } else {
+      ui.mode = 'fire'; ui.weaponKey = el.dataset.key; ui.pendingTarget = null;
+      if (!MW.validTargets(sm, el.dataset.key).length) toast('No target in reach of this weapon. The lit tiles show its range: move closer first.');
+    } return render();
     case 'cancelFire': ui.mode = 'move'; ui.pendingTarget = null; return render();
     case 'shoot': {
       const tm = MW.fieldMech(ui.pendingTarget);
@@ -2398,6 +2405,12 @@ function onAct(el) {
 }
 function showRules() {
   const T = [
+    ['Basics', [
+      ['Win', 'Reach <b>' + C.VP_WIN + ' victory points</b>, or destroy the enemy base. Points come from holding objectives at the end of each round and from damaging the enemy base.'],
+      ['A round', '<b>Draw</b> new cards, <b>build</b> and repair mecha in the Workshop, <b>deploy</b> them next to your base, then <b>fight</b>: you and your opponent take turns activating one mech each. <b>Resolution</b> scores points and cools heat.'],
+      ['Mecha', 'Each mech is a <b>chassis</b> (HP and two weapon mounts), <b>legs</b> (movement) and <b>weapons</b>. Fit them in that order. Tap any stat or icon in the game to see what it means.'],
+      ['On the map', 'Stand on a <b>radar</b> or <b>uplink</b>, or on a <b>depot</b> on the enemy half (★), to score at the end of the round. Depots also pay Supply. Ruins give cover; rocks block shots.'],
+      ['New?', 'Play <b>Training</b> for a guided first round against an easy opponent. Field notes explain each new mechanic the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Start Training</button>']]],
     ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point. Holding your own depots pays Supply but no points. Azure holds the bottom of the map, Ember the top.'],
       ['Comebacks', 'Whoever is behind on points gets +1 Supply per point behind (at least ' + C.CATCHUP + ', at most ' + C.CATCHUP_MAX + '). A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Base damage always scores in full.'],
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
