@@ -594,7 +594,7 @@ function buildHead(hd, tc, style) {
     for (const sx of [-1, 1]) {
       mesh(box(0.02, 0.05, 0.06), toon(tc.second), hd, [sx * 0.052, 0.03, 0.02], null, flat);
       mesh(box(0.018, 0.011, 0.01), glow(tc.eye), hd, [sx * 0.017, 0.05, 0.066], null, flat);
-      mesh(wedge(0.012, 0.09, 0.012, 0.3, 1), toon(tc.trim), hd, [sx * 0.032, 0.11, 0.042], [0, 0, -sx * 0.8]);
+      mesh(wedge(0.016, 0.14, 0.014, 0.3, 1), toon(tc.trim), hd, [sx * 0.045, 0.12, 0.05], [0, 0, -sx * 0.85]);
     }
     mesh(box(0.02, 0.02, 0.02), toon(tc.second), hd, [0, 0.09, 0.05]);
     for (const sx of [-1, 1]) { mesh(cyl(0.007, 0.007, 0.03, 8), toon(INK), hd, [sx * 0.04, 0.072, 0.072], [Math.PI / 2, 0, 0]); }
@@ -631,6 +631,12 @@ function buildChest(frame, tc, style, fid, w, h, dp, cy) {
     // small: yellow intakes, vents and a centre stripe
     for (const sx of [-1, 1]) vents(frame, toon(tc.trim), 3, w * 0.14, 0.02, [sx * w * 0.3, cy - h * 0.2, dp * 0.47]);
     mesh(box(w * 0.08, h * 0.5, 0.012), toon(tc.accent), frame, [0, cy + h * 0.05, dp * 0.6], null, flat);
+    // Gundam skirt armour: two front plates and a side plate each side, hanging from the waist over the hips
+    for (const sx of [-1, 1]) {
+      mesh(wedge(w * 0.32, h * 0.5, dp * 0.14, 1.15, 1), toon(tc.main), frame, [sx * w * 0.19, -h * 0.12, dp * 0.42], [0.12, 0, 0]);
+      mesh(box(w * 0.2, h * 0.07, dp * 0.15), toon(tc.second), frame, [sx * w * 0.19, -h * 0.3, dp * 0.47], null, flat);
+      mesh(wedge(dp * 0.14, h * 0.48, dp * 0.6, 1, 1.1), toon(tc.main), frame, [sx * w * 0.5, -h * 0.1, 0], [0, 0, sx * -0.12]);
+    }
   } else if (style === 'armored') {
     // large: a thick block with a belly plate
     mesh(wedge(w, h, dp, 0.92, 0.92), toon(tc.main), frame, [0, cy, 0]);
@@ -746,11 +752,19 @@ function buildPack(bp, tc, style, w, h, R) {
     const f = new T.Mesh(cone(0.021, 0.11, 8), glow(tc.thruster, 0.75)); f.position.set(x, y - 0.075, z); f.rotation.x = Math.PI; f.visible = false; bp.add(f); R.thrusters.push(f);
   };
   if (style === 'assault') {
-    // large: slim pack; medium: swept thruster wings; small: red tips and nozzles
+    // after the Freedom Gundam: a slim pack carrying two fans of tall, layered wing blades that flare out
+    // behind the shoulders, reaching above the head and below the waist; thrusters underneath
     mesh(wedge(w * 0.5, h * 0.6, 0.07, 1.2, 1), toon(tc.accent), bp);
     for (const sx of [-1, 1]) {
-      mesh(wedge(0.03, h * 0.9, 0.12, 0.4, 0.5, -0.04), toon(tc.main), bp, [sx * w * 0.28, h * 0.22, -0.04], [0.35, 0, sx * -0.55]);
-      mesh(box(0.032, 0.05, 0.03), toon(tc.second), bp, [sx * w * 0.47, h * 0.5, -0.09], [0.35, 0, sx * -0.55], flat);
+      const fan = new T.Group(); fan.position.set(sx * w * 0.18, h * 0.3, -0.05); fan.rotation.set(0.2, sx * 0.3, sx * -0.2); bp.add(fan);
+      // three broad, layered wing panels, the outer ones shorter and fanned a little further out
+      for (let i = 0; i < 3; i++) {
+        const len = h * (1.95 - i * 0.3), wd = 0.13 - i * 0.015, blade = new T.Group();
+        blade.position.set(sx * i * 0.05, -i * 0.04, -i * 0.018); blade.rotation.z = sx * -0.17 * i; fan.add(blade);
+        mesh(wedge(wd, len, 0.018, 0.55, 1), toon(i === 1 ? tc.main : tc.second), blade, [sx * wd * 0.3, len * 0.15, 0]);
+        mesh(box(wd * 0.22, len * 0.75, 0.02), toon(i === 1 ? tc.second : tc.main), blade, [sx * wd * 0.62, len * 0.1, 0.001], null, flat);
+        mesh(box(wd * 0.7, 0.014, 0.021), toon(tc.trim), blade, [sx * wd * 0.3, len * 0.5, 0.002], null, flat);
+      }
       thr(sx * w * 0.14, -h * 0.36, -0.01);
     }
   } else if (style === 'armored') {
