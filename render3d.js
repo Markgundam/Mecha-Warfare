@@ -2200,9 +2200,9 @@ function pickSlot(ray) {
 /* ================= doctrine portraits ================= */
 // a typical machine of each army, drawn once to an image for the doctrine picker
 const ARCHETYPE = {
-  assault: { torso: 't_assault', core: 'r_t_assault', legs: 'l_boost', armL: 'w_blade', armR: 'w_scatter', aux: ['a_jump', 'a_cool'] },
-  armored: { torso: 't_fortress', core: 'r_t_fortress', legs: 'l_treads', armL: 'w_shield', armR: 'w_howitzer', aux: ['a_plate', 'a_bulwark'] },
-  experimental: { torso: 't_proto', core: 'r_t_proto', legs: 'l_hover', armL: 'w_lance', armR: 's_emp', aux: ['a_relay', 'a_nano', 'a_shield'] }
+  assault: { torso: 'b_torso', core: 'r_b_torso', legs: 'l_boost', armL: 'w_gatling', armR: 'w_blade', aux: ['a_jump', 'a_cool'] },
+  armored: { torso: 't_light', core: 'r_t_light', legs: 'l_quad', armL: 'w_rail', armR: 'w_howitzer', aux: [] },
+  experimental: { torso: 't_proto', core: 'r_t_proto', legs: 'l_hover', armL: 'w_lance', armR: 's_emp', aux: [] }
 };
 const PORTRAITS = {};
 let PR = null;
