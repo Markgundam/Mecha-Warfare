@@ -2174,4 +2174,172 @@ function placeBadges() {
     b.style.left = ((c.x + 1) / 2 * 100) + '%'; b.style.top = ((1 - c.y) / 2 * 100) + '%';
   }
 }
+
+/* ================= live preview: any loadout, playing any action (used by the parts gallery) ================= */
+let PV = null;
+function makePreview() {
+  const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
+  const scene = new T.Scene();
+  scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.85));
+  const key2 = new T.DirectionalLight(0xf2ead8, 0.8); key2.position.set(2, 4, 3); scene.add(key2);
+  const rim = new T.DirectionalLight(0xb8c8cc, 0.45); rim.position.set(-3, 2, -3); scene.add(rim);
+  const cam = new T.PerspectiveCamera(30, 1, 0.1, 50);
+  const holder = new T.Group(); scene.add(holder);
+  const fx = new T.Group(); scene.add(fx);
+  const ground = new T.Mesh(new T.CircleGeometry(0.6, 40), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false }));
+  ground.rotation.x = -Math.PI / 2; ground.position.y = 0.002; scene.add(ground);
+  const bubble = new T.Mesh(sph(0.62, 24), new T.MeshBasicMaterial({ color: 0x8fdcff, transparent: true, opacity: 0, depthWrite: false }));
+  scene.add(bubble);
+  PV = { renderer, scene, cam, holder, fx, bubble, R: null, sig: '', act: 'idle', t0: 0, rot: 0.55, ink: { weight: 1.2 }, parts: [], frame: null, fired: false };
+  renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;touch-action:none;cursor:grab';
+  // drag to turn
+  let drag = null;
+  renderer.domElement.addEventListener('pointerdown', e => { drag = { x: e.clientX, r: PV.rot }; try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) { /* gone */ } });
+  renderer.domElement.addEventListener('pointermove', e => { if (drag) { PV.rot = drag.r + (e.clientX - drag.x) * 0.012; if (PV.onRot) PV.onRot(PV.rot); } });
+  renderer.domElement.addEventListener('pointerup', () => { drag = null; });
+  return PV;
+}
+// show a loadout in el: L = { torso, core, legs, armL, armR, aux: [] }
+R3.preview = function (el, L, doctrine, owner) {
+  if (!PV) makePreview();
+  if (PV.renderer.domElement.parentNode !== el) el.appendChild(PV.renderer.domElement);
+  const D = DEFS(), mk = id => (id ? { id, hp: D[id].hp } : null);
+  const m = { owner: owner || 0, slots: { torso: mk(L.torso), core: mk(L.core), legs: mk(L.legs), armL: mk(L.armL), armR: mk(L.armR), aux: (L.aux || []).map(mk) } };
+  const sig = signature(m) + '|' + doctrine;
+  if (sig !== PV.sig) {
+    while (PV.holder.children.length) PV.holder.remove(PV.holder.children[0]);
+    PV.R = buildMech(m, owner || 0, doctrine, {}); PV.holder.add(PV.R.root); PV.sig = sig;
+    PV.holder.rotation.y = 0; PV.holder.updateMatrixWorld(true);
+    const bb = new T.Box3().setFromObject(PV.R.root), c = new T.Vector3(), sz = new T.Vector3(); bb.getCenter(c); bb.getSize(sz);
+    PV.frame = { c, h: Math.max(sz.y, sz.x * 1.1, sz.z * 1.1) };
+  }
+  pvLoop();
+};
+R3.previewPlay = function (act) { if (PV) { PV.act = act; PV.t0 = clock(); PV.fired = false; } };
+R3.previewTurn = function (rot) { if (PV) PV.rot = rot; };
+R3.previewOnTurn = function (fn) { if (PV) PV.onRot = fn; };
+let pvLooping = false;
+function pvLoop() {
+  if (pvLooping) return; pvLooping = true;
+  let last = clock();
+  const step = () => {
+    if (!PV || !PV.renderer.domElement.isConnected) { pvLooping = false; return; }
+    requestAnimationFrame(step);
+    const t = clock(), dt = Math.min(0.05, t - last); last = t;
+    const el = PV.renderer.domElement, w = el.clientWidth, h = el.clientHeight;
+    if (w && h && (PV.w !== w || PV.h !== h)) { PV.w = w; PV.h = h; PV.renderer.setSize(w, h, false); PV.cam.aspect = w / h; PV.cam.updateProjectionMatrix(); }
+    if (!PV.R || !PV.frame) return;
+    pvAnimate(t, dt);
+    const f = PV.frame, dist = f.h / (2 * Math.tan(15 * Math.PI / 180)) * 1.3;
+    PV.cam.position.set(f.c.x, f.c.y + dist * 0.18, f.c.z + dist); PV.cam.lookAt(f.c.x, f.c.y * 0.95, f.c.z);
+    PV.renderer.render(PV.scene, PV.cam);
+    inkPass(PV.renderer, PV.scene, PV.cam, PV.holder, PV.ink);
+  };
+  requestAnimationFrame(step);
+}
+// one-shot effects: a flash, a tracer, sparks
+function pvFlash(pos, col, size, life) {
+  const m = new T.Mesh(sph(size, 12), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false }));
+  m.position.copy(pos); PV.fx.add(m); PV.parts.push({ m, t0: clock(), life, grow: 2.2 });
+}
+function pvTracer(from, dir, col) {
+  const to = from.clone().addScaledVector(dir, 2.4);
+  const g = new T.BufferGeometry().setFromPoints([from, to]);
+  const l = new T.Line(g, new T.LineBasicMaterial({ color: col, transparent: true, opacity: 1 }));
+  PV.fx.add(l); PV.parts.push({ m: l, t0: clock(), life: 0.35 });
+}
+function pvSparks(pos, col) {
+  for (let i = 0; i < 12; i++) {
+    const m = new T.Mesh(box(0.025, 0.025, 0.025), new T.MeshBasicMaterial({ color: col, transparent: true }));
+    m.position.copy(pos); PV.fx.add(m);
+    PV.parts.push({ m, t0: clock(), life: 0.6, v: new T.Vector3((Math.random() - 0.5) * 1.6, Math.random() * 1.4, (Math.random() - 0.2) * 1.6) });
+  }
+}
+const pvArmKey = (R, want) => (want && R.arms[want] ? want : R.arms.armR ? 'armR' : R.arms.armL ? 'armL' : null);
+function pvAnimate(t, dt) {
+  const R = PV.R, root = R.root, act = PV.act, q = t - PV.t0;
+  PV.holder.rotation.y = PV.rot;
+  root.rotation.set(0, 0, 0); root.position.set(0, 0, 0);
+  let hipY = R.hipY, moving = false;
+  // start from the rest pose every frame, then let the action move things
+  for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; a.el.rotation.x += ((a.rest != null ? a.rest : -Math.PI / 2) - a.el.rotation.x) * Math.min(1, dt * 8); }
+  if (R.legs) R.legs.forEach(hip => { hip.rotation.x = 0; if (hip.userData.knee) hip.userData.knee.rotation.x = 0; });
+  PV.bubble.material.opacity = 0;
+  const c = PV.frame.c;
+  if (act === 'walk') {
+    moving = true;
+    const ph = t * 6;
+    if (R.kind === 'biped') R.legs.forEach((hip, i) => { const s = i ? 1 : -1; hip.rotation.x = Math.sin(ph) * 0.55 * s; hip.userData.knee.rotation.x = Math.max(0, Math.sin(ph + (i ? 0 : Math.PI))) * 0.7; });
+    if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = Math.sin(ph + i * 1.6) * 0.3; });
+    hipY += Math.abs(Math.sin(ph)) * 0.02;
+    if (R.kind === 'hover') hipY += 0.03 * Math.sin(t * 2.2);
+  } else if (act === 'fireL' || act === 'fireR') {
+    const k = pvArmKey(R, act === 'fireL' ? 'armL' : 'armR');
+    if (k) {
+      const a = R.arms[k], mz = R.muzzles[k];
+      a.el.rotation.x += (-Math.PI / 2 - a.el.rotation.x) * Math.min(1, dt * 12);
+      if (q > 0.45 && q < 0.75) a.arm.rotation.x = -Math.sin((q - 0.45) / 0.3 * Math.PI) * 0.35;
+      if (mz && mz.spin) mz.spin.rotation.z += dt * (q > 0.3 && q < 1.2 ? 40 : 0.5);
+      if (mz && q > 0.45 && !PV.fired) {
+        PV.fired = true;
+        PV.scene.updateMatrixWorld(true);
+        const p = new T.Vector3(); mz.o.getWorldPosition(p);
+        const dir = new T.Vector3(0, 0, 1).applyQuaternion(mz.o.getWorldQuaternion(new T.Quaternion())).normalize();
+        const col = FX_COL[mz.cat] || 0xffffff;
+        pvFlash(p, col, 0.05, 0.25);
+        if (mz.cat !== 'melee' && mz.cat !== 'support') pvTracer(p, dir, col);
+      }
+    }
+    if (q > 1.6) PV.act = 'idle';
+  } else if (act === 'melee') {
+    const k = Object.keys(R.muzzles).find(kk => R.muzzles[kk].cat === 'melee' || R.muzzles[kk].cat === 'siege') || pvArmKey(R);
+    if (k) {
+      const a = R.arms[k];
+      const wind = Math.min(1, q / 0.35), slash = Math.max(0, Math.min(1, (q - 0.35) / 0.2));
+      a.arm.rotation.x = -1.6 * wind + 2.2 * slash;
+      a.el.rotation.x = -Math.PI / 2 + 0.6 * slash;
+      if (slash > 0.5 && !PV.fired) { PV.fired = true; PV.scene.updateMatrixWorld(true); const p = new T.Vector3(); R.muzzles[k].o.getWorldPosition(p); pvSparks(p, FX_COL.melee); }
+    }
+    if (q > 1.2) PV.act = 'idle';
+  } else if (act === 'jump') {
+    moving = true;
+    const k = Math.min(1, q / 1.1);
+    root.position.y = Math.sin(k * Math.PI) * 0.45;
+    if (R.kind === 'biped') R.legs.forEach(hip => { hip.rotation.x = -0.4 * Math.sin(k * Math.PI); hip.userData.knee.rotation.x = 0.9 * Math.sin(k * Math.PI); });
+    if (q > 1.4) PV.act = 'idle';
+  } else if (act === 'brace') {
+    hipY -= 0.04 * Math.min(1, q * 4);
+    for (const k in R.arms) R.arms[k].arm.rotation.x = -0.5 * Math.min(1, q * 4);
+    PV.bubble.material.opacity = 0.25 * Math.min(1, q * 3) * (0.8 + 0.2 * Math.sin(t * 6));
+    PV.bubble.position.copy(c);
+    if (q > 2.2) PV.act = 'idle';
+  } else if (act === 'hit') {
+    const k = Math.max(0, 1 - q / 0.5);
+    root.position.x = Math.sin(q * 60) * 0.03 * k; root.rotation.x = -0.18 * k;
+    if (!PV.fired) { PV.fired = true; const p = new T.Vector3(c.x, c.y * 1.1, c.z + 0.12); pvSparks(p, 0xffc46a); pvFlash(p, 0xff8a4a, 0.08, 0.3); }
+    if (q > 0.9) PV.act = 'idle';
+  } else if (act === 'destroyed') {
+    const k = Math.min(1, q / 1.2);
+    root.rotation.z = -1.3 * k * k; root.position.y = -0.15 * k; root.position.x = 0.25 * k * k;
+    if (!PV.fired && q > 0.2) { PV.fired = true; pvFlash(c.clone(), 0xff7a2a, 0.15, 0.6); pvSparks(c.clone(), 0xff9a3a); }
+    if (q > 3) PV.act = 'idle';
+  }
+  if (R.hips) R.hips.position.y = hipY + (moving ? 0 : Math.sin(t * 1.6) * 0.006);
+  if (R.head) R.head.rotation.y = Math.sin(t * 0.9) * 0.3;
+  if (R.halo) R.halo.rotation.z = t * 0.7;
+  if (R.gyro) { R.gyro.rotation.y = t * 1.1; R.gyro.rotation.x = 0.4 * Math.sin(t * 0.7); }
+  if (R.core && R.coreLive) R.core.scale.setScalar(1 + 0.15 * Math.sin(t * 4));
+  if (R.thrusters) R.thrusters.forEach(f => { f.visible = moving && R.kind !== 'treads'; f.scale.y = 1 + Math.random(); });
+  if (R.boosters) R.boosters.forEach(f => { f.visible = moving; f.scale.y = 1 + Math.random() * 0.8; });
+  for (const k in R.muzzles) { const sp = R.muzzles[k].spin; if (sp && act !== 'fireL' && act !== 'fireR') sp.rotation.z += dt * 0.8; }
+  // effects age out
+  for (let i = PV.parts.length - 1; i >= 0; i--) {
+    const p = PV.parts[i], k = (t - p.t0) / p.life;
+    if (k >= 1) { PV.fx.remove(p.m); PV.parts.splice(i, 1); continue; }
+    if (p.m.material) p.m.material.opacity = 1 - k;
+    if (p.grow) p.m.scale.setScalar(1 + k * p.grow);
+    if (p.v) { p.m.position.addScaledVector(p.v, dt); p.v.y -= dt * 3; }
+  }
+}
 })();
