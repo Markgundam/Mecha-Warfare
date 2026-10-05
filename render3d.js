@@ -44,11 +44,24 @@ const GHOST = new T.MeshBasicMaterial({ color: 0x6fd8ff, transparent: true, opac
 const GHOST_SEL = new T.MeshBasicMaterial({ color: 0xffc83a, transparent: true, opacity: 0.4, depthWrite: false });
 const GEO = {};
 const geo = (k, make) => GEO[k] || (GEO[k] = make());
-const box = (w, h, d) => geo('b' + w + ',' + h + ',' + d, () => new T.BoxGeometry(w, h, d));
-const cyl = (rt, rb, h, s) => geo('c' + rt + ',' + rb + ',' + h + ',' + (s || 10), () => new T.CylinderGeometry(rt, rb, h, s || 10));
+// a box with chamfered edges: hard-surface panels instead of razor-edged blocks (tiny parts stay plain)
+function bevelBox(w, h, d) {
+  const b = Math.min(0.012, Math.min(w, h, d) * 0.14);
+  if (b < 0.0025) return new T.BoxGeometry(w, h, d);
+  const a = w / 2 - b, c = h / 2 - b, sh = new T.Shape();
+  sh.moveTo(-a, -c); sh.lineTo(a, -c); sh.lineTo(a, c); sh.lineTo(-a, c); sh.lineTo(-a, -c);
+  const g = new T.ExtrudeGeometry(sh, { depth: Math.max(0.0001, d - 2 * b), bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelOffset: 0, bevelSegments: 1, curveSegments: 1, steps: 1 });
+  g.translate(0, 0, -(d - 2 * b) / 2);
+  g.computeVertexNormals();
+  return g;
+}
+const box = (w, h, d) => geo('b' + w + ',' + h + ',' + d, () => { const g = bevelBox(w, h, d); g.userData.plate = [w, h, d, 1, 1, 0]; return g; });
+// round parts get enough sides to read as round; deliberate hexes and thin rods keep their facets
+const segs = s => (!s ? 18 : s < 8 ? s : Math.max(s, 16));
+const cyl = (rt, rb, h, s) => geo('c' + rt + ',' + rb + ',' + h + ',' + segs(s), () => new T.CylinderGeometry(rt, rb, h, segs(s)));
 const cone = (r, h, s) => geo('o' + r + ',' + h + ',' + (s || 10), () => new T.ConeGeometry(r, h, s || 10));
-const sph = (r, s) => geo('s' + r + ',' + (s || 12), () => new T.SphereGeometry(r, s || 12, Math.max(6, Math.round((s || 12) * 0.7))));
-const tor = (r, t, arc) => geo('t' + r + ',' + t + ',' + (arc || 0), () => new T.TorusGeometry(r, t, 6, 28, arc || Math.PI * 2));
+const sph = (r, s) => { const n = !s ? 18 : s < 8 ? s : Math.max(s, 16); return geo('s' + r + ',' + n, () => new T.SphereGeometry(r, n, Math.max(6, Math.round(n * 0.7)))); };
+const tor = (r, t, arc) => geo('t' + r + ',' + t + ',' + (arc || 0), () => new T.TorusGeometry(r, t, 8, 40, arc || Math.PI * 2));
 const oct = r => geo('x' + r, () => new T.OctahedronGeometry(r, 0));
 function outline(m) { if (m.material !== GHOST) m.userData.ink = true; }
 
@@ -113,7 +126,25 @@ function inkPass(renderer, scene, cam, top, st) {
   const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(st.qs, st.qc); renderer.autoClear = ac;
 }
 // one mesh with an ink outline; pos/rot are [x,y,z]
+function layered(mat, L) {
+  if (!L || mat === GHOST || mat === GHOST_SEL) return mat;
+  const k = 'z' + mat.uuid + ':' + L;
+  if (!MAT[k]) { MAT[k] = mat.clone(); MAT[k].polygonOffset = true; MAT[k].polygonOffsetFactor = -0.4 * L; MAT[k].polygonOffsetUnits = -2 * L; }
+  return MAT[k];
+}
+// surface detail for big plates: a recessed panel seam across the front face, and corner bolts on the largest
+const darker = c => { const col = new T.Color(c); col.multiplyScalar(0.55); return col.getHex(); };
+function panelDetail(m, g, mat) {
+  const [w, h, d, tx, tz, sz] = g.userData.plate;
+  if (w < 0.13 || h < 0.11 || d < 0.04 || !mat.isMeshToonMaterial) return;
+  const ink = toon(darker(mat.color.getHex()));
+  const front = t => (d / 2) * (1 + (tz - 1) * t) + sz * t + 0.003;   // the front face at height fraction t
+  if (w >= h) { const t = 0.38; mesh(box(w * (1 + (tx - 1) * t) * 0.82, 0.006, 0.006), ink, m, [0, -h / 2 + h * t, front(t)], null, flat); }
+  else { const t = 0.5; mesh(box(0.006, h * 0.7, 0.006), ink, m, [w * 0.18, 0, front(t)], [Math.atan2((d / 2) * (1 - tz) - sz, h), 0, 0], flat); }
+  if (w >= 0.2 && h >= 0.15) for (const sx of [-1, 1]) { const t = 0.82; mesh(cyl(0.008, 0.008, 0.008, 6), ink, m, [sx * (w / 2) * (1 + (tx - 1) * t) * 0.78, -h / 2 + h * t, front(t)], [Math.PI / 2, 0, 0], flat); }
+}
 function mesh(g, mat, parent, pos, rot, opt) {
+  if (parent) { const L = parent.userData.zl = (parent.userData.zl || 0) + 1; mat = layered(mat, Math.min(8, L - 1)); }
   const m = new T.Mesh(g, mat);
   if (pos) m.position.set(pos[0], pos[1], pos[2]);
   if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
@@ -121,6 +152,7 @@ function mesh(g, mat, parent, pos, rot, opt) {
   m.receiveShadow = !!(opt && opt.recv);
   if (!(opt && opt.noOutline) && mat.type !== 'MeshBasicMaterial') outline(m);
   if (parent) parent.add(m);
+  if (g.userData.plate && !(opt && opt.noOutline) && mat !== GHOST) panelDetail(m, g, mat);
   return m;
 }
 const flat = { noOutline: true, noShadow: true };
@@ -220,9 +252,13 @@ function palette(doctrine, owner) {
 }
 // a box whose top face is scaled (tx, tz) and pushed forward (sz): wedges, tapers and leaning plates
 const wedge = (w, h, d, tx, tz, sz) => geo('w' + [w, h, d, tx, tz, sz || 0].join(), () => {
-  const g = new T.BoxGeometry(w, h, d), p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * tx); p.setZ(i, p.getZ(i) * tz + (sz || 0)); }
-  g.computeVertexNormals(); return g;
+  // a chamfered box tapered from bottom to top, so the bevels follow the slope
+  const g = bevelBox(w, h, d), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const t = Math.min(1, Math.max(0, (p.getY(i) + h / 2) / h));
+    p.setX(i, p.getX(i) * (1 + (tx - 1) * t)); p.setZ(i, p.getZ(i) * (1 + (tz - 1) * t) + (sz || 0) * t);
+  }
+  g.computeVertexNormals(); g.userData.plate = [w, h, d, tx, tz, sz || 0]; return g;
 });
 const FRAME_DIM = { c_sing: [0.28, 0.26, 0.22], s_core: [0.32, 0.30, 0.20], b_torso: [0.30, 0.26, 0.20], t_heavy: [0.40, 0.27, 0.27], t_light: [0.24, 0.25, 0.16], t_assault: [0.33, 0.28, 0.21], t_fortress: [0.48, 0.31, 0.30], t_proto: [0.29, 0.29, 0.19], s_frame: [0.38, 0.30, 0.24], t_skirm: [0.22, 0.21, 0.15] };
 const DEFS = () => window.MW.DEFS;
