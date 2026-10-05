@@ -783,15 +783,27 @@ function buildMech(m, owner, doctrine, opt) {
       else if (opt.ghosts) { const gg = new T.Group(); gg.position.set(spots[i][0], spots[i][1], spots[i][2]); bp.add(gg); mesh(box(0.06, 0.06, 0.05), GHOST, gg, null, null, flat); tag(gg, 'aux' + i); }
     }
   }
-  // legs are always the biggest part: wider and taller than the whole chassis (signature parts and head included)
+  // legs in proportion to the body they carry, the way each army builds them:
+  // Assault stands like a person (legs a little longer than torso and head), Armored sits on a base wider than its hull,
+  // Experimental keeps its drive a touch narrower than the body
   if ((S.legs || opt.ghosts) && S.torso) {
     root.updateMatrixWorld(true);
-    const lb = new T.Box3().setFromObject(legsG), fb = new T.Box3().setFromObject(frame), ls = new T.Vector3(), fs2 = new T.Vector3();
-    lb.getSize(ls); fb.getSize(fs2);
-    const grow = Math.min(1.9, Math.max(1, (fs2.x * 1.15) / Math.max(0.01, ls.x), (fs2.y * 1.05) / Math.max(0.01, R.hipY)));
-    if (grow > 1.001) { legsG.scale.setScalar(grow); R.hipY *= grow; hips.position.y = R.hipY; }
+    const ls = new T.Vector3(), fs2 = new T.Vector3();
+    new T.Box3().setFromObject(legsG).getSize(ls); new T.Box3().setFromObject(frame).getSize(fs2);
+    const upper = 0.08 + h + 0.1;
+    let grow = style === 'assault' ? (upper * 1.15) / R.hipY : style === 'armored' ? (fs2.x * 1.1) / Math.max(0.01, ls.x) : (fs2.x * 0.95) / Math.max(0.01, ls.x);
+    grow = Math.min(1.6, Math.max(0.8, grow));
+    // humanoid legs get longer, not much thicker: slim under a broad chest
+    if (style === 'assault') legsG.scale.set(0.82 + (grow - 1) * 0.3, grow, 0.82 + (grow - 1) * 0.3); else legsG.scale.setScalar(grow);
+    R.hipY *= grow; hips.position.y = R.hipY;
   }
-  const scale = (fid === 't_fortress' ? 1.06 : 1) * (style === 'armored' ? 1.08 : style === 'assault' ? 0.96 : 1);
+  // the whole machine fits inside one tile on the map: body and legs shrink together if it would not
+  let scale = (fid === 't_fortress' ? 1.06 : 1) * (style === 'armored' ? 1.08 : style === 'assault' ? 0.96 : 1);
+  root.updateMatrixWorld(true);
+  const body = new T.Box3().setFromObject(legsG); if (S.torso) body.union(new T.Box3().setFromObject(frame));
+  const bs = new T.Vector3(); body.getSize(bs);
+  const foot = Math.max(bs.x, bs.z);
+  if (foot > 0) scale = Math.min(scale, 0.8 / foot);
   root.scale.setScalar(scale);
   return R;
 }
