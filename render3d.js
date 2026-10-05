@@ -1945,7 +1945,7 @@ function updateRec(rec, t, dt) {
     const q = (t - rec.dying.t0) / (rec.dying.vapor ? 0.25 : 1.2);
     if (q >= 1) { dropRec(rec); return; }
     if (rec.dying.vapor) { root.scale.setScalar(MS * (1 - q)); }
-    else { R.torso.rotation.x = kf(q, [[0, 0], [0.08, -0.35, 'out'], [0.3, 0.2], [0.6, 0.3]]); R.hips.position.y = R.hipY * kf(q, [[0, 1], [0.3, 0.92], [0.55, 0.6, 'in']]); root.rotation.z = kf(q, [[0, 0], [0.3, 0.06], [0.62, -1.35, 'in'], [0.72, -1.18, 'out'], [0.82, -1.38]]); y += kf(q, [[0, 0], [0.62, -0.05], [0.72, 0.03, 'out'], [0.82, -0.05], [1, -0.2, 'in']]); if (Math.random() < 0.5) smoke(root.position.clone().setY(0.4), 1, false); if (Math.random() < 0.3) sparks(root.position.clone().setY(0.4), 0xffe2a0, 3); }
+    else { R.torso.rotation.x = kf(q, [[0, 0], [0.08, -0.35, 'out'], [0.3, 0.2], [0.6, 0.3]]); R.hips.position.y = R.hipY * kf(q, [[0, 1], [0.3, 0.92], [0.55, 0.6, 'in']]); root.rotation.z = (R.kind === 'treads' ? 0.28 : 1) * kf(q, [[0, 0], [0.3, 0.06], [0.62, -1.35, 'in'], [0.72, -1.18, 'out'], [0.82, -1.38]]); y += kf(q, [[0, 0], [0.62, -0.05], [0.72, 0.03, 'out'], [0.82, -0.05], [1, -0.2, 'in']]); if (Math.random() < 0.5) smoke(root.position.clone().setY(0.4), 1, false); if (Math.random() < 0.3) sparks(root.position.clone().setY(0.4), 0xffe2a0, 3); }
   } else if (!rec.strip && !rec.charging) {
     // idle and walk cycles
     const ph = t * (moving ? 9 : 1.6) + rec.phase;
@@ -2381,9 +2381,11 @@ function pvAnimate(t, dt) {
   const once = (key, fn) => { if (!PV.done) PV.done = {}; if (!PV.done[key]) { PV.done[key] = true; PV.scene.updateMatrixWorld(true); fn(); } };
   const muzzleAt = k => { const p = new T.Vector3(); R.muzzles[k].o.getWorldPosition(p); return p; };
   if (act === 'walk') {
-    moving = true; speed = 1.4 * R.rig.stride * R.legsG.getWorldScale(new T.Vector3()).z / 0.6;
+    moving = true; speed = R.rig && R.legsG ? 1.4 * R.rig.stride * R.legsG.getWorldScale(new T.Vector3()).z / 0.6 : 0;
     root.rotation.x = 0.05;                                              // lean into the walk
-    if (R.kind === 'hover') hipY += 0.03 * Math.sin(t * 2.2);
+    // hover banks and pitches into the glide; treads rumble with a nose-down surge
+    if (R.kind === 'hover') { hipY += 0.03 * Math.sin(t * 2.2); root.rotation.x = 0.14; root.rotation.z = 0.08 * Math.sin(t * 1.8); R.torso.rotation.y = -0.15 * Math.sin(t * 1.8); }
+    if (R.kind === 'treads') { root.rotation.x = 0.035 + 0.012 * Math.sin(t * 24); hipY += 0.006 * Math.sin(t * 31); }
     if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = Math.sin(t * 6 + i * 1.6) * 0.3; });
   } else if (act === 'fireL' || act === 'fireR') {
     // anticipation: turn into the shot and raise the weapon; a beat of aim; the kick; follow-through and settle
@@ -2432,7 +2434,7 @@ function pvAnimate(t, dt) {
     // crouch, stretch on launch, a tucked arc with the shadow shrinking, squash on landing and recover
     moving = q > 0.3 && q < 1.15;
     const air = q < 0.32 ? 0 : q > 1.12 ? 0 : Math.sin((q - 0.32) / 0.8 * Math.PI);
-    root.position.y = air * 0.55;
+    root.position.y = air * Math.min(0.5, PV.frame.h * 0.3);
     root.position.z = kf(q, [[0, 0], [0.32, 0], [1.12, 0.12], [1.6, 0]]);
     crouch = kf(q, [[0, 0], [0.3, 0.1, 'in'], [0.38, 0, 'out'], [0.7, 0.07], [1.08, 0.02], [1.16, 0.11, 'out'], [1.6, 0]]);
     const sq = kf(q, [[0, 1], [0.3, 0.9], [0.38, 1.1, 'out'], [0.6, 1], [1.12, 1.04], [1.16, 0.86, 'out'], [1.45, 1]]);
@@ -2471,8 +2473,9 @@ function pvAnimate(t, dt) {
     root.rotation.x = kf(q, [[0, 0], [0.1, -0.4, 'out'], [0.4, 0.25], [0.7, 0.15], [1.0, 0.1]]);
     R.torso.rotation.y = kf(q, [[0, 0], [0.1, 0.6, 'out'], [0.4, -0.3], [0.8, 0.35]]);
     crouch = kf(q, [[0, 0], [0.1, 0.05], [0.4, 0.03], [0.65, 0.17, 'in']]);
-    root.rotation.z = kf(q, [[0, 0], [0.55, 0.08], [0.95, -1.4, 'in'], [1.07, -1.22, 'out'], [1.2, -1.4]]);
-    root.position.x = kf(q, [[0, 0], [0.55, 0], [0.95, -0.34, 'in'], [1.2, -0.38]]);
+    const tk = R.kind === 'treads' ? 0.28 : 1; root.rotation.z = tk * kf(q, [[0, 0], [0.55, 0.08], [0.95, -1.4, 'in'], [1.07, -1.22, 'out'], [1.2, -1.4]]);
+    if (tk < 1) R.torso.rotation.x = kf(q, [[0, 0], [0.55, 0.1], [0.95, 0.75, 'in'], [1.07, 0.6, 'out'], [1.2, 0.72]]);
+    const fx = Math.max(0.34, PV.frame.h * 0.42) * tk; root.position.x = kf(q, [[0, 0], [0.55, 0], [0.95, -fx, 'in'], [1.2, -fx - 0.04]]);
     root.position.y = kf(q, [[0, 0], [0.95, -0.06], [1.07, 0.03, 'out'], [1.2, -0.07]]);
     for (const k in R.arms) R.arms[k].arm.rotation.x = kf(q, [[0, 0], [0.1, 0.7, 'out'], [0.4, -0.5], [0.95, -1.1], [1.1, -0.7]]);
     if (q >= 0.1) once('stagger', () => { pvSparks(new T.Vector3(c.x, c.y, c.z), 0xffb04a); pvFlash(c.clone(), 0xff9a3a, 0.08, 0.25); });
