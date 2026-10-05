@@ -317,29 +317,38 @@ function buildLegs(R, g, id, tc, style, ghost) {
     return;
   }
   if (id === 'l_quad') {
-    // a chunky four-legged walker: an armoured hub on a turret ring, legs with big round joints,
-    // thick thighs, ball knees and broad armoured shin plates on blocky feet
+    // a four-legged spider walker: a low armoured hub, and on each corner a hip that swings around its vertical axis,
+    // a femur rising to a high knee and a long tapered tibia stabbing down to a pointed foot; IK places each foot
     R.kind = 'quad'; R.hipY = 0.4;
-    mesh(box(0.26, 0.12, 0.26), M(tc.second), g, [0, 0.34, 0]);
-    mesh(box(0.2, 0.05, 0.2), M(tc.main), g, [0, 0.42, 0]);
-    mesh(cyl(0.085, 0.095, 0.035, 18), M(tc.dark), g, [0, 0.46, 0]);
-    if (!ghost) { for (const r2 of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) vents(g, toon(tc.dark), 3, 0.08, 0.022, [Math.sin(r2) * 0.132, 0.34, Math.cos(r2) * 0.132], [0, r2, 0]); }
-    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const hip = new T.Group(); hip.position.set(sx * 0.12, 0.34, sz * 0.12); hip.rotation.y = Math.atan2(sx, sz); g.add(hip); R.legs.push(hip);
-      // hip: a big round joint with a capped disc
-      mesh(cyl(0.06, 0.06, 0.09, 18), M(tc.dark), hip, [0, 0, 0.02], [0, 0, Math.PI / 2]);
-      if (!ghost) for (const x of [-1, 1]) { mesh(cyl(0.045, 0.045, 0.012, 18), toon(tc.main), hip, [x * 0.048, 0, 0.02], [0, 0, Math.PI / 2], flat); mesh(cyl(0.014, 0.014, 0.014, 12), toon(tc.dark), hip, [x * 0.05, 0, 0.02], [0, 0, Math.PI / 2], flat); }
-      // thigh, angled up and out
-      mesh(box(0.1, 0.09, 0.18), M(tc.main), hip, [0, 0.05, 0.12], [-0.35, 0, 0]);
-      // knee: a ball joint with a side cap
-      mesh(sph(0.06, 16), M(tc.dark), hip, [0, 0.1, 0.22]);
-      if (!ghost) mesh(cyl(0.035, 0.035, 0.012, 16), toon(tc.second), hip, [0.06, 0.1, 0.22], [0, 0, Math.PI / 2], flat);
-      // shin: a broad armoured plate, wider at the knee, with a grid of vent holes, on a blocky foot
-      mesh(wedge(0.14, 0.42, 0.13, 1.25, 1.15), M(tc.second), hip, [0, -0.1, 0.25], [0.1, 0, 0]);
-      mesh(wedge(0.12, 0.24, 0.03, 1.2, 1), M(tc.main), hip, [0, 0.0, 0.325], [0.1, 0, 0]);
-      if (!ghost) for (const x of [-0.022, 0, 0.022]) for (const yy of [0.02, 0.045]) mesh(cyl(0.007, 0.007, 0.01, 8), toon(tc.dark), hip, [x, yy, 0.342], [Math.PI / 2 + 0.1, 0, 0], flat);
-      mesh(box(0.15, 0.06, 0.16), M(tc.dark), hip, [0, -0.32, 0.27]);
+    mesh(box(0.26, 0.12, 0.26), M(tc.second), g, [0, 0.3, 0]);
+    mesh(box(0.2, 0.05, 0.2), M(tc.main), g, [0, 0.38, 0]);
+    mesh(cyl(0.085, 0.095, 0.035, 18), M(tc.dark), g, [0, 0.42, 0]);
+    mesh(wedge(0.16, 0.06, 0.16, 0.6, 0.6), M(tc.dark), g, [0, 0.215, 0], [Math.PI, 0, 0]);
+    if (!ghost) { for (const r2 of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) vents(g, toon(tc.dark), 3, 0.08, 0.022, [Math.sin(r2) * 0.132, 0.3, Math.cos(r2) * 0.132], [0, r2, 0]); }
+    const LF = 0.27, LT = 0.42, HY = 0.3;
+    R.quad = { LF, LT, hy: HY, stride: 0.26, lift: 0.15, legs: [] };
+    for (const [sx, sz] of [[-1, 1], [1, 1], [1, -1], [-1, -1]]) {
+      const hx = sx * 0.13, hz = sz * 0.13, yaw0 = Math.atan2(sx, sz);
+      const coxa = new T.Group(); coxa.position.set(hx, HY, hz); coxa.rotation.y = yaw0; g.add(coxa); R.legs.push(coxa);
+      // hip: a squat turret joint on the hub corner
+      mesh(cyl(0.055, 0.06, 0.08, 16), M(tc.dark), coxa, [0, 0, 0]);
+      if (!ghost) mesh(cyl(0.035, 0.035, 0.012, 14), toon(tc.accent), coxa, [0, 0.045, 0], null, flat);
+      const femur = new T.Group(); coxa.add(femur);
+      mesh(cyl(0.035, 0.035, 0.1, 14), toon(tc.metal), femur, [0, 0, 0], [0, 0, Math.PI / 2]);
+      mesh(wedge(0.085, LF, 0.075, 0.75, 0.8), M(tc.main), femur, [0, 0, LF / 2], [Math.PI / 2, 0, 0]);
+      mesh(wedge(0.06, LF * 0.7, 0.02, 0.7, 1), M(tc.second), femur, [0, 0.042, LF * 0.48], [Math.PI / 2, 0, 0]);
+      if (!ghost) mesh(cyl(0.006, 0.006, LF * 0.8, 6), toon(tc.metal), femur, [0, -0.045, LF * 0.45], [Math.PI / 2, 0, 0], flat);
+      const tibia = new T.Group(); tibia.position.z = LF; femur.add(tibia);
+      // knee: a ball joint with a spiked guard on top
+      mesh(sph(0.05, 16), M(tc.dark), tibia, [0, 0, 0]);
+      if (!ghost) mesh(cone(0.022, 0.07, 5), M(tc.accent), tibia, [0, 0.055, -0.01], [-0.3, 0, 0]);
+      // tibia: a long armoured blade, broad at the knee, narrowing to a claw
+      mesh(wedge(0.095, LT * 0.86, 0.085, 0.4, 0.45), M(tc.second), tibia, [0, 0, LT * 0.43], [Math.PI / 2, 0, 0]);
+      mesh(wedge(0.06, LT * 0.5, 0.02, 0.6, 1), M(tc.main), tibia, [0, 0.04, LT * 0.3], [Math.PI / 2, 0, 0]);
+      mesh(cone(0.022, LT * 0.16, 6), toon(tc.dark), tibia, [0, 0, LT * 0.93], [Math.PI / 2, 0, 0]);
+      R.quad.legs.push({ coxa, femur, tibia, hx, hz, fx: hx + sx * 0.27, fz: hz + sz * 0.27, yaw0 });
     }
+    quadStep({}, R, 0, 0);
     return;
   }
   R.kind = 'biped'; R.hipY = 0.42;
@@ -408,6 +417,37 @@ function legIK(hip, ty, tz, L1, L2) {
   return hip.rotation.x + hip.userData.knee.rotation.x;
 }
 const smooth = x => x * x * (3 - 2 * x);
+// spider legs: each foot target (leg-group space) is reached by yawing the hip toward it, then a two-bone IK with the knee up
+function quadSolve(L, Q, x, y, z) {
+  const dx = x - L.hx, dz = z - L.hz;
+  L.coxa.rotation.y = Math.atan2(dx, dz);
+  const h = Math.hypot(dx, dz), v = y - Q.hy, d = Math.min(Q.LF + Q.LT - 1e-4, Math.max(0.05, Math.hypot(h, v)));
+  const t1 = Math.atan2(v, h) + Math.acos(Math.max(-1, Math.min(1, (Q.LF * Q.LF + d * d - Q.LT * Q.LT) / (2 * Q.LF * d))));
+  const k = Math.acos(Math.max(-1, Math.min(1, (Q.LF * Q.LF + Q.LT * Q.LT - d * d) / (2 * Q.LF * Q.LT))));
+  L.femur.rotation.x = -t1; L.tibia.rotation.x = Math.PI - k;
+}
+// a wave gait: one leg in the air at a time, rippling front-left, front-right, back-right... while the other three
+// stay planted and slide back under the body; the hub sways and dips toward the lifted leg
+const QUAD_ORDER = [0, 0.5, 0.25, 0.75];
+function quadStep(st, R, dt, speed) {
+  const Q = R.quad; if (!Q) return null;
+  const ws = R.legsG ? R.legsG.getWorldScale(new T.Vector3()).z || 1 : 1;
+  st.w = (st.w || 0) + ((speed > 0.02 ? 1 : 0) - (st.w || 0)) * Math.min(1, dt * 7);
+  st.phase = ((st.phase || 0) + Math.min(1.8, (speed / ws) * 0.75 / Q.stride) * dt) % 1;
+  const w = st.w, out = { bob: 0, roll: 0, pitch: 0 }, drop = st.crouch || 0;
+  Q.legs.forEach((L, i) => {
+    const p = (st.phase + QUAD_ORDER[i]) % 1;
+    let z, y;
+    if (p < 0.75) { z = Q.stride * (0.5 - p / 0.75); y = 0; }
+    else { const s2 = (p - 0.75) / 0.25; z = Q.stride * (-0.5 + smooth(s2)); y = Q.lift * Math.sin(Math.PI * s2); out.roll += -Math.sign(L.hx) * 0.05 * Math.sin(Math.PI * s2) * w; out.pitch += Math.sign(L.hz) * 0.04 * Math.sin(Math.PI * s2) * w; }
+    // at rest the toes splay a touch wider and twitch now and then
+    const splay = 1 + 0.06 * (1 - w);
+    quadSolve(L, Q, L.hx + (L.fx - L.hx) * splay, y * w + drop, L.hz + (L.fz - L.hz) * splay + z * w);
+  });
+  out.yaw = 0.07 * w * Math.sin(st.phase * Math.PI * 2);
+  out.bob = (-0.012 * w * Math.abs(Math.sin(st.phase * Math.PI * 8)) - drop) * (R.legsG ? R.legsG.scale.y : 1);
+  return out;
+}
 // one step of the gait. st keeps the phase and blend between frames; speed is the body's ground speed (world units/s).
 // Each leg: 60% stance with the foot planted (sliding back under the hips at exactly the body's speed), heel strike
 // and toe-off; 40% swing, lifting and arcing forward. The pelvis dips at "down" and rises at "passing", twice a cycle.
@@ -993,7 +1033,7 @@ function buildMech(m, owner, doctrine, opt) {
     const ls = new T.Vector3(), fs2 = new T.Vector3();
     new T.Box3().setFromObject(legsG).getSize(ls); new T.Box3().setFromObject(frame).getSize(fs2);
     const upper = 0.08 + h + 0.1;
-    let grow = R.kind === 'treads' ? (fs2.x * 1.55) / Math.max(0.01, ls.x) : style === 'assault' ? (upper * 1.15) / R.hipY : style === 'armored' ? (fs2.x * 1.1) / Math.max(0.01, ls.x) : (fs2.x * 0.95) / Math.max(0.01, ls.x);
+    let grow = R.kind === 'quad' ? (fs2.x * 2.3) / Math.max(0.01, ls.x) : R.kind === 'treads' ? (fs2.x * 1.55) / Math.max(0.01, ls.x) : style === 'assault' ? (upper * 1.15) / R.hipY : style === 'armored' ? (fs2.x * 1.1) / Math.max(0.01, ls.x) : (fs2.x * 0.95) / Math.max(0.01, ls.x);
     grow = Math.min(1.6, Math.max(0.8, grow));
     // humanoid legs get longer, not much thicker: slim under a broad chest
     if (style === 'assault' && R.kind !== 'treads') legsG.scale.set(0.82 + (grow - 1) * 0.3, grow, 0.82 + (grow - 1) * 0.3); else legsG.scale.setScalar(grow);
@@ -1976,7 +2016,12 @@ function updateRec(rec, t, dt) {
         if (g) { R.hips.position.y += g.bob; R.hips.rotation.z = g.roll * gk; R.torso.rotation.y = g.twist * gk; R.armSwing = g.swing; }
       }
     }
-    if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = moving ? Math.sin(ph + i * 1.6) * 0.3 : 0; });
+    if (R.kind === 'quad') {
+      const p0 = rec.gaitPos || root.position.clone(), sp = moving && dt > 0 ? Math.hypot(root.position.x - p0.x, root.position.z - p0.z) / dt : 0;
+      rec.gaitPos = root.position.clone();
+      const g = quadStep(rec.gait || (rec.gait = {}), R, dt, sp);
+      if (g) { R.hips.position.y += g.bob; R.hips.rotation.z = g.roll; R.torso.rotation.y += g.yaw; lean += g.pitch; }
+    }
     if (R.stakes) R.stakes.forEach(st => { st.g.rotation.z = entr ? st.sx * 0.6 : 0; st.g.position.y = entr ? -0.14 : -0.06; });
     if (R.boosters) R.boosters.forEach(f => { f.visible = moving; f.scale.y = 1 + Math.random() * 0.8; });
     if (R.thrusters && !rec.drop) R.thrusters.forEach(f => { f.visible = moving && R.kind !== 'treads'; f.scale.y = 1 + Math.random(); });
@@ -2381,12 +2426,11 @@ function pvAnimate(t, dt) {
   const once = (key, fn) => { if (!PV.done) PV.done = {}; if (!PV.done[key]) { PV.done[key] = true; PV.scene.updateMatrixWorld(true); fn(); } };
   const muzzleAt = k => { const p = new T.Vector3(); R.muzzles[k].o.getWorldPosition(p); return p; };
   if (act === 'walk') {
-    moving = true; speed = R.rig && R.legsG ? 1.4 * R.rig.stride * R.legsG.getWorldScale(new T.Vector3()).z / 0.6 : 0;
+    moving = true; speed = R.legsG && (R.rig || R.quad) ? 1.4 * (R.rig || R.quad).stride * R.legsG.getWorldScale(new T.Vector3()).z / 0.6 : 0;
     root.rotation.x = 0.05;                                              // lean into the walk
     // hover banks and pitches into the glide; treads rumble with a nose-down surge
     if (R.kind === 'hover') { hipY += 0.03 * Math.sin(t * 2.2); root.rotation.x = 0.14; root.rotation.z = 0.08 * Math.sin(t * 1.8); R.torso.rotation.y = -0.15 * Math.sin(t * 1.8); }
     if (R.kind === 'treads') { root.rotation.x = 0.035 + 0.012 * Math.sin(t * 24); hipY += 0.006 * Math.sin(t * 31); }
-    if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = Math.sin(t * 6 + i * 1.6) * 0.3; });
   } else if (act === 'fireL' || act === 'fireR') {
     // anticipation: turn into the shot and raise the weapon; a beat of aim; the kick; follow-through and settle
     const k = pvArmKey(R, act === 'fireL' ? 'armL' : 'armR');
@@ -2491,6 +2535,9 @@ function pvAnimate(t, dt) {
       hipY += g.bob; R.hips.rotation.z += g.roll * gk; R.torso.rotation.y += g.twist * gk;
       if (act === 'walk') for (const k in R.arms) R.arms[k].arm.rotation.x += -(k === 'armL' ? g.swing[1] : g.swing[0]) * (R.style === 'armored' ? 0.55 : 0.85);
     }
+  } else if (R.kind === 'quad') {
+    const st = PV.gait || (PV.gait = {}); st.crouch = crouch * 1.3; R.legsG.position.y = -st.crouch * R.legsG.scale.y;
+    const g = quadStep(st, R, dt, speed); if (g) { hipY += g.bob; R.hips.rotation.z += g.roll; R.torso.rotation.y += g.yaw; }
   } else hipY -= crouch * (R.legsG ? R.legsG.scale.y : 1);
   if (R.hips) R.hips.position.y = hipY + (moving ? 0 : Math.sin(t * 1.6) * 0.004);
   if (R.head) R.head.rotation.y = Math.sin(t * 0.9) * 0.3 + R.torso.rotation.y * -0.4;
