@@ -437,7 +437,12 @@ function quadStep(st, R, dt, speed) {
   st.w = (st.w || 0) + ((speed > 0.02 ? 1 : 0) - (st.w || 0)) * Math.min(1, dt * 4);
   st.phase = ((st.phase || 0) + Math.min(0.55, (speed / ws) * 0.75 / Q.stride) * dt) % 1;
   const w = st.w, out = { bob: 0, roll: 0, pitch: 0, yaw: 0 }, drop = st.crouch || 0;
-  let stomp = 0;
+  let stomp = 0, shx = 0, shz = 0;
+  Q.legs.forEach((L, i) => {
+    const p = (st.phase + QUAD_ORDER[i]) % 1, f = p > 0.6 ? Math.sin(Math.PI * (p - 0.6) / 0.4) : 0;
+    shx -= Math.sign(L.hx) * f; shz -= Math.sign(L.hz) * f;
+  });
+  shx *= 0.05 * w; shz *= 0.05 * w;
   Q.legs.forEach((L, i) => {
     const p = (st.phase + QUAD_ORDER[i]) % 1;
     let z, y;
@@ -450,9 +455,12 @@ function quadStep(st, R, dt, speed) {
       z = Q.stride * (-0.5 + smooth(s2)); y = Q.lift * up;
       out.roll += -Math.sign(L.hx) * 0.035 * up * w; out.pitch += Math.sign(L.hz) * 0.03 * up * w;
     }
-    quadSolve(L, Q, L.fx, Q.sole + y * w + drop, L.fz + z * w);
+    quadSolve(L, Q, L.fx - shx, Q.sole + y * w + drop, L.fz + z * w - shz);
   });
   out.yaw = 0.035 * w * Math.sin(st.phase * Math.PI * 2);
+  const k = R.legsG ? R.legsG.scale.x : 1; out.shx = shx * k; out.shz = shz * k;
+  // the hub leans into the shift as well as sliding
+  out.roll += -shx * 0.9; out.pitch += shz * 0.7;
   out.bob = (-0.022 * w * stomp * stomp - drop) * (R.legsG ? R.legsG.scale.y : 1);
   return out;
 }
@@ -2029,7 +2037,7 @@ function updateRec(rec, t, dt) {
       const p0 = rec.gaitPos || root.position.clone(), sp = moving && dt > 0 ? Math.hypot(root.position.x - p0.x, root.position.z - p0.z) / dt : 0;
       rec.gaitPos = root.position.clone();
       const g = quadStep(rec.gait || (rec.gait = {}), R, dt, sp);
-      if (g) { R.hips.position.y += g.bob; R.hips.rotation.z = g.roll; R.torso.rotation.y += g.yaw; lean += g.pitch; }
+      if (g) { R.hips.position.y += g.bob; R.hips.rotation.z = g.roll; R.torso.rotation.y += g.yaw; lean += g.pitch; R.legsG.position.x = R.hips.position.x = g.shx; R.legsG.position.z = R.hips.position.z = g.shz; }
     }
     if (R.stakes) R.stakes.forEach(st => { st.g.rotation.z = entr ? st.sx * 0.6 : 0; st.g.position.y = entr ? -0.14 : -0.06; });
     if (R.boosters) R.boosters.forEach(f => { f.visible = moving; f.scale.y = 1 + Math.random() * 0.8; });
@@ -2546,7 +2554,7 @@ function pvAnimate(t, dt) {
     }
   } else if (R.kind === 'quad') {
     const st = PV.gait || (PV.gait = {}); st.crouch = crouch * 1.3; R.legsG.position.y = -st.crouch * R.legsG.scale.y;
-    const g = quadStep(st, R, dt, speed); if (g) { hipY += g.bob; R.hips.rotation.z += g.roll; R.torso.rotation.y += g.yaw; }
+    const g = quadStep(st, R, dt, speed); if (g) { hipY += g.bob; R.hips.rotation.z += g.roll; R.hips.rotation.x = g.pitch; R.torso.rotation.y += g.yaw; R.legsG.position.x = R.hips.position.x = g.shx; R.legsG.position.z = R.hips.position.z = g.shz; }
   } else hipY -= crouch * (R.legsG ? R.legsG.scale.y : 1);
   if (R.hips) R.hips.position.y = hipY + (moving ? 0 : Math.sin(t * 1.6) * 0.004);
   if (R.head) R.head.rotation.y = Math.sin(t * 0.9) * 0.3 + R.torso.rotation.y * -0.4;
