@@ -1544,7 +1544,8 @@ function shoot(f, start) {
   const att = (f.uid && BD.recs[f.uid]) || recAt(f.x0, f.y0, false) || recAt(f.x0, f.y0, true);
   const tgtRec = recAt(f.x1, f.y1, false);
   let to = tp(f.x1, f.y1, 0.45);
-  if (tgtRec) to = tgtRec.R.root.position.clone().add(new T.Vector3(0, 0.45, 0));
+  // aim at the middle of the target's body, whatever its size, not a fixed height that can land on its legs
+  if (tgtRec) { const bb = new T.Box3().setFromObject(tgtRec.R.root); to = bb.isEmpty() ? tgtRec.R.root.position.clone().add(new T.Vector3(0, 0.45, 0)) : bb.getCenter(new T.Vector3()).setY(bb.min.y + (bb.max.y - bb.min.y) * 0.6); }
   if (window.MW.baseAt(f.x1, f.y1) != null) to = tp(f.x1, f.y1, 0.35);
   if (!f.hit) to.add(new T.Vector3(rand(-0.45, 0.45), -0.25, rand(-0.45, 0.45)));
   const cat = f.cat || 'ballistic', col = FX_COL[cat] || 0xffffff;
@@ -1891,7 +1892,11 @@ function updateRec(rec, t, dt) {
     let hipY = R.hipY * (kneel ? 0.62 : entr ? 0.9 : 1);
     if (R.kind === 'hover') { hipY += 0.03 * Math.sin(t * 2.2 + rec.phase); if (R.hoverGlow) R.hoverGlow.material.opacity = 0.4 + 0.3 * Math.sin(t * 6); }
     R.hips.position.y = hipY + (moving ? Math.abs(Math.sin(ph)) * 0.02 : Math.sin(ph) * 0.006);
-    R.torso.rotation.y = moving ? 0 : Math.sin(t * 0.6 + rec.phase) * 0.08;
+    // walking like a person: the torso counter-twists against the stride and the hips sway a little
+    const gait = R.kind === 'biped' && moving && !kneel && !entr, gk = R.style === 'armored' ? 0.7 : 1;
+    R.torso.rotation.y = gait ? Math.sin(ph) * 0.1 * gk : moving ? 0 : Math.sin(t * 0.6 + rec.phase) * 0.08;
+    R.hips.rotation.z = gait ? Math.sin(ph) * 0.035 * gk : 0;
+    R.armSwing = gait ? Math.sin(ph) * 0.42 * gk : 0;
     if (R.head) R.head.rotation.y = Math.sin(t * 0.9 + rec.phase * 2) * 0.35;
     if (R.halo) R.halo.rotation.z = t * 0.7;
     if (R.monoEye) R.monoEye.position.x = Math.sin(t * 1.7 + rec.phase) * 0.032;
@@ -1902,7 +1907,7 @@ function updateRec(rec, t, dt) {
       if (kneel) { hip.rotation.x = i ? -1.2 : 0.2; hip.userData.knee.rotation.x = i ? 1.6 : 0.9; return; }
       if (entr) { hip.rotation.x = -0.25; hip.userData.knee.rotation.x = 0.5; return; }
       hip.rotation.x = moving ? Math.sin(ph) * 0.55 * s : 0;
-      hip.userData.knee.rotation.x = moving ? Math.max(0, Math.sin(ph + (i ? 0 : Math.PI))) * 0.7 : 0;
+      hip.userData.knee.rotation.x = moving ? Math.max(0, Math.sin(ph + (i ? 0 : Math.PI))) * 0.95 : 0;
     });
     if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = moving ? Math.sin(ph + i * 1.6) * 0.3 : 0; });
     if (R.stakes) R.stakes.forEach(st => { st.g.rotation.z = entr ? st.sx * 0.6 : 0; st.g.position.y = entr ? -0.14 : -0.06; });
@@ -1914,7 +1919,8 @@ function updateRec(rec, t, dt) {
     const a = R.arms[k];
     let rx = 0;
     if (rec.recoil && rec.lastArm === k) { const q = (t - rec.recoil) / 0.25; if (q < 1) rx = Math.sin(q * Math.PI) * 0.35; }
-    a.arm.rotation.x = -rx - (moving ? 0 : Math.sin(t * 1.3 + rec.phase) * 0.03);
+    const swing = R.armSwing && !(rec.aimT && t - rec.aimT < 1.5) ? (k === 'armL' ? R.armSwing : -R.armSwing) : 0;
+    a.arm.rotation.x = -rx - (moving ? 0 : Math.sin(t * 1.3 + rec.phase) * 0.03) + swing;
     // raise to aim while attacking, then drop back to the rest pose
     const aiming = rec.aimT && t - rec.aimT < 1.5 && (!rec.aimKey || rec.aimKey === k);
     const want = aiming ? -Math.PI / 2 : (a.rest != null ? a.rest : -Math.PI / 2);
@@ -2263,14 +2269,21 @@ function pvAnimate(t, dt) {
   root.rotation.set(0, 0, 0); root.position.set(0, 0, 0);
   let hipY = R.hipY, moving = false;
   // start from the rest pose every frame, then let the action move things
-  for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; a.el.rotation.x += ((a.rest != null ? a.rest : -Math.PI / 2) - a.el.rotation.x) * Math.min(1, dt * 8); }
+  const firing = (act === 'fireL' || act === 'fireR') ? pvArmKey(R, act === 'fireL' ? 'armL' : 'armR') : null;
+  for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; if (k !== firing) a.el.rotation.x += ((a.rest != null ? a.rest : -Math.PI / 2) - a.el.rotation.x) * Math.min(1, dt * 8); }
+  R.torso.rotation.y = 0; R.hips.rotation.z = 0;
   if (R.legs) R.legs.forEach(hip => { hip.rotation.x = 0; if (hip.userData.knee) hip.userData.knee.rotation.x = 0; });
   PV.bubble.material.opacity = 0;
   const c = PV.frame.c;
   if (act === 'walk') {
     moving = true;
     const ph = t * 6;
-    if (R.kind === 'biped') R.legs.forEach((hip, i) => { const s = i ? 1 : -1; hip.rotation.x = Math.sin(ph) * 0.55 * s; hip.userData.knee.rotation.x = Math.max(0, Math.sin(ph + (i ? 0 : Math.PI))) * 0.7; });
+    if (R.kind === 'biped') {
+      const gk = R.style === 'armored' ? 0.7 : 1;
+      R.legs.forEach((hip, i) => { const s = i ? 1 : -1; hip.rotation.x = Math.sin(ph) * 0.55 * s; hip.userData.knee.rotation.x = Math.max(0, Math.sin(ph + (i ? 0 : Math.PI))) * 0.95; });
+      R.torso.rotation.y = Math.sin(ph) * 0.1 * gk; R.hips.rotation.z = Math.sin(ph) * 0.035 * gk;
+      for (const k in R.arms) R.arms[k].arm.rotation.x += (k === 'armL' ? 1 : -1) * Math.sin(ph) * 0.42 * gk;
+    }
     if (R.kind === 'quad') R.legs.forEach((hip, i) => { hip.rotation.x = Math.sin(ph + i * 1.6) * 0.3; });
     hipY += Math.abs(Math.sin(ph)) * 0.02;
     if (R.kind === 'hover') hipY += 0.03 * Math.sin(t * 2.2);
