@@ -333,30 +333,40 @@ function buildWeapon(p, id, tc, sx) {
   const sight = (zz, yy) => mesh(box(0.016, 0.018, 0.04), toon(tc.trim), p, [0, yy, zz], null, flat);
   switch (id) {
     case 'b_gun':
-      mesh(wedge(0.055, 0.075, 0.18, 0.85, 0.9), D, p, [0, 0, 0.06]);
-      mesh(cyl(0.013, 0.013, 0.13, 8), D2, p, [0, 0.012, 0.2], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.019, 0.019, 0.025, 8), D2, p, [0, 0.012, 0.26], [Math.PI / 2, 0, 0]);
-      mesh(box(0.03, 0.065, 0.045), D2, p, [0, -0.055, 0.04]); sight(0.04, 0.05);
-      z = 0.28; y = 0.012; break;
+      // autocannon: one long barrel with a slotted muzzle brake and a side box magazine
+      mesh(wedge(0.06, 0.075, 0.17, 0.85, 0.9), toon(tc.main), p, [0, 0, 0.05]);
+      mesh(cyl(0.015, 0.015, 0.22, 8), D2, p, [0, 0.012, 0.24], [Math.PI / 2, 0, 0]);
+      mesh(box(0.04, 0.03, 0.05), D2, p, [0, 0.012, 0.36]);
+      mesh(box(0.042, 0.008, 0.012), toon(tc.trim), p, [0, 0.012, 0.37], null, flat);
+      mesh(box(0.04, 0.06, 0.06), toon(tc.second), p, [0.05, -0.01, 0.05]);
+      mesh(box(0.03, 0.05, 0.04), D2, p, [0, -0.05, 0.02]); sight(0.03, 0.05);
+      z = 0.39; y = 0.012; break;
     case 'w_smg':
-      for (const x of [-0.024, 0.024]) {
-        mesh(box(0.034, 0.05, 0.13), D, p, [x, 0, 0.05]);
-        mesh(cyl(0.009, 0.009, 0.09, 6), D2, p, [x, 0.008, 0.15], [Math.PI / 2, 0, 0]);
-        mesh(box(0.02, 0.05, 0.025), toon(tc.second), p, [x, -0.045, 0.06]);
+      // twin SMGs: two stubby guns side by side, each with a long magazine hanging below
+      for (const x of [-0.03, 0.03]) {
+        mesh(box(0.034, 0.045, 0.1), toon(tc.second), p, [x, 0, 0.04]);
+        mesh(cyl(0.009, 0.009, 0.06, 6), D2, p, [x, 0.008, 0.12], [Math.PI / 2, 0, 0]);
+        mesh(box(0.018, 0.11, 0.022), D2, p, [x, -0.075, 0.06], [0.2, 0, 0]);
+        mesh(box(0.036, 0.008, 0.06), toon(tc.trim), p, [x, 0.026, 0.03], null, flat);
       }
-      z = 0.2; y = 0.008; break;
+      z = 0.16; y = 0.008; break;
     case 'w_scatter':
-      mesh(wedge(0.09, 0.075, 0.16, 0.85, 0.9), D, p, [0, 0, 0.05]);
-      for (const x of [-0.022, 0.022]) mesh(cyl(0.018, 0.018, 0.11, 8), D2, p, [x, 0.01, 0.17], [Math.PI / 2, 0, 0]);
-      mesh(box(0.095, 0.02, 0.05), toon(tc.second), p, [0, 0.045, 0.03]); sight(0.0, 0.065);
-      z = 0.24; y = 0.01; break;
+      // scatter cannon: a short body, a pump grip and one wide flared bell of a muzzle
+      mesh(wedge(0.08, 0.075, 0.14, 0.85, 0.9), D, p, [0, 0, 0.04]);
+      mesh(cyl(0.026, 0.026, 0.1, 10), D2, p, [0, 0.01, 0.16], [Math.PI / 2, 0, 0]);
+      mesh(cyl(0.062, 0.03, 0.07, 12), toon(tc.second), p, [0, 0.01, 0.24], [Math.PI / 2, 0, 0]);
+      mesh(tor(0.056, 0.008), toon(tc.trim), p, [0, 0.01, 0.275], null, flat);
+      mesh(box(0.05, 0.03, 0.05), toon(tc.trim), p, [0, -0.025, 0.14]);
+      z = 0.28; y = 0.01; break;
     case 'w_gatling': {
-      mesh(cyl(0.042, 0.042, 0.11, 10), D, p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
-      mesh(box(0.05, 0.06, 0.06), toon(tc.second), p, [0, -0.05, 0.0]);
-      const cl = new T.Group(); cl.position.z = 0.14; p.add(cl); p.userData.spin = cl;
-      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mesh(cyl(0.008, 0.008, 0.16, 6), D2, cl, [Math.cos(a) * 0.022, Math.sin(a) * 0.022, 0], [Math.PI / 2, 0, 0], { noOutline: true }); }
-      mesh(cyl(0.03, 0.03, 0.012, 10), D, cl, [0, 0, 0.06], [Math.PI / 2, 0, 0], flat);
-      z = 0.23; break;
+      // gatling: a fat motor housing, a big spinning barrel cluster and a side ammo drum
+      mesh(cyl(0.05, 0.05, 0.12, 12), D, p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
+      mesh(cyl(0.055, 0.055, 0.04, 12), toon(tc.second), p, [0.075, -0.01, 0.02], [0, 0, Math.PI / 2]);
+      mesh(box(0.012, 0.012, 0.08), toon(tc.trim), p, [0.045, -0.01, 0.06], null, flat);
+      const cl = new T.Group(); cl.position.z = 0.17; p.add(cl); p.userData.spin = cl;
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mesh(cyl(0.011, 0.011, 0.2, 6), D2, cl, [Math.cos(a) * 0.03, Math.sin(a) * 0.03, 0], [Math.PI / 2, 0, 0], { noOutline: true }); }
+      for (const zz of [-0.04, 0.08]) mesh(cyl(0.042, 0.042, 0.014, 10), D, cl, [0, 0, zz], [Math.PI / 2, 0, 0], flat);
+      z = 0.28; break;
     }
     case 'w_rail':
       mesh(wedge(0.065, 0.075, 0.17, 0.8, 0.9), D, p, [0, 0, 0.04]);
