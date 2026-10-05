@@ -224,7 +224,7 @@ const wedge = (w, h, d, tx, tz, sz) => geo('w' + [w, h, d, tx, tz, sz || 0].join
   for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * tx); p.setZ(i, p.getZ(i) * tz + (sz || 0)); }
   g.computeVertexNormals(); return g;
 });
-const FRAME_DIM = { c_sing: [0.30, 0.27, 0.20], s_core: [0.34, 0.28, 0.22], b_torso: [0.30, 0.26, 0.20], t_heavy: [0.38, 0.28, 0.24], t_light: [0.26, 0.24, 0.17], t_assault: [0.32, 0.27, 0.21], t_fortress: [0.44, 0.30, 0.27], t_proto: [0.30, 0.27, 0.20], s_frame: [0.40, 0.29, 0.25], t_skirm: [0.24, 0.22, 0.16] };
+const FRAME_DIM = { c_sing: [0.28, 0.26, 0.22], s_core: [0.32, 0.30, 0.20], b_torso: [0.30, 0.26, 0.20], t_heavy: [0.40, 0.27, 0.27], t_light: [0.24, 0.25, 0.16], t_assault: [0.33, 0.28, 0.21], t_fortress: [0.48, 0.31, 0.30], t_proto: [0.29, 0.29, 0.19], s_frame: [0.38, 0.30, 0.24], t_skirm: [0.22, 0.21, 0.15] };
 const DEFS = () => window.MW.DEFS;
 const isKO = i => !!i && i.hp <= 0;
 const isHurt = i => !!i && i.hp > 0 && i.hp <= (DEFS()[i.id].hp || 1) / 2;
@@ -302,6 +302,20 @@ function buildLegs(R, g, id, tc, style, ghost) {
     if (id === 'l_boost' && !ghost) {
       mesh(wedge(0.05, 0.1, 0.05, 0.7, 0.7), toon(tc.dark), knee, [0, -0.1, -0.075], [0.3, 0, 0]);
       const f = new T.Mesh(cone(0.024, 0.1, 8), glow(tc.thruster, 0.8)); f.position.set(0, -0.17, -0.1); f.rotation.x = -Math.PI / 2 - 0.3; knee.add(f); R.boosters.push(f);
+    }
+    // reinforced legs: armour skirts on the thighs, big knee pads and clawed feet
+    if (id === 'l_biped' && !ghost) {
+      mesh(wedge(0.03, 0.17, 0.12 * k, 0.8, 1), M(tc.second), hip, [sx * 0.058 * k, -0.09, 0]);
+      mesh(cyl(0.048 * k, 0.048 * k, 0.035, 10), M(heavy ? tc.accent : tc.trim), knee, [0, 0, 0.07 * k], [Math.PI / 2, 0, 0]);
+      for (const tx of [-1, 0, 1]) mesh(cone(0.016, 0.06, 4), toon(tc.dark), knee, [tx * 0.035 * k, -0.215, 0.14 * k], [Math.PI / 2, 0, 0], flat);
+    }
+    // booster legs: big calf thruster pods and thigh fins
+    if (id === 'l_boost' && !ghost) {
+      // pods hang off the outside of each calf, so they read from the front
+      mesh(cyl(0.04, 0.052, 0.17, 10), toon(tc.dark), knee, [sx * 0.085, -0.1, -0.03], [0.2, 0, 0]);
+      mesh(cyl(0.054, 0.054, 0.018, 10), toon(tc.trim), knee, [sx * 0.085, -0.02, -0.015], [0.2, 0, 0], flat);
+      mesh(tor(0.04, 0.008), glow(tc.thruster, 0.9), knee, [sx * 0.085, -0.19, -0.05], [Math.PI / 2 + 0.2, 0, 0], flat);
+      mesh(wedge(0.018, 0.2, 0.12, 0.3, 1), M(tc.second), hip, [sx * 0.085, -0.06, -0.02], [0.15, 0, sx * 0.45]);
     }
     if (id === 's_anchor') {
       const st = new T.Group(); st.position.set(sx * 0.09, -0.06, -0.02); knee.add(st);
@@ -548,6 +562,83 @@ function buildChest(frame, tc, style, fid, w, h, dp, cy) {
   if (fid === 't_proto') mesh(box(0.016, h * 0.9, 0.01), glow(tc.glow), frame, [0, cy, -dp * 0.52], null, flat);
 }
 
+// what makes each chassis recognisable at a glance, drawn in its doctrine's shape language
+const HEAD_TYPE = { t_skirm: 'visor', t_light: 'mast', t_assault: 'horns', t_heavy: 'sunk', t_fortress: 'none', c_sing: 'small', s_core: 'crystal', s_frame: 'crest' };
+// a panel shaped the doctrine's way: angular for Assault, a slab for Armored, rounded for Experimental
+function sigPlate(style, w, h, d, mat, parent, pos, rot) {
+  if (style === 'assault') return mesh(wedge(w, h, d, 0.6, 1), mat, parent, pos, rot);
+  if (style === 'armored') return mesh(box(w, h, d), mat, parent, pos, rot);
+  const m = mesh(sph(0.5, 12), mat, parent, pos, rot); m.scale.set(w, h, d); return m;
+}
+function buildSignature(frame, tc, style, fid, w, h, dp, cy, R) {
+  const M = c => toon(c), G = tc.glow || tc.eye;
+  if (fid === 't_skirm') {
+    // a long dorsal spine fin and twin tail stabilisers: built for speed
+    sigPlate(style, 0.026, h * 1.5, dp * 1.2, M(tc.second), frame, [0, cy + h * 0.45, -dp * 0.5], [-0.55, 0, 0]);
+    for (const sx of [-1, 1]) sigPlate(style, 0.02, h * 0.9, dp * 0.7, M(tc.trim), frame, [sx * w * 0.32, cy - h * 0.05, -dp * 0.65], [-0.95, 0, sx * 0.45]);
+  } else if (fid === 't_light') {
+    // a big sensor dish on the left shoulder and a whip antenna on the right
+    const dish = new T.Group(); dish.position.set(-w * 0.42, cy + h * 0.85, -dp * 0.15); dish.rotation.set(-0.45, 0.55, 0); frame.add(dish);
+    mesh(cyl(0.012, 0.012, h * 0.7, 6), M(tc.dark), dish, [0, -h * 0.35, 0]);
+    if (style === 'armored') { mesh(box(0.2, 0.15, 0.025), M(tc.second), dish); for (let i = 0; i < 3; i++) mesh(box(0.18, 0.006, 0.006), M(tc.accent), dish, [0, -0.05 + i * 0.05, 0.016], null, flat); }
+    else if (style === 'assault') mesh(cone(0.11, 0.06, 6), M(tc.second), dish, null, [Math.PI / 2, 0, 0]);
+    else mesh(sph(0.1, 14), M(tc.second), dish).scale.set(1, 1, 0.3);
+    mesh(sph(0.018, 6), glow(tc.eye), dish, [0, 0, 0.035], null, flat);
+    mesh(cyl(0.005, 0.005, h * 1.5, 5), M(INK), frame, [w * 0.32, cy + h * 1.1, -dp * 0.3], [0, 0, -0.18], flat);
+  } else if (fid === 't_assault') {
+    // forward chest blades: a striker's ram
+    for (const sx of [-1, 1]) sigPlate(style, w * 0.14, h * 0.75, dp * 0.55, M(tc.trim), frame, [sx * w * 0.34, cy + h * 0.05, dp * 0.7], [0.55, 0, sx * -0.35]);
+  } else if (fid === 't_heavy') {
+    // a thick armoured collar the head sinks into, and a sloped front glacis
+    sigPlate(style, w * 1.1, h * 0.26, dp * 1.12, M(tc.second), frame, [0, cy + h * 0.5, 0]);
+    for (const sx of [-1, 1]) sigPlate(style, w * 0.16, h * 0.42, dp * 0.9, M(tc.main), frame, [sx * w * 0.38, cy + h * 0.72, -dp * 0.05]);
+    sigPlate(style, w * 0.95, h * 0.6, dp * 0.28, M(tc.main), frame, [0, cy - h * 0.02, dp * 0.62], [0.3, 0, 0]);
+  } else if (fid === 't_fortress') {
+    // no head: a cockpit slit in a raised roof, a bulwark apron over the hips, twin smokestacks
+    sigPlate(style, w * 1.02, h * 0.45, dp * 1.02, M(tc.main), frame, [0, cy + h * 0.68, 0]);
+    mesh(box(w * 0.55, 0.028, 0.02), glow(tc.eye), frame, [0, cy + h * 0.66, dp * 0.52], null, flat);
+    for (const sx of [-1, 1]) sigPlate(style, w * 0.5, h * 0.62, dp * 0.2, M(tc.second), frame, [sx * w * 0.28, cy - h * 0.42, dp * 0.66], [-0.12, sx * 0.18, 0]);
+    for (const sx of [-1, 1]) { mesh(cyl(0.032, 0.038, h * 1.1, 8), M(tc.dark), frame, [sx * w * 0.24, cy + h * 0.95, -dp * 0.42]); mesh(cyl(0.04, 0.04, 0.02, 8), M(INK), frame, [sx * w * 0.24, cy + h * 1.5, -dp * 0.42], null, flat); }
+  } else if (fid === 't_proto') {
+    // an open chest with the reactor tube on show, and twin energy fins
+    mesh(cyl(0.042, 0.042, h * 0.95, 10), glow(G, 0.85), frame, [0, cy, dp * 0.55], null, flat);
+    for (const sx of [-1, 1]) mesh(box(0.016, h, 0.016), M(tc.dark), frame, [sx * 0.055, cy, dp * 0.6], null, flat);
+    for (const sx of [-1, 1]) sigPlate(style, 0.022, h * 0.9, dp * 0.9, M(tc.second), frame, [sx * w * 0.36, cy + h * 0.7, -dp * 0.62], [-1.0, 0, sx * -0.55]);
+  } else if (fid === 's_frame') {
+    // floating shield plates held above the shoulders
+    R.floaters = [];
+    for (const sx of [-1, 1]) {
+      const g = new T.Group(); g.position.set(sx * w * 0.78, cy + h * 0.85, 0); frame.add(g); R.floaters.push(g);
+      if (style === 'armored') mesh(box(0.03, 0.2, 0.2), M(tc.second), g); else mesh(cyl(0.12, 0.12, 0.024, 6), M(tc.second), g, null, [0, 0, Math.PI / 2]);
+      mesh(tor(0.1, 0.007), glow(G), g, null, [0, Math.PI / 2, 0], flat);
+    }
+  } else if (fid === 'c_sing') {
+    // a gyro ring round the chest about a dark singularity
+    const ring = new T.Group(); ring.position.set(0, cy, 0); frame.add(ring); R.gyro = ring;
+    mesh(tor(w * 0.82, 0.02), M(tc.second), ring);
+    mesh(tor(w * 0.82, 0.008), glow(G), ring, null, [Math.PI / 2, 0, 0], flat);
+    mesh(sph(0.065, 12), toon(0x0b0d12), frame, [0, cy, dp * 0.55]);
+    mesh(tor(0.075, 0.008), glow(G), frame, [0, cy, dp * 0.57], null, flat);
+  } else if (fid === 's_core') {
+    // crystal growths on the shoulders and back
+    for (const [x, y, z, rr] of [[-w * 0.42, h * 0.78, -dp * 0.2, 0.06], [w * 0.42, h * 0.85, -dp * 0.25, 0.07], [0, h * 1.0, -dp * 0.45, 0.085], [w * 0.15, h * 0.65, -dp * 0.55, 0.05], [-w * 0.18, h * 0.6, -dp * 0.55, 0.045]]) {
+      const c = mesh(oct(rr), glow(G, 0.9), frame, [x, cy + y, z]); c.scale.y = 1.9;
+    }
+  }
+}
+// the head, shaped by the chassis
+function shapeHead(hd, tc, style, type, h) {
+  const G = tc.glow || tc.eye;
+  if (type === 'sunk') { hd.position.y -= h * 0.1; hd.scale.setScalar(0.9); }
+  else if (type === 'visor') { hd.scale.setScalar(0.78); mesh(box(0.16, 0.018, 0.02), glow(tc.eye), hd, [0, 0.05, 0.075], null, flat); mesh(box(0.012, 0.012, 0.14), toon(tc.trim), hd, [0, 0.09, -0.02], [0.3, 0, 0], flat); }
+  else if (type === 'mast') { hd.scale.setScalar(0.85); mesh(cyl(0.008, 0.008, 0.16, 5), toon(INK), hd, [-0.03, 0.15, -0.02], null, flat); mesh(sph(0.016, 6), glow(tc.eye), hd, [-0.03, 0.235, -0.02], null, flat); }
+  else if (type === 'horns') { for (const sx of [-1, 1]) mesh(cone(0.018, 0.14, 5), toon(tc.trim), hd, [sx * 0.06, 0.12, 0.0], [0.25, 0, sx * -0.55]); }
+  else if (type === 'small') hd.scale.setScalar(0.62);
+  else if (type === 'crest') mesh(style === 'assault' ? wedge(0.016, 0.12, 0.12, 0.3, 0.6) : box(0.016, 0.1, 0.12), toon(tc.second), hd, [0, 0.13, -0.01]);
+  else if (type === 'crystal') { while (hd.children.length) hd.remove(hd.children[0]); const c = mesh(oct(0.06), glow(G, 0.9), hd, [0, 0.07, 0]); c.scale.y = 1.6; mesh(sph(0.014, 6), glow(tc.eye), hd, [0, 0.07, 0.05], null, flat); return null; }
+  return undefined;
+}
+
 function buildPack(bp, tc, style, w, h, R) {
   R.thrusters = [];
   const thr = (x, y, z) => {
@@ -608,9 +699,14 @@ function buildMech(m, owner, doctrine, opt) {
     if (opt.ghosts) { mesh(box(w, h + 0.08, dp), GHOST, frame, [0, cy, 0], null, flat); mesh(box(0.1, 0.09, 0.1), GHOST, frame, [0, 0.08 + h + 0.05, 0], null, flat); tag(frame, 'torso'); }
   } else {
     buildChest(frame, tc, style, fid, w, h, dp, cy);
-    const hd = new T.Group(); hd.position.set(0, 0.08 + h + 0.01, style === 'armored' ? 0.02 : 0); frame.add(hd); R.head = hd;
-    const eye = buildHead(hd, tc, style);
-    if (eye) R.monoEye = eye;
+    buildSignature(frame, tc, style, fid, w, h, dp, cy, R);
+    const htype = HEAD_TYPE[fid];
+    if (htype !== 'none') {
+      const hd = new T.Group(); hd.position.set(0, 0.08 + h + 0.01, style === 'armored' ? 0.02 : 0); frame.add(hd); R.head = hd;
+      let eye = buildHead(hd, tc, style);
+      if (shapeHead(hd, tc, style, htype, h) === null) eye = null;
+      if (eye) R.monoEye = eye;
+    }
     tag(frame, 'torso');
     if (isHurt(S.torso)) R.sparks.push(frame);
   }
@@ -634,7 +730,7 @@ function buildMech(m, owner, doctrine, opt) {
   for (const [key, sx] of [['armL', -1], ['armR', 1]]) {
     const sh = new T.Group(); sh.position.set(sx * (w / 2 + 0.055), cy + h * 0.3, 0); torso.add(sh);
     const inst = S[key];
-    if (S.torso) shoulderArmor(sh, sx, tc, style, k);
+    if (S.torso) shoulderArmor(sh, sx, tc, style, fid === 't_skirm' ? k * 0.6 : k);
     if (!inst) {
       if (opt.ghosts) { mesh(box(0.065, 0.15, 0.075), GHOST, sh, [0, -0.075, 0], null, flat); mesh(box(0.075, 0.075, 0.14), GHOST, sh, [0, -0.15, 0.07], null, flat); }
       tag(sh, key);
@@ -670,10 +766,10 @@ function buildMech(m, owner, doctrine, opt) {
   if (S.torso) {
     buildPack(bp, tc, style, w, h, R);
     const n = S.torso ? (Dd[S.torso.id].auxSlots || 0) : 0;
-    const spots = [[-w * 0.38, 0.05, -0.04], [w * 0.38, 0.05, -0.04], [0, -h * 0.05, -0.08]];
+    const spots = [[-w * 0.36, h * 0.62, dp * 0.42], [w * 0.36, h * 0.62, dp * 0.42], [0, -h * 0.42, dp * 0.95]];
     for (let i = 0; i < n; i++) {
       const a = S.aux[i];
-      if (a) tag(buildAux(bp, a.id, spots[i], tc), 'aux' + i);
+      if (a) { const ag = buildAux(bp, a.id, spots[i], tc); ag.scale.setScalar(1.5); tag(ag, 'aux' + i); }
       else if (opt.ghosts) { const gg = new T.Group(); gg.position.set(spots[i][0], spots[i][1], spots[i][2]); bp.add(gg); mesh(box(0.06, 0.06, 0.05), GHOST, gg, null, null, flat); tag(gg, 'aux' + i); }
     }
   }
@@ -1621,6 +1717,8 @@ function updateRec(rec, t, dt) {
     if (R.head) R.head.rotation.y = Math.sin(t * 0.9 + rec.phase * 2) * 0.35;
     if (R.halo) R.halo.rotation.z = t * 0.7;
     if (R.monoEye) R.monoEye.position.x = Math.sin(t * 1.7 + rec.phase) * 0.032;
+    if (R.gyro) { R.gyro.rotation.y = t * 1.1; R.gyro.rotation.x = 0.4 * Math.sin(t * 0.7); }
+    if (R.floaters) R.floaters.forEach((g, i) => { g.position.y += (Math.sin(t * 2 + i * 2) * 0.004); g.rotation.x = 0.15 * Math.sin(t * 1.3 + i); });
     if (R.kind === 'biped') R.legs.forEach((hip, i) => {
       const s = i ? 1 : -1;
       if (kneel) { hip.rotation.x = i ? -1.2 : 0.2; hip.userData.knee.rotation.x = i ? 1.6 : 0.9; return; }
@@ -1743,6 +1841,8 @@ function updateViewer(t, dt) {
     if (R.head) R.head.rotation.y = Math.sin(t * 0.9) * 0.3;
     if (R.halo) R.halo.rotation.z = t * 0.7;
     if (R.monoEye) R.monoEye.position.x = Math.sin(t * 1.7) * 0.032;
+    if (R.gyro) { R.gyro.rotation.y = t * 1.1; R.gyro.rotation.x = 0.4 * Math.sin(t * 0.7); }
+    if (R.floaters) R.floaters.forEach((g, i) => { g.position.y += (Math.sin(t * 2 + i * 2) * 0.004); g.rotation.x = 0.15 * Math.sin(t * 1.3 + i); });
     if (R.core && R.coreLive) R.core.scale.setScalar(1 + 0.15 * Math.sin(t * 4));
     if (R.coreAlarm) { const k = 0.5 + 0.5 * Math.sin(t * 6); R.coreAlarm.scale.setScalar(1 + 0.35 * k); R.coreAlarm.material.opacity = 0.45 + 0.5 * k; }
     if (R.hoverGlow) R.hips.position.y += 0.03 * Math.sin(t * 2.2);
@@ -1790,6 +1890,10 @@ R3.portrait = function (doctrine) {
   if (PORTRAITS[doctrine]) return PORTRAITS[doctrine];
   const L = ARCHETYPE[doctrine];
   if (!L) return null;
+  return (PORTRAITS[doctrine] = R3.snapshot(L, doctrine));
+};
+// a picture of any loadout: { torso, core, legs, armL, armR, aux: [] }, missing parts left off
+R3.snapshot = function (L, doctrine, owner) {
   try {
     if (!PR) {
       const renderer = new T.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -1802,10 +1906,11 @@ R3.portrait = function (doctrine) {
       const holder = new T.Group(); scene.add(holder);
       PR = { renderer, scene, cam, holder, ink: { weight: 1.2 } };
     }
-    const D = DEFS(), mk = id => ({ id, hp: D[id].hp });
-    const m = { owner: 0, slots: { torso: mk(L.torso), core: mk(L.core), legs: mk(L.legs), armL: mk(L.armL), armR: mk(L.armR), aux: L.aux.map(mk) } };
+    const D = DEFS();
+    const mk = id => (id ? { id, hp: D[id].hp } : null);
+    const m = { owner: owner || 0, slots: { torso: mk(L.torso), core: mk(L.core), legs: mk(L.legs), armL: mk(L.armL), armR: mk(L.armR), aux: (L.aux || []).map(mk) } };
     while (PR.holder.children.length) PR.holder.remove(PR.holder.children[0]);
-    const R = buildMech(m, 0, doctrine, {});
+    const R = buildMech(m, owner || 0, doctrine, {});
     R.root.rotation.y = 0.55;
     // a slight stride and raised weapon arm so the pose reads as ready for battle
     if (R.legs[0] && R.kind === 'biped') { R.legs[0].rotation.x = -0.18; R.legs[1].rotation.x = 0.14; }
@@ -1818,8 +1923,7 @@ R3.portrait = function (doctrine) {
     PR.cam.position.set(c.x + dist * 0.18, c.y + dist * 0.16, c.z + dist); PR.cam.lookAt(c);
     PR.renderer.render(PR.scene, PR.cam);
     inkPass(PR.renderer, PR.scene, PR.cam, PR.holder, PR.ink);
-    PORTRAITS[doctrine] = PR.renderer.domElement.toDataURL('image/png');
-    return PORTRAITS[doctrine];
+    return PR.renderer.domElement.toDataURL('image/png');
   } catch (e) { return null; }
 };
 // show a mech on the gantry inside `el`; opt: { sel, ghosts, onPick }
