@@ -317,15 +317,28 @@ function buildLegs(R, g, id, tc, style, ghost) {
     return;
   }
   if (id === 'l_quad') {
-    R.kind = 'quad'; R.hipY = 0.38;
-    mesh(wedge(0.24, 0.09, 0.24, 0.8, 0.8), M(tc.second), g, [0, 0.35, 0]);
-    if (!ghost) mesh(cyl(0.05, 0.05, 0.03, 8), toon(tc.accent), g, [0, 0.4, 0]);
+    // a chunky four-legged walker: an armoured hub on a turret ring, legs with big round joints,
+    // thick thighs, ball knees and broad armoured shin plates on blocky feet
+    R.kind = 'quad'; R.hipY = 0.4;
+    mesh(box(0.26, 0.12, 0.26), M(tc.second), g, [0, 0.34, 0]);
+    mesh(box(0.2, 0.05, 0.2), M(tc.main), g, [0, 0.42, 0]);
+    mesh(cyl(0.085, 0.095, 0.035, 18), M(tc.dark), g, [0, 0.46, 0]);
+    if (!ghost) { for (const r2 of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) vents(g, toon(tc.dark), 3, 0.08, 0.022, [Math.sin(r2) * 0.132, 0.34, Math.cos(r2) * 0.132], [0, r2, 0]); }
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const hip = new T.Group(); hip.position.set(sx * 0.1, 0.35, sz * 0.1); hip.rotation.y = Math.atan2(sx, sz); g.add(hip); R.legs.push(hip);
-      mesh(wedge(0.06, 0.06, 0.22, 0.8, 1), M(tc.main), hip, [0, 0.03, 0.1], [-0.4, 0, 0]);
-      mesh(sph(0.035, 8), M(tc.dark), hip, [0, 0.07, 0.2]);
-      mesh(wedge(0.055, 0.32, 0.055, 1.3, 1.3), M(tc.second), hip, [0, -0.13, 0.2]);
-      if (!ghost) mesh(cone(0.03, 0.05, 6), toon(tc.dark), hip, [0, -0.3, 0.2], [Math.PI, 0, 0]);
+      const hip = new T.Group(); hip.position.set(sx * 0.12, 0.34, sz * 0.12); hip.rotation.y = Math.atan2(sx, sz); g.add(hip); R.legs.push(hip);
+      // hip: a big round joint with a capped disc
+      mesh(cyl(0.06, 0.06, 0.09, 18), M(tc.dark), hip, [0, 0, 0.02], [0, 0, Math.PI / 2]);
+      if (!ghost) for (const x of [-1, 1]) { mesh(cyl(0.045, 0.045, 0.012, 18), toon(tc.main), hip, [x * 0.048, 0, 0.02], [0, 0, Math.PI / 2], flat); mesh(cyl(0.014, 0.014, 0.014, 12), toon(tc.dark), hip, [x * 0.05, 0, 0.02], [0, 0, Math.PI / 2], flat); }
+      // thigh, angled up and out
+      mesh(box(0.1, 0.09, 0.18), M(tc.main), hip, [0, 0.05, 0.12], [-0.35, 0, 0]);
+      // knee: a ball joint with a side cap
+      mesh(sph(0.06, 16), M(tc.dark), hip, [0, 0.1, 0.22]);
+      if (!ghost) mesh(cyl(0.035, 0.035, 0.012, 16), toon(tc.second), hip, [0.06, 0.1, 0.22], [0, 0, Math.PI / 2], flat);
+      // shin: a broad armoured plate, wider at the knee, with a grid of vent holes, on a blocky foot
+      mesh(wedge(0.14, 0.42, 0.13, 1.25, 1.15), M(tc.second), hip, [0, -0.1, 0.25], [0.1, 0, 0]);
+      mesh(wedge(0.12, 0.24, 0.03, 1.2, 1), M(tc.main), hip, [0, 0.0, 0.325], [0.1, 0, 0]);
+      if (!ghost) for (const x of [-0.022, 0, 0.022]) for (const yy of [0.02, 0.045]) mesh(cyl(0.007, 0.007, 0.01, 8), toon(tc.dark), hip, [x, yy, 0.342], [Math.PI / 2 + 0.1, 0, 0], flat);
+      mesh(box(0.15, 0.06, 0.16), M(tc.dark), hip, [0, -0.32, 0.27]);
     }
     return;
   }
