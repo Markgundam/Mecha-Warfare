@@ -240,18 +240,31 @@ function buildLegs(R, g, id, tc, style, ghost) {
   const M = c => ghost ? GHOST : toon(c);
   R.legs = []; R.stakes = []; R.boosters = [];
   if (id === 'l_treads') {
-    R.kind = 'treads'; R.hipY = 0.29;
+    // a tank base: two long track units set wide apart, a low hull deck between them and a waist pedestal on a turret ring
+    R.kind = 'treads'; R.hipY = 0.34;
     for (const sx of [-1, 1]) {
-      // large: the track pods
-      mesh(wedge(0.12, 0.15, 0.4, 1, 0.82), M(tc.dark), g, [sx * 0.15, 0.08, 0]);
-      // medium: road wheels and the armoured skirt
-      for (const z of [-0.13, 0, 0.13]) mesh(cyl(0.052, 0.052, 0.125, 10), M(tc.metal), g, [sx * 0.15, 0.065, z], [0, 0, Math.PI / 2], { noOutline: true });
-      mesh(wedge(0.03, 0.1, 0.36, 1, 0.9), M(tc.main), g, [sx * 0.215, 0.11, 0]);
-      // small: hazard tab and bolts
-      if (!ghost) { mesh(box(0.032, 0.03, 0.06), toon(tc.accent), g, [sx * 0.232, 0.12, 0.12], null, flat); rivets(g, toon(tc.dark), [[sx * 0.233, 0.13, -0.06], [sx * 0.233, 0.13, 0.02]]); }
+      const x = sx * 0.2;
+      // large: the track loop, a long block with rounded ends
+      mesh(box(0.14, 0.18, 0.44), M(tc.dark), g, [x, 0.095, 0]);
+      for (const z of [-0.22, 0.22]) mesh(cyl(0.09, 0.09, 0.14, 12), M(tc.dark), g, [x, 0.095, z], [0, 0, Math.PI / 2]);
+      // medium: road wheels, the drive sprocket and the armoured fender with its side skirt
+      if (!ghost) {
+        for (const z of [-0.14, -0.045, 0.045, 0.14]) mesh(cyl(0.045, 0.045, 0.135, 10), toon(tc.metal), g, [x, 0.06, z], [0, 0, Math.PI / 2], { noOutline: true });
+        mesh(cyl(0.05, 0.05, 0.14, 8), toon(tc.accent), g, [x, 0.1, 0.22], [0, 0, Math.PI / 2], { noOutline: true });
+        for (let i = 0; i < 7; i++) mesh(box(0.135, 0.014, 0.03), toon(INK), g, [x, 0.165, -0.18 + i * 0.06], null, flat);
+      }
+      mesh(wedge(0.16, 0.05, 0.5, 0.95, 0.92), M(tc.main), g, [x, 0.2, 0]);
+      mesh(box(0.025, 0.09, 0.44), M(tc.main), g, [x + sx * 0.075, 0.14, 0]);
+      // small: a hazard tab and bolts on each skirt
+      if (!ghost) { mesh(box(0.012, 0.03, 0.07), toon(tc.accent), g, [x + sx * 0.089, 0.15, 0.14], null, flat); rivets(g, toon(tc.dark), [[x + sx * 0.089, 0.16, -0.08], [x + sx * 0.089, 0.16, 0.0], [x + sx * 0.089, 0.16, -0.16]]); }
     }
-    mesh(wedge(0.26, 0.12, 0.2, 0.85, 0.85), M(tc.second), g, [0, 0.22, 0]);
-    if (!ghost) vents(g, toon(tc.dark), 3, 0.12, 0.025, [0, 0.22, 0.102]);
+    // the hull deck between the tracks, sloped at the front
+    mesh(box(0.28, 0.07, 0.4), M(tc.second), g, [0, 0.15, -0.02]);
+    mesh(wedge(0.28, 0.07, 0.1, 1, 0.3), M(tc.second), g, [0, 0.15, 0.22], [-0.6, 0, 0]);
+    if (!ghost) vents(g, toon(tc.dark), 3, 0.14, 0.022, [0, 0.19, -0.14], [-Math.PI / 2, 0, 0]);
+    // the waist pedestal on its turret ring
+    mesh(cyl(0.13, 0.15, 0.04, 14), M(tc.dark), g, [0, 0.2, 0]);
+    mesh(wedge(0.26, 0.09, 0.22, 0.8, 0.8), M(tc.accent), g, [0, 0.265, 0]);
     return;
   }
   if (id === 'l_hover') {
@@ -791,10 +804,10 @@ function buildMech(m, owner, doctrine, opt) {
     const ls = new T.Vector3(), fs2 = new T.Vector3();
     new T.Box3().setFromObject(legsG).getSize(ls); new T.Box3().setFromObject(frame).getSize(fs2);
     const upper = 0.08 + h + 0.1;
-    let grow = style === 'assault' ? (upper * 1.15) / R.hipY : style === 'armored' ? (fs2.x * 1.1) / Math.max(0.01, ls.x) : (fs2.x * 0.95) / Math.max(0.01, ls.x);
+    let grow = R.kind === 'treads' ? (fs2.x * 1.55) / Math.max(0.01, ls.x) : style === 'assault' ? (upper * 1.15) / R.hipY : style === 'armored' ? (fs2.x * 1.1) / Math.max(0.01, ls.x) : (fs2.x * 0.95) / Math.max(0.01, ls.x);
     grow = Math.min(1.6, Math.max(0.8, grow));
     // humanoid legs get longer, not much thicker: slim under a broad chest
-    if (style === 'assault') legsG.scale.set(0.82 + (grow - 1) * 0.3, grow, 0.82 + (grow - 1) * 0.3); else legsG.scale.setScalar(grow);
+    if (style === 'assault' && R.kind !== 'treads') legsG.scale.set(0.82 + (grow - 1) * 0.3, grow, 0.82 + (grow - 1) * 0.3); else legsG.scale.setScalar(grow);
     R.hipY *= grow; hips.position.y = R.hipY;
   }
   // the whole machine fits inside one tile on the map: body and legs shrink together if it would not
