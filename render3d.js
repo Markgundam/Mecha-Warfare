@@ -129,7 +129,7 @@ function inkPass(renderer, scene, cam, top, st) {
 function layered(mat, L) {
   if (!L || mat === GHOST || mat === GHOST_SEL) return mat;
   const k = 'z' + mat.uuid + ':' + L;
-  if (!MAT[k]) { MAT[k] = mat.clone(); MAT[k].polygonOffset = true; MAT[k].polygonOffsetFactor = -0.4 * L; MAT[k].polygonOffsetUnits = -2 * L; }
+  if (!MAT[k]) { MAT[k] = mat.clone(); MAT[k].polygonOffset = true; MAT[k].polygonOffsetFactor = -1; MAT[k].polygonOffsetUnits = -4; }
   return MAT[k];
 }
 // surface detail for big plates: a recessed panel seam across the front face, and corner bolts on the largest
@@ -144,7 +144,9 @@ function panelDetail(m, g, mat) {
   if (w >= 0.2 && h >= 0.15) for (const sx of [-1, 1]) { const t = 0.82; mesh(cyl(0.008, 0.008, 0.008, 6), ink, m, [sx * (w / 2) * (1 + (tx - 1) * t) * 0.78, -h / 2 + h * t, front(t)], [Math.PI / 2, 0, 0], flat); }
 }
 function mesh(g, mat, parent, pos, rot, opt) {
-  if (parent) { const L = parent.userData.zl = (parent.userData.zl || 0) + 1; mat = layered(mat, Math.min(8, L - 1)); }
+  // decals and trim laid flat on a surface get a small, constant depth bias so they win over the surface
+  // underneath; solid parts get none, so nothing behind a part can ever poke through it as the view turns
+  if (opt && opt.noOutline) mat = layered(mat, 1);
   const m = new T.Mesh(g, mat);
   if (pos) m.position.set(pos[0], pos[1], pos[2]);
   if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
@@ -286,7 +288,7 @@ function buildLegs(R, g, id, tc, style, ghost) {
       // medium: road wheels, the drive sprocket and the armoured fender with its side skirt
       if (!ghost) {
         for (const z of [-0.14, -0.045, 0.045, 0.14]) mesh(cyl(0.045, 0.045, 0.135, 10), toon(tc.metal), g, [x, 0.06, z], [0, 0, Math.PI / 2], { noOutline: true });
-        mesh(cyl(0.05, 0.05, 0.14, 8), toon(tc.accent), g, [x, 0.1, 0.22], [0, 0, Math.PI / 2], { noOutline: true });
+        mesh(cyl(0.05, 0.05, 0.152, 8), toon(tc.accent), g, [x, 0.1, 0.22], [0, 0, Math.PI / 2], { noOutline: true });
         for (let i = 0; i < 7; i++) mesh(box(0.135, 0.014, 0.03), toon(INK), g, [x, 0.165, -0.18 + i * 0.06], null, flat);
       }
       mesh(wedge(0.16, 0.05, 0.5, 0.95, 0.92), M(tc.main), g, [x, 0.2, 0]);
@@ -1972,7 +1974,8 @@ R3.portrait = function (doctrine) {
   return (PORTRAITS[doctrine] = R3.snapshot(L, doctrine));
 };
 // a picture of any loadout: { torso, core, legs, armL, armR, aux: [] }, missing parts left off
-R3.snapshot = function (L, doctrine, owner) {
+R3.snapshot = function (L, doctrine, owner, opt) {
+  opt = opt || {};
   try {
     if (!PR) {
       const renderer = new T.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -1990,7 +1993,9 @@ R3.snapshot = function (L, doctrine, owner) {
     const m = { owner: owner || 0, slots: { torso: mk(L.torso), core: mk(L.core), legs: mk(L.legs), armL: mk(L.armL), armR: mk(L.armR), aux: (L.aux || []).map(mk) } };
     while (PR.holder.children.length) PR.holder.remove(PR.holder.children[0]);
     const R = buildMech(m, owner || 0, doctrine, {});
-    R.root.rotation.y = 0.55;
+    R.root.rotation.y = opt.rot != null ? opt.rot : 0.55;
+    const sw = opt.w || 240, shh = opt.h || 300;
+    PR.renderer.setSize(sw, shh, false); PR.cam.aspect = sw / shh; PR.cam.updateProjectionMatrix();
     // a slight stride and raised weapon arm so the pose reads as ready for battle
     if (R.legs[0] && R.kind === 'biped') { R.legs[0].rotation.x = -0.18; R.legs[1].rotation.x = 0.14; }
     if (R.arms.armR) R.arms.armR.sh.rotation.x = -0.35;
