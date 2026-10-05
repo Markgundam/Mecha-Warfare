@@ -354,8 +354,12 @@ function docTrait(doc, k) {
   if (mt && mt[k] != null) return mt[k];
   return t && t[k] != null ? t[k] : null;
 }
+const isEasy = p => !!(p && p.ai && PERSONAS[p.ai.persona] && PERSONAS[p.ai.persona].easy);
 function trait(pid, k) {
-  const p = S && S.players[pid], v = p ? docTrait(p.doctrine, k) : null;
+  const p = S && S.players[pid];
+  // the Recruit fields at most two mecha
+  if (k === 'fieldMax' && isEasy(p)) return Math.min(2, docTrait(p.doctrine, k) || C.FIELD_MAX);
+  const v = p ? docTrait(p.doctrine, k) : null;
   if (v != null) return v;
   return { fieldMax: C.FIELD_MAX, hangarMax: C.HANGAR_MAX, startMechs: 2, killVp: 0, baseHp: 0, turretShots: 1, control: 0, move: 0, ep: C.EP, draw: C.DRAW, ap: C.AP, plate: 0, plateRegen: 0, steady: 0, turretDmg: 0, heatTick: 0 }[k];
 }
@@ -791,7 +795,8 @@ function passAll(pid) {
 // supply a player collects at the end of a round, before any catch-up bonus
 function incomeOf(p) {
   const n = S.objectives.filter(o => o.type === 'depot' && o.owner === p.id).length;
-  return C.INCOME + C.DEPOT * Math.min(n, C.DEPOT_FULL) + C.DEPOT_EXTRA * Math.max(0, n - C.DEPOT_FULL);
+  const easy = isEasy(p) ? 3 : 0;   // the Recruit runs a lean factory
+  return C.INCOME - easy + C.DEPOT * Math.min(n, C.DEPOT_FULL) + C.DEPOT_EXTRA * Math.max(0, n - C.DEPOT_FULL);
 }
 function catchupOf(p) {
   const gap = Math.abs((S.players[0].vp || 0) - (S.players[1].vp || 0));
@@ -1483,6 +1488,8 @@ const PERSONAS = {
   warden: { name: 'Warden', blurb: 'Holds ground, covers it with overwatch and bleeds the attacker.', w: { aggro: 0.4, objective: 1.1, siege: 0.4, caution: 1.4, focus: 0.8, cohesion: 0.7, swarm: 0.3, tech: 0.7, hold: 0.9, overwatch: 0.95 } },
   raider: { name: 'Raider', blurb: 'Spreads out to grab objectives and race on points.', w: { aggro: 0.35, objective: 1.8, siege: 0.6, caution: 0.9, focus: 0.5, cohesion: 0.05, swarm: 0.65, tech: 0.4, hold: 0.3, overwatch: 0.4 } },
   hunter: { name: 'Hunter', blurb: 'Moves as a pack and focuses fire to destroy mecha.', w: { aggro: 0.9, objective: 1.05, siege: 0.5, caution: 0.8, focus: 1.8, cohesion: 0.75, swarm: 0.4, tech: 0.6, hold: 0.2, overwatch: 0.6 } },
+  // a gentle opponent for learning: slow to attack, rarely goes for the base, short on Supply, and never learns
+  recruit: { name: 'Recruit', easy: true, blurb: 'An easy opponent for learning: cautious, slow to attack, fields at most two mecha and is short on Supply.', w: { aggro: 0.2, objective: 0.8, siege: 0.15, caution: 1.2, focus: 0.2, cohesion: 0.5, swarm: 0.3, tech: 0.2, hold: 0.5, overwatch: 0.1 } },
   // the old single-minded AI, kept as a yardstick for testing
   classic: { name: 'Classic', hidden: true, w: { aggro: 0.5, objective: 1, siege: 1, caution: 0, focus: 0, cohesion: 0, swarm: 0.5, tech: 0.5, hold: 0, overwatch: 0.5 } }
 };
@@ -1533,9 +1540,9 @@ function chooseVariant(id, learn) {
 }
 function setupCommander(p, o) {
   if (!p.isAI) { p.ai = null; return; }
-  const ids = Object.keys(PERSONAS).filter(k => !PERSONAS[k].hidden);
+  const ids = Object.keys(PERSONAS).filter(k => !PERSONAS[k].hidden && !PERSONAS[k].easy);
   const persona = PERSONAS[o.persona] ? o.persona : ids[Math.floor(rnd() * ids.length)];
-  const learn = o.learn !== false;
+  const learn = o.learn !== false && !PERSONAS[persona].easy;
   const v = chooseVariant(persona, learn);
   p.ai = { persona, vid: v.vid, w: v.w, experiment: v.experiment, learn, adj: {}, stance: null, stanceRound: 0, vpGap: 0 };
   const pm = learn ? personaMem(persona) : null;

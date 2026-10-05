@@ -61,7 +61,23 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 #start > .menu { margin-block: auto; }
 .menu { display: flex; flex-direction: column; gap: 18px; width: 100%; max-width: 760px; margin: 0 auto; }
 .modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.modes .mode:nth-child(3) { grid-column: 1 / -1; padding-block: 12px; }
+.modes .mode:nth-child(3), .modes .mode.train { grid-column: 1 / -1; padding-block: 12px; }
+.mode.train { box-shadow: inset 0 -5px 0 var(--good); }
+.newbie { margin: -6px 0 0; font-size: 14px; color: var(--muted); }
+.newbie b { color: var(--good); }
+body.first .mode.train { order: -1; border-color: var(--good); }
+/* the training coach: a card that says what to do next, and a pulse on what to tap */
+#coach { position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 34; width: min(440px, calc(100vw - 24px)); background: var(--ink); color: var(--bg); border-left: 4px solid var(--good); border-radius: 4px; padding: 9px 12px 8px; box-shadow: 0 6px 18px rgba(0,0,0,.28); font-size: 14px; line-height: 1.4; }
+#coach.low { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+#coach .ch { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
+#coach .ch b { color: var(--good); opacity: 1; }
+#coach .cr { display: flex; justify-content: flex-end; gap: 8px; margin-top: 7px; }
+#coach .cr button { font: 600 13px var(--body); border-radius: 3px; padding: 4px 12px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--bg) 40%, transparent); background: transparent; color: var(--bg); }
+#coach .cr button.go { background: var(--good); border-color: var(--good); color: #fff; }
+#coach .wait { font-size: 12px; opacity: .7; font-style: italic; }
+.coach-hl { animation: coachPulse 1.3s ease-in-out infinite; position: relative; z-index: 2; }
+@keyframes coachPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 70%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--good) 0%, transparent), 0 0 0 3px var(--good); } }
+@media (prefers-reduced-motion: reduce) { .coach-hl { animation: none; box-shadow: 0 0 0 3px var(--good); } }
 .net-pick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .net-pick select { font: inherit; padding: 7px 10px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 3px; flex: 1; min-width: 140px; }
 .net-pick .lbl { width: 100%; }
@@ -432,6 +448,9 @@ button.slot:hover { border-color: var(--ink); }
 .btn .ico.si { width: 13px; height: 13px; margin: 0 0 0 2px; }
 .btn.sm:not(:has(small)) { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 0 2px; }
 #tip { position: fixed; z-index: 40; transform: translate(-50%, calc(-100% - 8px)); background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 600; padding: 4px 9px; border-radius: 3px; white-space: nowrap; pointer-events: none; }
+#tip.long { max-width: min(260px, 80vw); font-weight: 400; text-align: left; line-height: 1.35; padding: 7px 10px; }
+#tip b { display: block; } #tip.long b { margin-bottom: 2px; }
+#tip span { display: block; font-size: 12px; opacity: .9; }
 #tip::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: var(--ink); }
 .crate { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; animation: bob 1.4s ease-in-out infinite alternate; }
 @keyframes bob { from { transform: translateY(-4%); } to { transform: translateY(4%); } }
@@ -779,7 +798,9 @@ button.rost { cursor: pointer; }
         <button type="button" class="mode" data-start="ai"><b>Play the AI</b><span>Command Azure against a computer opponent.</span></button>
         <button type="button" class="mode" data-start="hot"><b>Two players</b><span>Two commanders share this screen.</span></button>
         <button type="button" class="mode" id="go-online"><b>Online match</b><span>Each commander plays from their own device.</span></button>
+        <button type="button" class="mode train" data-act="training"><b>Training</b><span>A guided first battle against an easy opponent. About 5 minutes.</span></button>
       </div>
+      <p class="newbie" id="newbie" hidden><b>New here?</b> Start with Training: it walks you through one round, step by step.</p>
       <div class="row menu-acts">
         <button class="btn primary" type="button" id="resume" hidden>Continue last battle</button>
         <button class="btn" type="button" data-act="recent">Recent games</button>
@@ -2009,6 +2030,59 @@ function renderWin() {
   ui.winShown = k;
 }
 
+/* ---------- Training: a scripted first battle with a coach ---------- */
+// each step says what to do; it moves on by itself once the player has done it (done), or on Next
+const myMechs = () => S.mechs.filter(m => m.owner === viewer());
+const COACH = [
+  { t: 'Welcome, commander. You win by reaching <b>' + C.VP_WIN + ' victory points</b> or by destroying the enemy base. This training walks you through one round. You command <b>Azure</b>, at the bottom of the map.', next: 'Start' },
+  { t: 'Every round opens with new cards from your Arsenal. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
+  { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. The numbered strip shows each step.', hl: '.bsteps', next: 'Next' },
+  { t: 'Not sure what something means? <b>Tap any stat or icon</b> for an explanation. Try the heart (HP) or the flame (heat).', hl: '.tot', next: 'Next' },
+  { t: 'Your mecha are ready, so tap <b>End build</b>. (You will fit new parts in later rounds.)', hl: '[data-act=endBuild]', done: () => S.phase !== 'build' || uiPhase() === 'wait' },
+  { t: 'Waiting for the enemy to finish building…', wait: true, done: () => S.phase !== 'build' },
+  { t: '<b>Deployment.</b> Pick a mech, then tap a lit tile next to your base to drop it in.', hl: '.dchip, [data-act=pickDeploy]', done: () => myMechs().length > 0 },
+  { t: 'Deploy another if you like, then tap <b>End deployment</b>.', hl: '[data-act=endDeploy]', done: () => S.phase !== 'deploy' || S.current !== viewer() },
+  { t: 'Waiting for the enemy to deploy…', wait: true, done: () => S.phase === 'combat' && isHuman() },
+  { t: '<b>Combat.</b> Commanders take turns activating one mech. Tap one of your mecha on the map: the highlighted tiles show where it can move. Tap a tile to move there.', hl: '.mrow', done: () => myMechs().some(m => m.moves > 0 || m.activated || Object.keys(m.fired || {}).length) },
+  { t: 'Now pick a <b>weapon</b>. Tiles in reach light up and each target shows your hit chance. Tap an enemy in range to fire, or finish this mech if nothing is close yet.', hl: '[data-act=weapon]', done: () => myMechs().some(m => m.activated || Object.keys(m.fired || {}).length) },
+  { t: '<b>Objectives</b> score points. Hold a <b>radar</b> (or an uplink) at the end of a round, or a <b>depot on the enemy half</b> (marked ★), and you score. Depots also pay Supply. Move onto one to take it.', next: 'Got it' },
+  { t: 'Activate your other mecha the same way. When you are done, they can hold position. The round ends once everyone has acted.', done: () => S.round >= 2 || S.phase === 'over' },
+  { t: '<b>Resolution</b> just played: heat cooled, base turrets fired, and points were scored. Your points are the ★ at the top. Keep an eye on <b>heat</b>: a mech over its limit at round end is damaged and shuts down.', next: 'Next', low: true },
+  { t: 'That is the loop: <b>build, deploy, fight, resolve</b>. In the build, tap a step on the strip to fit new parts. The <b>Rules</b> button has the full field manual. Now win this battle!', next: 'Finish' }
+];
+function startTraining() {
+  MW.newGame({ map: 'open', players: [{ name: 'Azure', doctrine: 'assault', isAI: false }, { name: 'Ember', doctrine: 'armored', isAI: true, persona: 'recruit' }] });
+  MW.S.startedAt = Date.now(); MW.S.gameId = 'training-' + MW.S.startedAt; MW.S.training = true; MW.S.coach = 0;
+  ui.endShown = null; ui.histKey = null; ui.viewMeta = null;
+  showGame();
+}
+function coachEnd(done) {
+  clearTimeout(ui.coachT);
+  const el = document.getElementById('coach'); if (el) el.remove();
+  document.querySelectorAll('.coach-hl').forEach(x => x.classList.remove('coach-hl'));
+  if (done && S) { S.coach = COACH.length; try { localStorage.setItem('mw-trained', '1'); } catch (e) { /* storage unavailable */ } }
+}
+function coachNext() { if (!S || S.coach == null) return; S.coach++; if (S.coach >= COACH.length) coachEnd(true); render(); }
+function renderCoach() {
+  document.querySelectorAll('.coach-hl').forEach(x => x.classList.remove('coach-hl'));
+  if (!S || !S.training || S.coach == null || S.coach >= COACH.length || $('#game').hidden) { const el = document.getElementById('coach'); if (el) el.remove(); return; }
+  // steps that are already done move on by themselves
+  let guard = 0;
+  while (S.coach < COACH.length && COACH[S.coach].done && COACH[S.coach].done() && guard++ < COACH.length) S.coach++;
+  if (S.coach >= COACH.length) return coachEnd(true);
+  const st = COACH[S.coach];
+  let el = document.getElementById('coach');
+  if (!el) { el = document.createElement('div'); el.id = 'coach'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  // the dock redraws on its own, so the coach checks back every half second
+  clearTimeout(ui.coachT); ui.coachT = setTimeout(renderCoach, 500);
+  if (st.hl) { const t = [...document.querySelectorAll(st.hl)].find(x => x.offsetParent !== null && !x.disabled); if (t) t.classList.add('coach-hl'); }
+  if (el.dataset.step === String(S.coach)) return;
+  el.dataset.step = S.coach;
+  el.classList.toggle('low', !!st.low);
+  el.innerHTML = '<div class="ch"><b>Training</b> step ' + (S.coach + 1) + ' of ' + COACH.length + '</div><div' + (st.wait ? ' class="wait"' : '') + '>' + st.t + '</div>' +
+    '<div class="cr"><button type="button" data-act="coachSkip">Skip training</button>' + (st.next ? '<button type="button" class="go" data-act="coachNext">' + st.next + '</button>' : '') + '</div>';
+}
+
 /* ---------- Flow ---------- */
 function render() {
   S = MW.S;
@@ -2018,6 +2092,7 @@ function render() {
   renderTop(); renderFlow(); renderTrack(); renderBoard(); renderDock(); renderWin(); renderReveal();
   if (R3on) mountHangar();
   ui.flash = null; ui.logN = S.logN || 0;
+  renderCoach();
   saveGameLocal(S);
   const hk = gameId(S) + ':' + S.round + ':' + (S.phase === 'over');
   if (ui.histKey !== hk) { ui.histKey = hk; saveHistory(); }
@@ -2144,6 +2219,9 @@ function onAct(el) {
   if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } return renderTop(); }
   if (a === 'rules') { ui.ruleTab = 0; return showRules(); }
   if (a === 'recent') return showRecent();
+  if (a === 'training') return startTraining();
+  if (a === 'coachNext') return coachNext();
+  if (a === 'coachSkip') return coachEnd(true);
   if (a === 'ruleTab') { ui.ruleTab = +el.dataset.tab; return showRules(); }
   if (a === 'deckList') return showDeck(el.dataset.doc);
   if (a === 'wtab') { ui.wtab = el.dataset.tab; ui.pg = 0; return render(); }
@@ -2299,6 +2377,11 @@ function showStart() {
   $('#resume').hidden = !last;
   if (last) $('#resume').dataset.id = last.id;
   $('#menu').hidden = false; $('#setup').hidden = true; $('#recent').hidden = true;
+  // nobody has played here yet: point them at Training
+  let trained = false; try { trained = !!localStorage.getItem('mw-trained'); } catch (e) { /* storage unavailable */ }
+  const fresh = !trained && !gamesIndex().length;
+  document.body.classList.toggle('first', fresh); $('#newbie').hidden = !fresh;
+  coachEnd(false);
 }
 function showGame() {
   applyMapDims();
@@ -2358,7 +2441,7 @@ function updateDeckLists() {
   const v0 = (document.querySelector('input[name=doc0]:checked') || {}).value, v1 = (document.querySelector('input[name=doc1]:checked') || {}).value;
   const btn = id => '<button type="button" class="btn sm ghost" data-act="deckList" data-doc="' + id + '">How ' + DOC_NAME(id) + ' fights, and all 40 cards ›</button>';
   $('#deck0').innerHTML = v0 ? btn(v0) : '';
-  const cmd = ui.startMode === 'ai' ? '<label class="cmdpick">Commander <select id="cmd1" aria-label="AI commander"><option value="random">Random</option>' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).map(k => '<option value="' + k + '"' + (ui.cmd === k ? ' selected' : '') + ' title="' + MW.PERSONAS[k].blurb + '">' + MW.PERSONAS[k].name + '</option>').join('') + '</select></label>' : '';
+  const cmd = ui.startMode === 'ai' ? '<label class="cmdpick">Commander <select id="cmd1" aria-label="AI commander"><option value="random">Random</option>' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).sort((a, b) => !!MW.PERSONAS[b].easy - !!MW.PERSONAS[a].easy).map(k => '<option value="' + k + '"' + (ui.cmd === k ? ' selected' : '') + ' title="' + MW.PERSONAS[k].blurb + '">' + MW.PERSONAS[k].name + '</option>').join('') + '</select></label>' : '';
   const btnShort = id => '<button type="button" class="btn sm ghost" data-act="deckList" data-doc="' + id + '">How ' + DOC_NAME(id) + ' fights ›</button>';
   $('#deck1').innerHTML = '<div class="deckrow">' + (v1 && v1 !== 'random' ? (cmd ? btnShort(v1) : btn(v1)) : '<span class="note">Deck picked at random.</span>') + cmd + '</div>';
 }
@@ -2572,15 +2655,50 @@ function needFlash(k) {
   document.querySelectorAll('.res [data-res="' + k + '"]').forEach(cell => { cell.classList.remove('flash'); void cell.offsetWidth; cell.classList.add('flash'); });
   toast(k === 'ep' ? 'No engineering actions left this round. Each build gets ' + C.EP + '; end the build to continue.' : 'Not enough Supply. Sell cards you won\'t use, or hold depots for more income.');
 }
+// what each stat and icon means, matched against the name it carries
+const GLOSSARY = [
+  [/^Base HP/, 'Your base. Destroy the enemy base to win outright; every ' + C.BASE_VP_PER + ' damage dealt to it also scores a victory point. Its turret shoots enemies that come close.'],
+  [/^HP/, 'Hit points. Every hit lowers them; at 0 the mech (or base) is destroyed. Hits on arms, legs and the core also damage that part.'],
+  [/^Damage/, 'HP removed by each hit. The target\'s armour takes some off, unless the weapon pierces armour.'],
+  [/^Range/, 'How many tiles away it can hit, counting straight steps (no diagonals). Rocks block the shot unless it fires over obstacles.'],
+  [/^Move/, 'Tiles a mech can travel with one move action. Each mech has 2 actions per turn (3 for Experimental).'],
+  [/^Armou?r/, 'Taken off the damage of every hit. Armour-piercing weapons ignore it.'],
+  [/^Heat/, 'Firing and boosting add heat; cooling removes some each round. Above capacity at the end of a round, the core is damaged and the mech shuts down for a round.'],
+  [/^Runs hot/, 'Adds a lot of heat when fired. Watch the mech\'s heat limit.'],
+  [/^Capacity/, 'Each part uses pips (dots) and the chassis has a budget. Over budget, the mech cannot deploy.'],
+  [/^Weapon mounts/, 'What each arm can hold: Gun, Energy, Melee or Heavy weapons. A Universal mount takes any weapon.'],
+  [/^Carries up to/, 'The heaviest chassis these legs can carry. A heavier chassis needs stronger legs.'],
+  [/chassis$/, 'Weight class: Light, Medium or Heavy. Legs must be able to carry the chassis\' class.'],
+  [/^Legs carry/, 'These legs can carry a heavier chassis than usual.'],
+  [/^Accurate/, 'Hits more often than most weapons.'], [/^Inaccurate/, 'Misses more often than most weapons.'],
+  [/^Pierces/, 'Ignores the target\'s armour.'], [/^Fires over/, 'Indirect fire: rocks and other mecha do not block it.'],
+  [/^Limited ammo/, 'Runs out after this many shots. Returning to base restocks it.'],
+  [/^Supply income/, 'Supply you collect at the end of each round: base income, plus depots you hold, plus a bonus when you are behind on points.'],
+  [/^Supply/, 'Money for fitting and repairing parts. You earn more each round, more with depots.'],
+  [/^Engineering/, 'Fitting or repairing a part uses one action. They refill every build phase.'],
+  [/^Mecha on the field/, 'How many of your mecha are deployed, and how many your doctrine allows at once.'],
+  [/^Cards left/, 'Cards still in your Arsenal deck. You draw new ones each round.'],
+  [/^On overwatch/, 'Holding fire: shoots the first enemy that ends a move in range.'],
+  [/^Kills/, 'Enemy mecha destroyed.'],
+  [/aux slots$/, 'Aux slots hold support systems such as plating, coolers and jump jets.'],
+  [/^Repairs/, 'A repair tool: restores HP to a friendly mech in range instead of dealing damage.'],
+  [/^Sets the target burning/, 'Burning targets take 1 damage at each of the next 3 round ends.'],
+  [/^Slows/, 'Slowed targets move 2 fewer tiles for a while.'], [/^Shocks/, 'A shocked target gets one fewer action next round.'],
+  [/^Extra damage to bases/, 'Multiplies the damage this weapon deals to a base.'], [/^Only fires when dug in/, 'The mech must spend an action to dig in before this weapon can fire.']
+];
+function explain(title) { const g = GLOSSARY.find(([re]) => re.test(title)); return g ? g[1] : ''; }
 function showTip(el) {
-  const t = $('#tip'), r = el.getBoundingClientRect();
-  t.textContent = el.getAttribute('title');
+  const t = $('#tip'), r = el.getBoundingClientRect(), title = el.getAttribute('title'), more = explain(title);
+  t.innerHTML = '';
+  const b = document.createElement('b'); b.textContent = title; t.append(b);
+  if (more) { const sp = document.createElement('span'); sp.textContent = more; t.append(sp); }
+  t.classList.toggle('long', !!more);
   t.hidden = false;
   const half = t.offsetWidth / 2 + 8;
   t.style.left = Math.min(window.innerWidth - half, Math.max(half, r.left + r.width / 2)) + 'px';
   t.style.top = Math.max(t.offsetHeight + 12, r.top) + 'px';
   clearTimeout(showTip.timer);
-  showTip.timer = setTimeout(() => { t.hidden = true; }, 1800);
+  showTip.timer = setTimeout(() => { t.hidden = true; }, more ? 5000 : 1800);
 }
 document.addEventListener('click', e => {
   const el = e.target.closest && e.target.closest('[title]');
