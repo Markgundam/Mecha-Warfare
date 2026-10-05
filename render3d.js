@@ -426,11 +426,18 @@ function buildWeapon(p, id, tc, sx) {
       for (const zz of [0.14, 0.26, 0.38]) mesh(box(0.07, 0.012, 0.012), D2, p, [0, 0.01, zz], null, flat);
       z = 0.46; y = 0.01; break;
     case 'w_laser':
-      mesh(wedge(0.05, 0.065, 0.21, 0.8, 0.9), toon(tc.main), p, [0, 0, 0.07]);
-      mesh(box(0.022, 0.028, 0.07), D, p, [0, 0.045, 0.06]);
-      mesh(box(0.054, 0.02, 0.05), toon(tc.second), p, [0, -0.03, 0.03]);
-      mesh(cyl(0.017, 0.017, 0.06, 8), glow(FX_COL.energy), p, [0, 0, 0.2], [Math.PI / 2, 0, 0], flat);
-      z = 0.24; break;
+      // beam rifle: body, an offset box sensor with its lens, collimator coils on the barrel,
+      // an energy-cap magazine at the rear, a foregrip and a glowing emitter
+      mesh(wedge(0.052, 0.07, 0.2, 0.85, 0.9), toon(tc.main), p, [0, 0, 0.06]);
+      mesh(box(0.036, 0.03, 0.08), toon(tc.second), p, [-0.03, 0.05, 0.05]);
+      mesh(cyl(0.011, 0.011, 0.01, 10), glow(tc.eye), p, [-0.03, 0.05, 0.092], [Math.PI / 2, 0, 0], flat);
+      mesh(box(0.04, 0.05, 0.05), toon(tc.accent), p, [0, -0.012, -0.06]);
+      mesh(box(0.022, 0.05, 0.03), D2, p, [0, -0.05, 0.11], [0.25, 0, 0]);
+      mesh(cyl(0.014, 0.014, 0.16, 12), D2, p, [0, 0.008, 0.23], [Math.PI / 2, 0, 0]);
+      for (const zz of [0.18, 0.22, 0.26]) mesh(cyl(0.02, 0.02, 0.012, 12), D, p, [0, 0.008, zz], [Math.PI / 2, 0, 0], flat);
+      mesh(cyl(0.022, 0.016, 0.03, 12), D, p, [0, 0.008, 0.31], [Math.PI / 2, 0, 0]);
+      mesh(cyl(0.011, 0.011, 0.012, 10), glow(FX_COL.energy), p, [0, 0.008, 0.327], [Math.PI / 2, 0, 0], flat);
+      z = 0.34; y = 0.008; break;
     case 'w_lance':
       mesh(cyl(0.013, 0.026, 0.46, 8), toon(tc.main), p, [0, 0, 0.21], [Math.PI / 2, 0, 0]);
       mesh(box(0.05, 0.05, 0.09), D, p, [0, 0, 0.02]);
@@ -442,11 +449,15 @@ function buildWeapon(p, id, tc, sx) {
       for (const x of [-0.02, 0.02]) mesh(wedge(0.01, 0.01, 0.08, 1, 1), toon(tc.trim), p, [x, 0, 0.15]);
       z = 0.18; break;
     case 'w_blade':
-      mesh(cyl(0.016, 0.016, 0.08, 8), D2, p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
-      mesh(box(0.06, 0.016, 0.02), toon(tc.trim), p, [0, 0, 0.07], null, flat);
-      mesh(cyl(0.012, 0.016, 0.33, 8), glow(FX_COL.melee), p, [0, 0, 0.24], [Math.PI / 2, 0, 0], flat);
-      mesh(cyl(0.024, 0.028, 0.33, 8), glow(FX_COL.melee, 0.35), p, [0, 0, 0.24], [Math.PI / 2, 0, 0], flat);
-      z = 0.39; break;
+      // beam saber: a ribbed hilt with a pommel and an emitter guard, a white-hot core inside the glowing blade
+      mesh(cyl(0.017, 0.017, 0.09, 12), D2, p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
+      for (const zz of [0.0, 0.025, 0.05]) mesh(cyl(0.02, 0.02, 0.008, 12), toon(tc.metal), p, [0, 0, zz], [Math.PI / 2, 0, 0], flat);
+      mesh(sph(0.02, 10), toon(tc.second), p, [0, 0, -0.02]);
+      mesh(cyl(0.028, 0.02, 0.025, 12), toon(tc.trim), p, [0, 0, 0.085], [Math.PI / 2, 0, 0]);
+      mesh(cyl(0.006, 0.009, 0.33, 10), glow(0xfff6fb), p, [0, 0, 0.26], [Math.PI / 2, 0, 0], flat);
+      mesh(cyl(0.014, 0.018, 0.34, 10), glow(FX_COL.melee, 0.8), p, [0, 0, 0.26], [Math.PI / 2, 0, 0], flat);
+      mesh(cyl(0.026, 0.03, 0.35, 10), glow(FX_COL.melee, 0.3), p, [0, 0, 0.26], [Math.PI / 2, 0, 0], flat);
+      z = 0.42; break;
     case 'w_ram': {
       mesh(cyl(0.052, 0.052, 0.07, 10), D, p, [0, 0, 0.02], [Math.PI / 2, 0, 0]);
       mesh(tor(0.05, 0.01), toon(tc.trim), p, [0, 0, 0.05], null, flat);
@@ -455,9 +466,13 @@ function buildWeapon(p, id, tc, sx) {
     }
     case 'w_shield': {
       const sp = new T.Group(); sp.position.set(sx * 0.07, -0.02, -0.03); p.add(sp);
+      // a layered tower shield: the main plate, an armoured rim, a second plate and a centre emblem
       mesh(wedge(0.028, 0.29, 0.21, 1, 0.8), toon(tc.main), sp);
-      mesh(box(0.03, 0.17, 0.05), toon(tc.second), sp);
-      mesh(box(0.031, 0.04, 0.14), toon(tc.accent), sp, [0, 0.07, 0]);
+      mesh(wedge(0.034, 0.3, 0.025, 1, 0.8), toon(tc.accent), sp, [0, 0, 0.1]);
+      mesh(wedge(0.034, 0.3, 0.025, 1, 0.8), toon(tc.accent), sp, [0, 0, -0.1]);
+      mesh(box(0.034, 0.17, 0.12), toon(tc.second), sp, [0, -0.04, 0]);
+      mesh(cyl(0.035, 0.035, 0.038, 6), toon(tc.trim), sp, [0, 0.07, 0], [0, 0, Math.PI / 2]);
+      mesh(cyl(0.018, 0.018, 0.042, 6), toon(tc.dark), sp, [0, 0.07, 0], [0, 0, Math.PI / 2], flat);
       rivets(sp, toon(tc.dark), [[sx * 0.016, 0.12, 0.07], [sx * 0.016, 0.12, -0.07], [sx * 0.016, -0.12, 0.06], [sx * 0.016, -0.12, -0.06]].map(q => [q[0], q[1], q[2]]));
       z = 0.05; break;
     }
@@ -466,16 +481,27 @@ function buildWeapon(p, id, tc, sx) {
       for (const x of [-1, 1]) mesh(box(0.012, 0.012, 0.075), toon(tc.trim), p, [x * 0.019, 0, 0.13], [0, x * 0.4, 0]);
       mesh(sph(0.015, 8), glow(FX_COL.support), p, [0, 0, 0.15], null, flat); z = 0.16; break;
     case 'w_missile':
-      mesh(wedge(0.12, 0.1, 0.15, 0.9, 0.85), toon(tc.second), p, [0, 0, 0]);
-      for (const [x, yy] of [[-0.028, -0.022], [0.028, -0.022], [-0.028, 0.022], [0.028, 0.022]]) mesh(cyl(0.015, 0.015, 0.02, 8), toon(INK), p, [x, yy, 0.076], [Math.PI / 2, 0, 0], { noOutline: true });
-      mesh(box(0.125, 0.015, 0.02), toon(tc.trim), p, [0, 0.055, 0.05], null, flat);
-      z = 0.08; break;
+      // missile rack: an armoured box, a grid of recessed tubes with warheads inside, a hinged lid and side vents
+      mesh(box(0.15, 0.11, 0.16), toon(tc.second), p, [0, 0, 0]);
+      mesh(box(0.13, 0.09, 0.012), D2, p, [0, 0, 0.078], null, flat);
+      for (const x of [-0.04, 0, 0.04]) for (const yy of [-0.022, 0.022]) {
+        mesh(cyl(0.016, 0.016, 0.03, 12), toon(INK), p, [x, yy, 0.072], [Math.PI / 2, 0, 0], flat);
+        mesh(sph(0.009, 8), toon(0xb8453a), p, [x, yy, 0.07], null, flat);
+      }
+      mesh(box(0.155, 0.014, 0.17), toon(tc.main), p, [0, 0.066, -0.005], [-0.12, 0, 0]);
+      for (const sx2 of [-1, 1]) vents(p, D2, 3, 0.07, 0.02, [sx2 * 0.077, 0, -0.01], [0, Math.PI / 2, 0]);
+      mesh(box(0.05, 0.03, 0.04), toon(tc.trim), p, [0, -0.06, -0.04], null, flat);
+      z = 0.09; break;
     case 'w_howitzer': {
       mesh(wedge(0.09, 0.08, 0.12, 0.85, 0.85), toon(tc.second), p, [0, 0, 0]);
       const b = new T.Group(); b.position.set(0, 0.02, 0.03); b.rotation.x = -0.25; p.add(b);
-      mesh(cyl(0.027, 0.031, 0.37, 10), D, b, [0, 0, 0.18], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.036, 0.036, 0.055, 10), D2, b, [0, 0, 0.34], [Math.PI / 2, 0, 0]);
-      mesh(box(0.012, 0.03, 0.12), toon(tc.trim), b, [0.03, 0.02, 0.1], null, flat);
+      // a breech block, recoil cylinders either side of the barrel and a slotted muzzle brake
+      mesh(box(0.07, 0.06, 0.07), toon(tc.main), b, [0, 0, 0.0]);
+      mesh(cyl(0.027, 0.031, 0.37, 14), D, b, [0, 0, 0.18], [Math.PI / 2, 0, 0]);
+      for (const x of [-0.034, 0.034]) mesh(cyl(0.011, 0.011, 0.16, 10), toon(tc.metal), b, [x, -0.012, 0.1], [Math.PI / 2, 0, 0]);
+      mesh(box(0.06, 0.052, 0.06), D2, b, [0, 0, 0.35]);
+      for (const x of [-1, 1]) mesh(box(0.008, 0.03, 0.04), toon(INK), b, [x * 0.031, 0, 0.35], null, flat);
+      mesh(box(0.012, 0.03, 0.12), toon(tc.trim), b, [0.03, 0.03, 0.06], null, flat);
       b.add(mu); mu.position.set(0, 0, 0.38); return mu;
     }
     case 's_inferno':
@@ -559,6 +585,7 @@ function buildHead(hd, tc, style) {
       mesh(wedge(0.012, 0.09, 0.012, 0.3, 1), toon(tc.trim), hd, [sx * 0.032, 0.11, 0.042], [0, 0, -sx * 0.8]);
     }
     mesh(box(0.02, 0.02, 0.02), toon(tc.second), hd, [0, 0.09, 0.05]);
+    for (const sx of [-1, 1]) { mesh(cyl(0.007, 0.007, 0.03, 8), toon(INK), hd, [sx * 0.04, 0.072, 0.072], [Math.PI / 2, 0, 0]); }
   } else if (style === 'armored') {
     // large: low armoured dome; medium: visor band and ear blocks; small: antenna and rivets
     mesh(wedge(0.13, 0.08, 0.12, 0.8, 0.8), toon(tc.second), hd, [0, 0.04, 0]);
