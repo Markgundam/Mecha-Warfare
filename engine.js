@@ -172,21 +172,21 @@ const DOCTRINES = {
     blurb: 'A swarm of light, fast mecha that overwhelm by numbers and speed.',
     perks: ['Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Issue parts: Striker Chassis, Booster Legs (jump), Scatter Cannon, Plasma Blade'],
     traits: { fieldMax: 4, hangarMax: 4, move: 1, ep: 5, startMechs: 3 },
-    deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 3, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 3, w_smg: 3, a_jump: 3, a_cool: 1, a_over: 1, s_inferno: 2, s_cryo: 1, s_emp: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
+    deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 3, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 2, w_smg: 2, w_gatling: 2, a_jump: 2, a_servo: 1, a_cool: 1, a_over: 1, s_inferno: 2, s_cryo: 1, s_emp: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
   },
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 3 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per enemy mech destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (ram), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { fieldMax: 2, plate: 3, plateRegen: 3, steady: 15, control: 2, killVp: 1, baseHp: 6, turretShots: 2, turretDmg: 2 },
-    deck: { l_treads: 2, l_quad: 3, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 4, w_shield: 1, a_plate: 3, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_anchor: 2, s_frame: 1, x_supply: 2, x_overtime: 2, x_repair: 1 }
+    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 3 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per 2 enemy mecha destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (ram), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { fieldMax: 2, plate: 3, plateRegen: 3, steady: 15, control: 2, killVp: 0.5, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    deck: { l_treads: 2, l_quad: 3, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 3, w_ram: 2, w_repair: 1, w_shield: 1, a_plate: 2, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_anchor: 2, s_frame: 1, x_supply: 2, x_overtime: 1, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
     perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +2 heat every round', 'Draws 3 cards a round instead of 2', 'Issue parts: Prototype Chassis (two energy mounts), Hover Skirt, Laser Rifle'],
     traits: { ap: 3, heatTick: 2, draw: 3 },
-    deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 2, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
+    deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
 
@@ -240,7 +240,7 @@ const MAPS = {
     ruins: [[4, 1], [5, 5], [4, 5], [5, 1], [2, 3], [7, 3], [1, 0], [8, 6]],
     rules: { depotVp: false, crateVp: 1, crateEvery: 1, cratePairs: true, crateMax: 6, crateBand: [2, 7], baseHp: 8, crateSupply: 2 },
     traits: { armored: { killVp: 1, move: 1 } },
-    notes: 'Bases +8 HP, crates hold +2 Supply. Armored moves +1.'
+    notes: 'Bases +8 HP, crates hold +2 Supply. Armored moves +1 and scores 1 point per kill.'
   }
 };
 const MAP_IDS = Object.keys(MAPS);
@@ -1765,10 +1765,19 @@ function aiBestTile(m) {
   const foe = S.players[1 - m.owner], eb = BASE_POS[1 - m.owner];
   const turret = foe.base.hp > 0 ? (C.TURRET_DMG + trait(foe.id, 'turretDmg')) * trait(foe.id, 'turretShots') : 0;
   const myHp = hpOf(m) + (m.plate || 0);
+  const canRamFrom = locoMode(m) === 'ram' && !m.rammed;
   let best = null;
   for (const k in r) {
     const [x, y] = k.split(',').map(Number), stay = x === m.x && y === m.y;
-    let v = 10 * (0.5 + aw.aggro) * aiAttackValue(m, x, y, stay ? m.ap : m.ap - 1);
+    const n = stay ? m.ap : m.ap - 1, av = aiAttackValue(m, x, y, n);
+    // treads can ram from here: sure damage, more if the target has nowhere to go, and it clears an enemy off an objective
+    let rv = 0;
+    if (canRamFrom && n >= 1) for (const e of S.mechs) {
+      if (e.owner === m.owner || man(e.x, e.y, x, y) !== 1) continue;
+      const nx = 2 * e.x - x, ny = 2 * e.y - y, blocked = !passable(nx, ny) || !!mechAt(nx, ny), eo = objAt(e.x, e.y);
+      rv = Math.max(rv, RAM_DMG + (blocked ? CRASH_DMG : 0) + (hpOf(e) <= RAM_DMG ? 3 : 0) + (eo && eo.type !== 'repair' ? 1.5 : 0));
+    }
+    let v = 10 * (0.5 + aw.aggro) * (av + Math.max(0, rv - av / Math.max(1, n)));
     const o = objAt(x, y);
     if (o && o.type !== 'repair' && o.owner !== m.owner) v += (1 + objWorth(o, m.owner)) * aw.objective;
     // look ahead: how much the enemy could pour into this tile next round, weighed by how much we can take
