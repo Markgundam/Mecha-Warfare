@@ -1184,7 +1184,7 @@ function statList(d) {
     if (w.shock) add('shock', 'Shocks: −1 action', 1, 1);
     if (w.needsEntrench) add('needsEntrench', 'Only fires entrenched', 1, -1);
   }
-  if (d.slot === 'legs') { add('move', 'MOVE ' + d.move, d.move, 1, 'MOVE'); if (d.carry) add('carry', 'Carries ' + MW.SIZE_NAME[d.carry].toLowerCase() + ' chassis', d.carry, 1); if (d.entrench) add('entrench', 'Can entrench', 1, 0); if (d.hull) add('hull', 'Hull +' + d.hull + ' HP', d.hull, 1, 'Hull'); }
+  if (d.slot === 'legs') { add('move', 'MOVE ' + d.move, d.move, 1, 'MOVE'); if (d.carry) add('carry', 'Carries ' + MW.SIZE_NAME[d.carry].toLowerCase() + ' chassis', d.carry, 1); if (d.entrench || d.dig) add('entrench', 'Can entrench', 1, 0); if (d.hull) add('hull', 'Hull +' + d.hull + ' HP', d.hull, 1, 'Hull'); }
   else { if (d.move) add('move', 'MOVE +' + d.move, d.move, 1, 'MOVE'); if (d.carryBonus) add('carryBonus', 'Legs carry one class heavier', 1, 1); if (d.capBonus) add('capBonus', 'Capacity +' + d.capBonus, d.capBonus, 1); }
   if (d.cooling) add('cooling', 'COOLING ' + (d.slot === 'core' ? '' : '+') + d.cooling, d.cooling, 1, 'COOLING');
   if (d.heatCap) add('heatCap', 'HEAT CAP ' + (d.slot === 'torso' ? '' : '+') + d.heatCap, d.heatCap, 1, 'HEAT CAP');

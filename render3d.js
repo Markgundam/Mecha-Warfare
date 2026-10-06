@@ -436,7 +436,7 @@ function quadStep(st, R, dt, speed) {
   const ws = R.legsG ? R.legsG.getWorldScale(new T.Vector3()).z || 1 : 1, k = R.legsG ? R.legsG.scale.x : 1;
   st.w = (st.w || 0) + ((speed > 0.02 ? 1 : 0) - (st.w || 0)) * Math.min(1, dt * 4);
   st.phase = ((st.phase || 0) + Math.min(0.55, (speed / ws) * 0.75 / Q.stride) * dt) % 1;
-  const w = st.w, drop = st.crouch || 0;
+  const w = st.w, dig = st.dig || 0, drop = (st.crouch || 0) + 0.17 * dig, splay = 1 + 0.55 * dig;
   // the hub: before each leg lifts it slides over the other three and sinks a little onto them, then eases back
   let shx = 0, shz = 0, load = 0;
   Q.legs.forEach((L, i) => {
@@ -451,7 +451,7 @@ function quadStep(st, R, dt, speed) {
     if (p < 0.75) { z = Q.stride * (0.5 - p / 0.75); y = 0; }
     else { const s2 = (p - 0.75) / 0.25; z = Q.stride * (-0.5 + smooth(s2)); y = Q.lift * Math.sin(Math.PI * Math.min(1, Math.pow(s2, 0.6))); }
     // feet are offset against the hub's motion so they stay planted on the ground
-    quadSolve(L, Q, L.fx - shx, Q.sole + y * w - hubY, L.fz + z * w - shz);
+    quadSolve(L, Q, L.hx + (L.fx - L.hx) * splay - shx, Q.sole + y * w - hubY, L.hz + (L.fz - L.hz) * splay + z * w - shz);
   });
   // the upper body is fixed to the hub at the waist; only its lean follows the weight shift, on a slow soft spring
   // that lags, overshoots and settles, pivoting at the waist joint
@@ -459,7 +459,7 @@ function quadStep(st, R, dt, speed) {
   for (const [c, tgt] of [['x', shx], ['z', shz]]) { const a = sp[c]; a[1] += (om * om * (tgt - a[0]) - 2 * ze * om * a[1]) * h; a[0] += a[1] * h; }
   return {
     hubX: shx * k, hubY: hubY * k, hubZ: shz * k,
-    bodyX: shx * k, bodyZ: shz * k, bob: (hubY + drop) * k,
+    bodyX: shx * k, bodyZ: shz * k, bob: (hubY + (st.crouch || 0)) * k,
     // the body tips toward where its weight is going, and the lag swings it a little further
     roll: -sp.x[0] * 1.6 - sp.x[1] * 0.25, pitch: sp.z[0] * 1.3 + sp.z[1] * 0.2,
     yaw: 0.03 * w * Math.sin(st.phase * Math.PI * 2),
@@ -2010,7 +2010,19 @@ function updateRec(rec, t, dt) {
     const ph = t * (moving ? 9 : 1.6) + rec.phase;
     const kneel = R.kneel;
     const entr = rec.entr;
-    let hipY = R.hipY * (kneel ? 0.62 : entr ? 0.9 : 1);
+    // dig-in transition: starts when the entrenched state changes (not when a mech first appears already dug in)
+    if (rec.entrSeen === undefined) rec.entrSeen = entr;
+    if (rec.entrSeen !== entr) { rec.entrSeen = entr; rec.digT = t; rec.digFx = false; }
+    const dq = rec.digT != null ? (t - rec.digT) / 0.85 : 1;
+    const dig = dq < 1 ? digPose(entr ? dq * 0.85 : dq * 0.65, entr) : (entr ? 1 : 0);
+    if (dq < 1 && entr && dq * 0.85 >= 0.42 && !rec.digFx) {
+      rec.digFx = true;
+      const feet = R.kind === 'quad' ? R.quad.legs.map(L => L.ankle) : (R.stakes && R.stakes.length ? R.stakes.map(x => x.g) : []);
+      feet.forEach(o => { const p = new T.Vector3(); o.getWorldPosition(p); BD.group.worldToLocal(p); p.y = 0.05; smoke(p, 2, false); sparks(p, 0xcbbf9e, 4); });
+      smoke(root.position.clone().setY(0.05), 3, false);
+    }
+    if (dq < 1) lean += entr ? kf(dq * 0.85, [[0, 0], [0.25, -0.07], [0.42, 0.13, 'out'], [0.7, 0.02], [0.85, 0]]) : kf(dq * 0.65, [[0, 0], [0.15, 0.08], [0.45, -0.05, 'out'], [0.65, 0]]);
+    let hipY = R.hipY * (kneel ? 0.62 : R.kind === 'biped' ? 1 - 0.15 * Math.max(0, dig) : 1);
     if (R.kind === 'hover') { hipY += 0.03 * Math.sin(t * 2.2 + rec.phase); if (R.hoverGlow) R.hoverGlow.material.opacity = 0.4 + 0.3 * Math.sin(t * 6); }
     R.hips.position.y = hipY + (moving ? Math.abs(Math.sin(ph)) * 0.02 : Math.sin(ph) * 0.006);
     // walking like a person: the torso counter-twists against the stride and the hips sway a little
@@ -2022,9 +2034,9 @@ function updateRec(rec, t, dt) {
     if (R.gyro) { R.gyro.rotation.y = t * 1.1; R.gyro.rotation.x = 0.4 * Math.sin(t * 0.7); }
     if (R.floaters) R.floaters.forEach((g, i) => { g.position.y += (Math.sin(t * 2 + i * 2) * 0.004); g.rotation.x = 0.15 * Math.sin(t * 1.3 + i); });
     if (R.kind === 'biped') {
-      if (kneel || entr) R.legs.forEach((hip, i) => {
+      if (kneel || entr || dq < 1) R.legs.forEach((hip, i) => {
         if (kneel) { hip.rotation.x = i ? -1.2 : 0.2; hip.userData.knee.rotation.x = i ? 1.6 : 0.9; }
-        else { hip.rotation.x = -0.25; hip.userData.knee.rotation.x = 0.5; }
+        else { hip.rotation.x = -0.4 * dig; hip.userData.knee.rotation.x = 0.8 * dig; }
         if (hip.userData.ankle) hip.userData.ankle.rotation.x = -(hip.rotation.x + hip.userData.knee.rotation.x);
       });
       else {
@@ -2038,10 +2050,11 @@ function updateRec(rec, t, dt) {
     if (R.kind === 'quad') {
       const p0 = rec.gaitPos || root.position.clone(), sp = moving && dt > 0 ? Math.hypot(root.position.x - p0.x, root.position.z - p0.z) / dt : 0;
       rec.gaitPos = root.position.clone();
-      const g = quadStep(rec.gait || (rec.gait = {}), R, dt, sp);
+      const qs = rec.gait || (rec.gait = {}); qs.dig = dig;
+      const g = quadStep(qs, R, dt, sp);
       if (g) { R.legsG.position.set(g.hubX, g.hubY, g.hubZ); R.hips.position.x = g.bodyX; R.hips.position.z = g.bodyZ; R.hips.position.y += g.bob; R.hips.rotation.z = g.roll; R.torso.rotation.y += g.yaw; lean += g.pitch; }
     }
-    if (R.stakes) R.stakes.forEach(st => { st.g.rotation.z = entr ? st.sx * 0.6 : 0; st.g.position.y = entr ? -0.14 : -0.06; });
+    if (R.stakes) R.stakes.forEach(st => { const e = Math.max(0, Math.min(1, dig)); st.g.rotation.z = st.sx * 0.95 * e; st.g.position.y = -0.06 - 0.11 * e; });
     if (R.boosters) R.boosters.forEach(f => { f.visible = moving; f.scale.y = 1 + Math.random() * 0.8; });
     if (R.thrusters && !rec.drop) R.thrusters.forEach(f => { f.visible = moving && R.kind !== 'treads'; f.scale.y = 1 + Math.random(); });
   }
@@ -2425,6 +2438,11 @@ function kf(q, keys) {
   }
   return keys[keys.length - 1][1];
 }
+// digging in: a short rise (anticipation), a hard drop that overshoots (the slam), a settle (follow-through)
+const DIG_IN = [[0, 0], [0.25, -0.28, 'in'], [0.42, 1.18, 'out'], [0.62, 0.92], [0.85, 1]];
+// packing up: a push down to break free, then a lift back to standing with a small overshoot
+const DIG_OUT = [[0, 1], [0.15, 1.08], [0.45, -0.1, 'out'], [0.65, 0]];
+const digPose = (q, into) => kf(q, into ? DIG_IN : DIG_OUT);
 // a ring that spreads on the ground: dust, shockwaves, shield pops; reads well from straight above
 function pvRing(x, z, col, size, life) {
   const m = new T.Mesh(new T.RingGeometry(0.8, 1, 36), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, side: T.DoubleSide, depthWrite: false }));
@@ -2456,6 +2474,7 @@ function pvAnimate(t, dt) {
   // rest pose first; each action then layers its own keyframes on top
   for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; a.arm.rotation.z = R.style === 'assault' ? (k === 'armL' ? -0.14 : 0.14) : 0; a.el.rotation.x = a.rest != null ? a.rest : -Math.PI / 2; }
   if (R.legs && R.kind !== 'biped') R.legs.forEach(hip => { hip.rotation.x = 0; if (hip.userData.knee) hip.userData.knee.rotation.x = 0; });
+  if (R.stakes && act !== 'entrench') R.stakes.forEach(st2 => { st2.g.rotation.z = 0; st2.g.position.y = -0.06; });
   PV.bubble.material.opacity = 0; PV.bubble.scale.setScalar(1);
   const c = PV.frame.c, fwd = pvFwd(), side = k => (k === 'armL' ? -1 : 1);
   const once = (key, fn) => { if (!PV.done) PV.done = {}; if (!PV.done[key]) { PV.done[key] = true; PV.scene.updateMatrixWorld(true); fn(); } };
@@ -2537,6 +2556,22 @@ function pvAnimate(t, dt) {
     PV.bubble.position.copy(c);
     if (q >= 0.3) once('pop', () => pvRing(c.x, c.z, 0x8fdcff, 0.85, 0.5));
     if (q > 2.5) PV.act = 'idle';
+  } else if (act === 'entrench') {
+    // rise, slam down into the ground with dust at every foot, hold dug in, then pack up
+    const into = q < 2.1, dg = into ? digPose(q, true) : digPose(q - 2.1, false);
+    if (R.kind === 'quad') { (PV.gait || (PV.gait = {})).dig = dg; }
+    else crouch = 0.16 * dg;
+    root.rotation.x = into ? kf(q, [[0, 0], [0.25, -0.07], [0.42, 0.13, 'out'], [0.7, 0.02], [0.85, 0.03]]) : kf(q - 2.1, [[0, 0.03], [0.15, 0.08], [0.45, -0.05, 'out'], [0.65, 0]]);
+    root.position.y = into ? kf(q, [[0, 0], [0.25, 0.03, 'in'], [0.42, 0, 'out']]) : kf(q - 2.1, [[0, 0], [0.45, 0.025, 'out'], [0.65, 0]]);
+    for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = kf(q, [[0, 0], [0.25, 0.35], [0.42, -0.25, 'out'], [0.8, -0.1], [2.1, -0.1], [2.75, 0]]); }
+    if (R.stakes) R.stakes.forEach(st2 => { const e = Math.max(0, Math.min(1, dg)); st2.g.rotation.z = st2.sx * 0.95 * e; st2.g.position.y = -0.06 - 0.11 * e; });
+    if (q >= 0.42) once('slam', () => {
+      const feet = R.kind === 'quad' ? R.quad.legs.map(L => L.ankle) : (R.stakes && R.stakes.length ? R.stakes.map(x => x.g) : (R.legs || []).map(h => h.userData.ankle).filter(Boolean));
+      feet.forEach(o => { const p = new T.Vector3(); o.getWorldPosition(p); pvRing(p.x, p.z, 0xcbbf9e, 0.38, 0.55); pvSparks(new T.Vector3(p.x, 0.04, p.z), 0xcbbf9e); });
+      pvRing(c.x, c.z, 0xd9d2c3, 1.0, 0.7);
+    });
+    if (q >= 2.55) once('lift', () => pvRing(c.x, c.z, 0xd9d2c3, 0.7, 0.45));
+    if (q > 2.9) PV.act = 'idle';
   } else if (act === 'hit') {
     // knocked back and twisted, arms flung out, then a staggered recovery
     root.position.z = kf(q, [[0, 0], [0.08, -0.2, 'out'], [0.4, -0.14], [0.9, 0]]);
@@ -2571,7 +2606,7 @@ function pvAnimate(t, dt) {
       if (act === 'walk') for (const k in R.arms) R.arms[k].arm.rotation.x += -(k === 'armL' ? g.swing[1] : g.swing[0]) * (R.style === 'armored' ? 0.55 : 0.85);
     }
   } else if (R.kind === 'quad') {
-    const st = PV.gait || (PV.gait = {}); st.crouch = crouch * 1.3;
+    const st = PV.gait || (PV.gait = {}); st.crouch = crouch * 1.3; if (act !== 'entrench') st.dig = 0;
     const g = quadStep(st, R, dt, speed);
     if (g) { R.legsG.position.set(g.hubX, g.hubY, g.hubZ); R.hips.position.x = g.bodyX; R.hips.position.z = g.bodyZ; hipY += g.bob - st.crouch * R.legsG.scale.y; R.hips.rotation.z += g.roll; R.hips.rotation.x = g.pitch; R.torso.rotation.y += g.yaw; }
   } else hipY -= crouch * (R.legsG ? R.legsG.scale.y : 1);

@@ -44,7 +44,7 @@ const DEFS = {};
   // Legs
   { id: 'l_boost', name: 'Booster Legs', slot: 'legs', cost: 4, en: 2, hp: 4, capacity: 9, move: 4, moveHeat: 1 },
   { id: 'l_treads', name: 'Heavy Treads', slot: 'legs', cost: 4, hp: 10, capacity: 24, move: 3, armor: 1 },
-  { id: 'l_quad', name: 'Quad Walker', slot: 'legs', cost: 5, hp: 8, capacity: 18, move: 3 },
+  { id: 'l_quad', name: 'Quad Walker', slot: 'legs', cost: 5, hp: 8, capacity: 18, move: 3, dig: true },
   { id: 'l_hover', name: 'Hover Skirt', slot: 'legs', cost: 4, en: 3, hp: 4, capacity: 11, move: 4 },
   { id: 'l_biped', name: 'Reinforced Biped', slot: 'legs', cost: 3, hp: 7, capacity: 15, move: 3 },
 
@@ -129,7 +129,7 @@ const LOCO = {
   l_biped: { mode: 'surefoot', modeText: 'Sure-footed: cannot be knocked back' },
   l_boost: { mode: 'jump', modeText: 'Jump: moves over rocks, ruins and mecha' },
   l_treads: { mode: 'ram', modeText: 'Ram: smash an adjacent enemy for 3 and shove it back' },
-  l_quad: { mode: 'stable', modeText: 'Stable: heavy weapons keep full accuracy after moving' },
+  l_quad: { mode: 'stable', modeText: 'Stable: heavy weapons keep full accuracy after moving. Can dig in for +1 armour' },
   l_hover: { mode: 'hover', modeText: 'Hover: immune to slowing' },
   s_anchor: { mode: 'entrench', modeText: 'Entrench: dig in to fire siege guns' }
 };
@@ -428,13 +428,15 @@ function weaponsOf(m) {
   }
   return out;
 }
-const canEntrench = m => { const l = m.slots.legs; return !!l && l.hp > 0 && !!DEFS[l.id].entrench; };
+// legs that dig in: Siege Anchors (and must, before firing) and Quad Walkers (when they choose to)
+const digsIn = id => !!DEFS[id] && !!(DEFS[id].entrench || DEFS[id].dig);
+const canEntrench = m => { const l = m.slots.legs; return !!l && l.hp > 0 && digsIn(l.id); };
 // Siege Anchors lock every weapon until the mech digs in; the railgun needs to be dug in wherever it is mounted
 function weaponLock(m, key) {
   const inst = getSlot(m, key);
   if (!inst || !DEFS[inst.id].weapon || m.entrenched) return null;
   const w = DEFS[inst.id].weapon, l = m.slots.legs, anchored = !!l && !!DEFS[l.id].entrench;
-  if (w.needsEntrench && !anchored) return 'Needs Siege Anchors';
+  if (w.needsEntrench && !(l && digsIn(l.id))) return 'Needs legs that dig in';
   if (w.needsEntrench || anchored) return 'Entrench first';
   return null;
 }
@@ -1303,7 +1305,7 @@ function unentrench(m) {
   if (!m.entrenched) return fail(m.name + ' is not entrenched.');
   S.active = m.uid; m.ap--; m.entrenched = false;
   fxFloat(m.x, m.y, 'Packed up', 'info');
-  log(m.name + ' pulls up its anchors.', 'p' + m.owner);
+  log(m.name + (DEFS[m.slots.legs.id].entrench ? ' pulls up its anchors.' : ' rises out of its dug-in stance.'), 'p' + m.owner);
   settle();
   return OK;
 }
@@ -1805,7 +1807,8 @@ function aiCombatStep() {
       if (move(m, x, y).ok) return true;
     }
   }
-  if (canEntrench(m)) {
+  const anchoredLegs = !!DEFS[m.slots.legs.id].entrench;
+  if (canEntrench(m) && (anchoredLegs || m.entrenched || weaponsOf(m).some(wp => wp.w.needsEntrench || mountOf(wp.def) === 'heavy'))) {
     if (m.entrenched) {
       const atk = aiBestAttack(m);
       if (atk && fire(m, atk.key, atk.target, atk.part).ok) { m.idle = 0; return true; }
@@ -1913,7 +1916,7 @@ function aiDesign(p, m) {
     for (const wp of weaponsOf(tmp)) {
       const w = wp.w;
       if (w.repair) continue;
-      if (w.needsEntrench && !DEFS[tmp.slots.legs.id].entrench) continue;
+      if (w.needsEntrench && !digsIn(tmp.slots.legs.id)) continue;
       fp += (w.dmg + st.dmgBonus) * (w.shots || 1) * Math.min(95, w.acc) / 100 * (1 + effRange(w, st) / 8) + (w.ap ? 1 : 0) + (w.siege ? 1 : 0) + (w.heatDmg ? 0.5 : 0);
       heat += w.heat + st.shotHeat;
       fp += (w.burn ? 1.5 : 0) + (w.slow ? 0.8 : 0) + (w.shock ? 1 : 0);
