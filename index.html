@@ -344,7 +344,7 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 @keyframes winin { from { transform: translateY(24px); } to { transform: none; } }
 #win-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 #win-head h2 { font-size: 22px; line-height: 1; color: var(--pc, var(--ink)); flex: 1; min-width: 0; }
-#win-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+#win-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 #win-body h3 { font-size: 18px; }
 .phead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .pill { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border: 1px solid currentColor; white-space: nowrap; }
@@ -356,7 +356,8 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 .res div.flash { animation: resflash 1s ease-out 1; }
 .res div.flash .rico, .res div.flash b { color: var(--bad); }
 @keyframes resflash { 0% { background: color-mix(in srgb, var(--bad) 35%, var(--raised)); box-shadow: inset 0 0 0 2px var(--bad); transform: translateX(-3px); } 15% { transform: translateX(3px); } 30% { transform: translateX(-2px); } 45% { transform: none; } 100% { background: var(--raised); box-shadow: none; } }
-.res .rico { width: 22px; height: 22px; color: var(--muted); }
+.res .rico { width: 18px; height: 18px; color: var(--muted); }
+.pin.slim .res div { padding: 4px 8px; } .pin.slim .res b { font-size: 19px; } .pin.slim .res span { font-size: 9px; }
 .res div:last-child { border-right: 0; }
 .res p { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; }
 .res p span { flex-basis: 100%; }
@@ -367,9 +368,9 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 .tab.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .tab i { font-style: normal; font-family: var(--mono); font-size: 10px; margin-left: 6px; opacity: .8; }
 /* frame tabs: one card per mech in the hangar, with its readiness in colour */
-.tabs.frames { display: grid; gap: 6px; margin-bottom: 6px; }
-.ftab { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 7px 10px; border-radius: 4px; border: 2px solid transparent; min-width: 0; color: #fff; text-align: left; }
-.ftab b { font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabs.frames { display: grid; gap: 6px; padding: 2px 3px 0; }
+.ftab { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 10px; border-radius: 4px; border: 2px solid transparent; min-width: 0; color: #fff; text-align: left; }
+.ftab b { font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ftab i { margin-left: 0; text-transform: uppercase; letter-spacing: .05em; opacity: .9; }
 .ftab.ready { background: var(--good); color: var(--bg); }
 .ftab.building { background: var(--warn); color: #1b1408; }
@@ -454,8 +455,8 @@ button.slot:hover { border-color: var(--ink); }
 .h3d .bstep { background: rgba(14, 20, 27, .82); border-color: #3a4855; color: #eef3f6; padding: 4px 6px; }
 .h3d .bstep small, .h3d .bstep em { color: #a9b6c0; }
 .h3d .bstep.on { outline-color: #f4c431; }
-.plist { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 4px; margin-top: 6px; }
-.pl { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 8px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); font: inherit; min-width: 0; }
+.plist { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(92px, 1fr); gap: 4px; overflow-x: auto; overflow-y: hidden; height: 42px; scrollbar-width: none; }
+.pl { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 3px 8px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); font: inherit; min-width: 0; }
 button.pl { cursor: pointer; } button.pl:hover { border-color: var(--ink); }
 .pl small { font: 500 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .pl b { font-size: 13px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -742,7 +743,21 @@ button.rost { cursor: pointer; }
 .wtabs { display: flex; gap: 3px; flex: none; }
 .wtab { flex: 1; min-width: 0; padding: 6px 4px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-weight: 600; font-size: 13px; cursor: pointer; border-radius: 3px 3px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wtab.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.tabbody { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+.tabbody { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+/* the hangar: the biggest thing on the screen, and the same size whatever is around it */
+.tabbody > .h3d { flex: 1 1 0; min-height: 200px; }
+.tabbody > .tabs.frames, .tabbody > .plist, .tabbody > .slotline { flex: none; }
+.tabbody > .slotline { height: 32px; flex-wrap: nowrap; overflow: hidden; }
+.tabbody > .slotline > .note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the mech's totals sit on the hangar, dark and translucent */
+.h3d-top { position: absolute; left: 6px; right: 6px; top: 6px; z-index: 2; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
+.h3d-top .tot { width: 100%; background: rgba(14, 20, 27, .72); border-color: rgba(255, 255, 255, .14); }
+.h3d-top .tot div { padding: 3px 6px; gap: 5px; border-color: rgba(255, 255, 255, .1); }
+.h3d-top .tot b { font-size: 15px; color: #eef3f6; } .h3d-top .tot span { color: #a9b6c0; font-size: 8px; }
+.h3d-top .tot .tico { width: 15px; height: 15px; color: #a9b6c0; }
+.h3d-top .tot .over b, .h3d-top .tot .over span, .h3d-top .tot .over .tico { color: #ff8a80; }
+.h3d-top .chips .chip { background: rgba(14, 20, 27, .72); color: #eef3f6; border-color: rgba(255, 255, 255, .14); }
+.h3d-top .h3d-warn { position: static; }
 .cardgrid { display: grid; gap: 6px; flex: 1; min-height: 0; }
 .partscroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
 .partscroll > .lbl { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: 2px 0; }
@@ -1967,8 +1982,8 @@ function panelBase(p) {
   if (!m || !build) ui.slotSel = null;
   const tabList = [['frame', 'Frame']].concat(build ? [['cards', 'Parts']] : []).concat([['enemy', 'Enemy']]);
   if (!tabList.some(t => t[0] === ui.wtab)) ui.wtab = 'frame';
-  let h = '<div class="pin"><div class="res"><div title="Supply" aria-label="Supply" data-res="supply">' + ico('supply', 'rico') + '<p>' + rb('supply', p.supply) + '<small class="rinc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</small><span>Supply</span></p></div><div title="Engineering actions left" aria-label="Engineering" data-res="ep">' + ico('eng', 'rico') + '<p>' + rb('ep', p.ep) + '<span>Actions</span></p></div><div title="Cards left in your Arsenal deck" aria-label="Deck">' + ico('deck', 'rico') + '<p><b>' + p.deck.length + '</b><span>Deck</span></p></div><div title="Mecha on the field" aria-label="Fielded">' + ico('torso', 'rico') + '<p><b>' + MW.fieldMechs(p.id).length + '/' + MW.fieldMax(p.id) + '</b><span>Field</span></p></div></div>' +
-    (m ? '<span class="lbl">' + m.name + ' totals · ' + (MW.issues(m).length ? 'not ready' : MW.role(m)) + '</span>' + statBlock(m, false) : '') + '</div>';
+  let h = '<div class="pin' + (ui.wtab === 'frame' ? ' slim' : '') + '"><div class="res"><div title="Supply" aria-label="Supply" data-res="supply">' + ico('supply', 'rico') + '<p>' + rb('supply', p.supply) + '<small class="rinc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</small><span>Supply</span></p></div><div title="Engineering actions left" aria-label="Engineering" data-res="ep">' + ico('eng', 'rico') + '<p>' + rb('ep', p.ep) + '<span>Actions</span></p></div><div title="Cards left in your Arsenal deck" aria-label="Deck">' + ico('deck', 'rico') + '<p><b>' + p.deck.length + '</b><span>Deck</span></p></div><div title="Mecha on the field" aria-label="Fielded">' + ico('torso', 'rico') + '<p><b>' + MW.fieldMechs(p.id).length + '/' + MW.fieldMax(p.id) + '</b><span>Field</span></p></div></div>' +
+    (m && ui.wtab !== 'frame' ? '<span class="lbl">' + m.name + ' totals · ' + (MW.issues(m).length ? 'not ready' : MW.role(m)) + '</span>' + statBlock(m, false) : '') + '</div>';
   h += tabs(tabList, ui.wtab, 'wtab') + '<div class="tabbody">';
   const cardHTML = (d, inst) => {
     let act = '', cmp = null;
@@ -1995,15 +2010,17 @@ function panelBase(p) {
     return head + '<div class="cardgrid" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + (slice.join('') || '<p class="note">Nothing here.</p>') + '</div>' + pager(ui.pg, pages, 'pg');
   };
   if (ui.wtab === 'frame') {
-    h += '<span class="lbl">Your hangar · each frame is one mech · pick one to build</span><div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '"><b>' + x.name + '</b><i>' + { empty: 'Empty frame', building: 'Not ready', ready: 'Ready' }[stt] + '</i></button>'; }).join('') + '</div>';
+    h += '<div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '"><b>' + x.name + '</b><i>' + { empty: 'Empty frame', building: 'Not ready', ready: 'Ready' }[stt] + '</i></button>'; }).join('') + '</div>';
     if (m) {
       const is = MW.issues(m);
       const missing = MW.isBlank(m) ? [] : ['torso', 'legs'].filter(k => !m.slots[k] || m.slots[k].hp <= 0);
       const warn = missing.length ? '<div class="h3d-warn">' + missing.map(k => (build ? '<button type="button" data-act="slot" data-key="' + k + '"' : '<span') + ' class="mwarn">⚠ ' + (m.slots[k] ? MW.slotName(k) + ' destroyed' : 'No ' + MW.slotName(k).toLowerCase()) + (build ? '</button>' : '</span>')).join('') + '<small>Can’t deploy</small></div>' : '';
       if (build && !R3on) h += buildSteps(m);
-      h += R3on ? '<div class="h3d" id="h3d">' + warn + '<span class="h3d-hint">' + (build ? 'Tap + to add a part · tap a part to change it · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
-      if (R3on && !MW.isBlank(m)) h += partList(m, build);
-      if (is.length && !MW.isBlank(m)) h += '<p class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</p>';
+      const top = '<div class="h3d-top">' + (MW.isBlank(m) ? '' : statBlock(m, false)) + warn + '</div>';
+      h += R3on ? '<div class="h3d" id="h3d">' + top + '<span class="h3d-hint">' + (build ? 'Tap + to add a part · tap a part to change it · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
+      if (R3on) h += partList(m, build);
+      const issue = is.length && !MW.isBlank(m) ? '<span class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</span>' : '';
+      if (!build && !deploying) h += '<div class="slotline">' + (issue || '<span class="note">' + m.name + ' · ' + (MW.isBlank(m) ? 'empty frame' : MW.role(m)) + '</span>') + '</div>';
       if (build) {
         const inst = ui.slotSel && MW.getSlot(m, ui.slotSel);
         if (ui.slotSel) {
@@ -2014,7 +2031,7 @@ function panelBase(p) {
             line += '<button type="button" class="btn sm" data-act="remove">Remove</button>';
           }
           h += line + '<button type="button" class="btn sm primary" data-act="findParts">Find parts ›</button><button type="button" class="btn sm ghost" data-act="slotClear" title="Deselect part" aria-label="Deselect part">✕</button></div>';
-        } else h += MW.isBlank(m) ? '<div class="slotline"><span class="note">An empty frame. Tap the + on the chassis to start building ' + m.name + '.</span></div>' : '<div class="slotline"><span class="note">Tap a slot to repair, remove or find parts for it.</span><button type="button" class="btn sm ghost" data-act="dismantle">Dismantle</button></div>';
+        } else h += MW.isBlank(m) ? '<div class="slotline"><span class="note">An empty frame. Tap the + on the chassis to start building ' + m.name + '.</span></div>' : '<div class="slotline">' + (issue || '<span class="note">Tap a part to repair, remove or swap it.</span>') + '<button type="button" class="btn sm ghost" data-act="dismantle">Dismantle</button></div>';
       } else if (deploying) {
         const why = MW.canDeploy(p, m);
         h += '<button type="button" class="btn primary" data-act="pickDeploy" data-uid="' + m.uid + '"' + (why ? ' disabled' : '') + '>Deploy ' + m.name + '<small>' + (why || 'Then choose a tile next to your base') + '</small></button>';
