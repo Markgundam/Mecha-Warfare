@@ -369,9 +369,9 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 .tab i { font-style: normal; font-family: var(--mono); font-size: 10px; margin-left: 6px; opacity: .8; }
 /* frame tabs: one card per mech in the hangar, with its readiness in colour */
 .tabs.frames { display: grid; gap: 6px; padding: 2px 3px 0; }
-.ftab { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 10px; border-radius: 4px; border: 2px solid transparent; min-width: 0; color: #fff; text-align: left; }
-.ftab b { font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ftab i { margin-left: 0; text-transform: uppercase; letter-spacing: .05em; opacity: .9; }
+.ftab { display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: 3px 8px; border-radius: 4px; border: 2px solid transparent; min-width: 0; color: #fff; text-align: left; }
+.ftab b { font-size: 13px; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftab i { margin-left: 0; font-size: 9px; text-transform: uppercase; letter-spacing: .05em; opacity: .9; }
 .ftab.ready { background: var(--good); color: var(--bg); }
 .ftab.building { background: var(--warn); color: #1b1408; }
 .ftab.empty { background: transparent; color: var(--muted); border: 2px dashed var(--line); }
@@ -455,10 +455,10 @@ button.slot:hover { border-color: var(--ink); }
 .h3d .bstep { background: rgba(14, 20, 27, .82); border-color: #3a4855; color: #eef3f6; padding: 4px 6px; }
 .h3d .bstep small, .h3d .bstep em { color: #a9b6c0; }
 .h3d .bstep.on { outline-color: #f4c431; }
-.plist { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(92px, 1fr); gap: 4px; overflow-x: auto; overflow-y: hidden; height: 42px; scrollbar-width: none; }
-.pl { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 3px 8px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); font: inherit; min-width: 0; }
+.plist { display: grid; gap: 4px; overflow: hidden; height: 40px; }
+.pl { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 3px 6px; overflow: hidden; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); font: inherit; min-width: 0; }
 button.pl { cursor: pointer; } button.pl:hover { border-color: var(--ink); }
-.pl small { font: 500 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.pl small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .pl b { font-size: 13px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl.none b { color: var(--muted); font-weight: 500; } .pl.x b { color: var(--bad); text-decoration: line-through; }
 .pl.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -2010,14 +2010,14 @@ function panelBase(p) {
     return head + '<div class="cardgrid" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + (slice.join('') || '<p class="note">Nothing here.</p>') + '</div>' + pager(ui.pg, pages, 'pg');
   };
   if (ui.wtab === 'frame') {
-    h += '<div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '"><b>' + x.name + '</b><i>' + { empty: 'Empty frame', building: 'Not ready', ready: 'Ready' }[stt] + '</i></button>'; }).join('') + '</div>';
+    h += '<div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '"><b>' + x.name + '</b><i>' + { empty: 'Empty', building: 'Not ready', ready: 'Ready' }[stt] + '</i></button>'; }).join('') + '</div>';
     if (m) {
       const is = MW.issues(m);
       const missing = MW.isBlank(m) ? [] : ['torso', 'legs'].filter(k => !m.slots[k] || m.slots[k].hp <= 0);
       const warn = missing.length ? '<div class="h3d-warn">' + missing.map(k => (build ? '<button type="button" data-act="slot" data-key="' + k + '"' : '<span') + ' class="mwarn">⚠ ' + (m.slots[k] ? MW.slotName(k) + ' destroyed' : 'No ' + MW.slotName(k).toLowerCase()) + (build ? '</button>' : '</span>')).join('') + '<small>Can’t deploy</small></div>' : '';
       if (build && !R3on) h += buildSteps(m);
       const top = '<div class="h3d-top">' + (MW.isBlank(m) ? '' : statBlock(m, false)) + warn + '</div>';
-      h += R3on ? '<div class="h3d" id="h3d">' + top + '<span class="h3d-hint">' + (build ? 'Tap + to add a part · tap a part to change it · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
+      h += R3on ? '<div class="h3d" id="h3d">' + top + '</div>' : warn + blueprint(m, build);
       if (R3on) h += partList(m, build);
       const issue = is.length && !MW.isBlank(m) ? '<span class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</span>' : '';
       if (!build && !deploying) h += '<div class="slotline">' + (issue || '<span class="note">' + m.name + ' · ' + (MW.isBlank(m) ? 'empty frame' : MW.role(m)) + '</span>') + '</div>';
@@ -2069,9 +2069,9 @@ function panelBase(p) {
 }
 // the mech's parts by name under the hangar; in Build each one opens that slot
 function partList(m, build) {
-  const SHORT = { torso: 'Chassis', legs: 'Legs', armL: 'Left arm', armR: 'Right arm' };
+  const SHORT = { torso: 'Chassis', legs: 'Legs', armL: 'L arm', armR: 'R arm' };
   const keys = ['torso', 'legs', 'armL', 'armR'].concat(m.slots.torso ? Array.from({ length: MW.auxCount(m) }, (_, i) => 'aux' + i) : []);
-  return '<div class="plist">' + keys.map(k => {
+  return '<div class="plist" style="grid-template-columns:repeat(' + keys.length + ',minmax(0,1fr))">' + keys.map(k => {
     const inst = MW.getSlot(m, k), d = inst && D[inst.id], lab = SHORT[k] || 'Aux ' + (+k.slice(3) + 1);
     const cls = 'pl' + (d ? '' : ' none') + (inst && inst.hp <= 0 ? ' x' : '') + (ui.slotSel === k ? ' on' : '');
     const inner = '<small>' + lab + '</small><b>' + (d ? (k === 'torso' ? d.name.replace(' Chassis', '') : d.name) : 'Empty') + '</b>';
