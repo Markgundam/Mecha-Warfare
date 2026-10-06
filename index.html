@@ -367,13 +367,16 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 .tab.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .tab i { font-style: normal; font-family: var(--mono); font-size: 10px; margin-left: 6px; opacity: .8; }
 /* frame tabs: one card per mech in the hangar, with its readiness in colour */
-.tabs.frames { gap: 6px; margin-bottom: 6px; }
-.ftab { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 12px 6px 10px; border-radius: 4px; border-left: 4px solid var(--line); min-width: 92px; }
-.ftab b { font-size: 15px; } .ftab i { margin-left: 0; text-transform: uppercase; letter-spacing: .05em; opacity: 1; }
-.ftab.ready { border-left-color: var(--good); } .ftab.ready i { color: var(--good); }
-.ftab.building { border-left-color: var(--warn); } .ftab.building i { color: var(--warn); }
-.ftab.empty { border-style: dashed; border-left-style: solid; } .ftab.empty i { color: var(--muted); }
-.ftab.on i { color: inherit; }
+.tabs.frames { display: grid; gap: 6px; margin-bottom: 6px; }
+.ftab { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 7px 10px; border-radius: 4px; border: 2px solid transparent; min-width: 0; color: #fff; text-align: left; }
+.ftab b { font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftab i { margin-left: 0; text-transform: uppercase; letter-spacing: .05em; opacity: .9; }
+.ftab.ready { background: var(--good); color: var(--bg); }
+.ftab.building { background: var(--warn); color: #1b1408; }
+.ftab.empty { background: transparent; color: var(--muted); border: 2px dashed var(--line); }
+/* the frame being built: a heavy outline and a notch pointing down at the hangar */
+.ftab.on { outline: 3px solid var(--ink); outline-offset: 2px; }
+.ftab.on.empty { color: var(--ink); border-color: var(--ink); }
 .bp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-areas: "armL torso armR" ". core ." ". legs ."; gap: 5px; }
 .auxrow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 5px; }
 .slot { display: flex; flex-direction: column; gap: 2px; padding: 5px 7px; border: 1px solid var(--line); background: var(--raised); text-align: left; min-height: 52px; min-width: 0; border-radius: 2px; }
@@ -451,7 +454,13 @@ button.slot:hover { border-color: var(--ink); }
 .h3d .bstep { background: rgba(14, 20, 27, .82); border-color: #3a4855; color: #eef3f6; padding: 4px 6px; }
 .h3d .bstep small, .h3d .bstep em { color: #a9b6c0; }
 .h3d .bstep.on { outline-color: #f4c431; }
-.h3d .h3d-warn { top: 58px; }
+.plist { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 4px; margin-top: 6px; }
+.pl { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 8px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); font: inherit; min-width: 0; }
+button.pl { cursor: pointer; } button.pl:hover { border-color: var(--ink); }
+.pl small { font: 500 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.pl b { font-size: 13px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl.none b { color: var(--muted); font-weight: 500; } .pl.x b { color: var(--bad); text-decoration: line-through; }
+.pl.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .h3d .bstep b { font-size: 10px; } .h3d .bstep small { font-size: 10px; }
 /* an empty arm shows the weapon type its mount takes, at the arm itself */
 .hvb-box { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
@@ -459,10 +468,10 @@ button.slot:hover { border-color: var(--ink); }
 .hvb .mnt { width: 18px; height: 18px; border: 0; background: none; color: inherit; }
 /* a "+" marker on an empty part: tap it to see the parts that fit there */
 .hvb.plus { width: auto; height: auto; display: flex; flex-direction: column; align-items: center; gap: 2px; border: 0; background: none; border-radius: 0; cursor: pointer; }
-.hvb.plus i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #f4c431; color: #11161c; font: 700 26px/1 var(--body); font-style: normal; box-shadow: 0 0 0 3px rgba(14, 20, 27, .7), 0 0 14px rgba(244, 196, 49, .65); animation: pluspulse 1.6s ease-in-out infinite; }
-.hvb.plus span { font: 700 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: #fff; background: rgba(14, 20, 27, .82); padding: 1px 5px; border-radius: 2px; white-space: nowrap; }
-.hvb.plus:hover i, .hvb.plus:focus-visible i { background: #ffd95a; }
-@keyframes pluspulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+.hvb.plus i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 2px dotted #f4c431; background: rgba(14, 20, 27, .35); color: #f4c431; font: 600 22px/1 var(--body); font-style: normal; animation: pluspulse 2.4s ease-in-out infinite; }
+.hvb.plus span { font: 600 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: #f4c431; background: rgba(14, 20, 27, .6); padding: 1px 4px; border-radius: 2px; white-space: nowrap; }
+.hvb.plus:hover i, .hvb.plus:focus-visible i { border-style: solid; background: rgba(244, 196, 49, .18); }
+@keyframes pluspulse { 0%, 100% { opacity: 1; } 50% { opacity: .65; } }
 @media (prefers-reduced-motion: reduce) { .hvb.plus i { animation: none; } }
 .hvb .mnt .ico { width: 14px; height: 14px; }
 .bstep { display: flex; align-items: flex-start; gap: 4px; padding: 4px 5px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); min-width: 0; font: inherit; cursor: pointer; }
@@ -1986,13 +1995,14 @@ function panelBase(p) {
     return head + '<div class="cardgrid" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + (slice.join('') || '<p class="note">Nothing here.</p>') + '</div>' + pager(ui.pg, pages, 'pg');
   };
   if (ui.wtab === 'frame') {
-    h += '<span class="lbl">Your hangar · each frame is one mech · pick one to build</span><div class="tabs frames">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '"><b>' + x.name + '</b><i>' + { empty: 'Empty frame', building: 'Not ready', ready: 'Ready' }[stt] + '</i></button>'; }).join('') + '</div>';
+    h += '<span class="lbl">Your hangar · each frame is one mech · pick one to build</span><div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '"><b>' + x.name + '</b><i>' + { empty: 'Empty frame', building: 'Not ready', ready: 'Ready' }[stt] + '</i></button>'; }).join('') + '</div>';
     if (m) {
       const is = MW.issues(m);
       const missing = MW.isBlank(m) ? [] : ['torso', 'legs'].filter(k => !m.slots[k] || m.slots[k].hp <= 0);
       const warn = missing.length ? '<div class="h3d-warn">' + missing.map(k => (build ? '<button type="button" data-act="slot" data-key="' + k + '"' : '<span') + ' class="mwarn">⚠ ' + (m.slots[k] ? MW.slotName(k) + ' destroyed' : 'No ' + MW.slotName(k).toLowerCase()) + (build ? '</button>' : '</span>')).join('') + '<small>Can’t deploy</small></div>' : '';
       if (build && !R3on) h += buildSteps(m);
-      h += R3on ? '<div class="h3d" id="h3d">' + (build ? buildSteps(m) : '') + warn + '<span class="h3d-hint">' + (build ? 'Tap + to add a part · tap a part to change it · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
+      h += R3on ? '<div class="h3d" id="h3d">' + warn + '<span class="h3d-hint">' + (build ? 'Tap + to add a part · tap a part to change it · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
+      if (R3on && !MW.isBlank(m)) h += partList(m, build);
       if (is.length && !MW.isBlank(m)) h += '<p class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</p>';
       if (build) {
         const inst = ui.slotSel && MW.getSlot(m, ui.slotSel);
@@ -2039,6 +2049,17 @@ function panelBase(p) {
       '<span class="lbl">' + foe.name + ' on the field</span><div class="roster">' + (MW.fieldMechs(foe.id).map(x => rosterRow(x, false)).join('') || '<p class="note">None deployed.</p>') + '</div>';
   }
   return h + '</div>';
+}
+// the mech's parts by name under the hangar; in Build each one opens that slot
+function partList(m, build) {
+  const SHORT = { torso: 'Chassis', legs: 'Legs', armL: 'Left arm', armR: 'Right arm' };
+  const keys = ['torso', 'legs', 'armL', 'armR'].concat(m.slots.torso ? Array.from({ length: MW.auxCount(m) }, (_, i) => 'aux' + i) : []);
+  return '<div class="plist">' + keys.map(k => {
+    const inst = MW.getSlot(m, k), d = inst && D[inst.id], lab = SHORT[k] || 'Aux ' + (+k.slice(3) + 1);
+    const cls = 'pl' + (d ? '' : ' none') + (inst && inst.hp <= 0 ? ' x' : '') + (ui.slotSel === k ? ' on' : '');
+    const inner = '<small>' + lab + '</small><b>' + (d ? d.name : 'Empty') + '</b>';
+    return build ? '<button type="button" class="' + cls + '" data-act="slot" data-key="' + k + '">' + inner + '</button>' : '<div class="' + cls + '">' + inner + '</div>';
+  }).join('') + '</div>';
 }
 // four steps across the top of the hangar; each shows what it needs and whether it is done
 function buildSteps(m) {
@@ -2124,7 +2145,7 @@ const fittedNew = () => S.mechs.filter(m => m.owner === viewer()).concat(S.playe
 const COACH = [
   { t: 'Welcome, commander. You win by reaching <b>' + C.VP_WIN + ' victory points</b> or by destroying the enemy base. This training walks you through one round. You command <b>Azure</b>, at the bottom of the map. The strip under the map shows the phase you are in: <b>Build, Deploy, Combat</b>.', next: 'Start' },
   { t: 'Every round opens with new cards from your Arsenal. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
-  { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. Tap a gold <b>+</b> on an empty part to see what fits there.', hl: '.bsteps', next: 'Next' },
+  { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. Tap a gold <b>+</b> on an empty part to see what fits there.', hl: '.plist', next: 'Next' },
   { t: 'Not sure what something means? <b>Tap any stat or icon</b> for an explanation. Try the heart (HP) or the flame (heat).', hl: '.tot', next: 'Next' },
   { t: 'Your mecha are ready, so tap <b>End build</b>. (You will fit new parts in later rounds.)', hl: '[data-act=endBuild]', done: () => S.phase !== 'build' || uiPhase() === 'wait' },
   { t: 'Waiting for the enemy to finish building…', wait: true, done: () => S.phase !== 'build' },
