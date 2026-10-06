@@ -2031,6 +2031,8 @@ function panelBase(p) {
           if (inst) {
             const d = D[inst.id], rc = MW.repairCost(inst);
             if (MW.worn(inst)) line += p.ep < 1 ? '<button type="button" class="btn sm blocked" data-need="ep" aria-disabled="true">Repair needs 1' + si('eng') + '</button>' : p.supply < rc ? '<button type="button" class="btn sm blocked" data-need="supply" aria-disabled="true">Repair needs ' + rc + si('supply') + '</button>' : '<button type="button" class="btn sm" data-act="repair">Repair · ' + rc + si('supply') + '</button>';
+            const core = ui.slotSel === 'torso' ? m.slots.core : null;
+            if (core && MW.worn(core)) { const cc = MW.repairCost(core); line += p.ep < 1 ? '<button type="button" class="btn sm blocked" data-need="ep" aria-disabled="true">Reactor needs 1' + si('eng') + '</button>' : p.supply < cc ? '<button type="button" class="btn sm blocked" data-need="supply" aria-disabled="true">Reactor needs ' + cc + si('supply') + '</button>' : '<button type="button" class="btn sm primary" data-act="repair" data-key="core">Repair reactor · ' + cc + si('supply') + '</button>'; }
             line += '<button type="button" class="btn sm" data-act="remove">Remove</button>';
           }
           h += line + '<button type="button" class="btn sm primary" data-act="findParts">Find parts ›</button><button type="button" class="btn sm ghost" data-act="slotClear" title="Deselect part" aria-label="Deselect part">✕</button></div>';
@@ -2492,7 +2494,7 @@ function onAct(el) {
       return after(r, 'Fitted to ' + hm.name + '.');
     }
     case 'remove': if (hm && ui.slotSel) return after(MW.removePart(p, hm, ui.slotSel)); return;
-    case 'repair': if (hm && ui.slotSel) { const r = MW.repair(p, hm, ui.slotSel); if (r.ok) ui.flash = { m: hm.uid, key: ui.slotSel, cls: 'fx-fix' }; return after(r, 'Repaired.'); } return;
+    case 'repair': if (hm && ui.slotSel) { const r = MW.repair(p, hm, el.dataset.key || ui.slotSel); if (r.ok) ui.flash = { m: hm.uid, key: ui.slotSel, cls: 'fx-fix' }; return after(r, 'Repaired.'); } return;
     case 'dismantle': if (hm) { ui.slotSel = null; return after(MW.dismantle(p, hm)); } return;
     case 'scrap': { $('#overlay').hidden = true; const c = p.workshop.find(x => x.uid === +el.dataset.uid), v = c ? MW.sellValue(D[c.id]) : 1; return after(MW.scrapCard(p, +el.dataset.uid), 'Sold for ' + v + ' Supply.'); }
     case 'play': return after(MW.playTactic(p, +el.dataset.uid), 'Tactic played.');

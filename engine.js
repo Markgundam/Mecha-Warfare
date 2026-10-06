@@ -177,8 +177,8 @@ const DOCTRINES = {
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 3 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per 2 enemy mecha destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (ram), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { fieldMax: 2, plate: 3, plateRegen: 3, steady: 15, control: 2, killVp: 0.5, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 3 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per enemy mech destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (ram), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { fieldMax: 2, plate: 3, plateRegen: 3, steady: 15, control: 2, killVp: 1, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, l_quad: 3, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 4, w_shield: 1, a_plate: 3, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_anchor: 2, s_frame: 1, x_supply: 2, x_overtime: 2, x_repair: 1 }
   },
   experimental: {
@@ -240,7 +240,7 @@ const MAPS = {
     ruins: [[4, 1], [5, 5], [4, 5], [5, 1], [2, 3], [7, 3], [1, 0], [8, 6]],
     rules: { depotVp: false, crateVp: 1, crateEvery: 1, cratePairs: true, crateMax: 6, crateBand: [2, 7], baseHp: 8, crateSupply: 2 },
     traits: { armored: { killVp: 1, move: 1 } },
-    notes: 'Bases +8 HP, crates hold +2 Supply. Armored moves +1 and scores 1 point per kill.'
+    notes: 'Bases +8 HP, crates hold +2 Supply. Armored moves +1.'
   }
 };
 const MAP_IDS = Object.keys(MAPS);
@@ -375,7 +375,7 @@ function plateMax(m) { if (m.owner == null || !m.slots) return 0; return trait(m
 function hullOf(m) { const l = m.slots.legs, d = l && DEFS[l.id]; return d && d.hull && l.hp > 0 ? (l.hullHp == null ? d.hull : l.hullHp) : 0; }
 function hpOf(m) { return m.slots.torso ? Math.max(0, m.slots.torso.hp) + hullOf(m) + (m.slots.torso.hp > 0 ? Math.min(plateMax(m), m.plate == null ? plateMax(m) : m.plate) : 0) : 0; }
 function maxHpOf(m) { const l = m.slots.legs; return m.slots.torso ? DEFS[m.slots.torso.id].hp + (l && DEFS[l.id].hull && l.hp > 0 ? DEFS[l.id].hull : 0) + plateMax(m) : 0; }
-const worn = inst => { const d = DEFS[inst.id]; return inst.hp > 0 && (inst.hp < d.hp || (!!d.hull && inst.hullHp != null && inst.hullHp < d.hull)); };
+const worn = inst => { const d = DEFS[inst.id]; return (inst.hp > 0 || d.slot === 'core') && (inst.hp < d.hp || (!!d.hull && inst.hullHp != null && inst.hullHp < d.hull)); };
 // Sale price: plain parts 1, weapons 2, special parts 3, special weapons 4
 function sellValue(d) { return (d.weapon ? 2 : 1) + (d.special ? 2 : 0); }
 function auxCount(m) { return m.slots.torso ? (DEFS[m.slots.torso.id].auxSlots || 0) : 0; }
@@ -411,7 +411,7 @@ function issues(m) {
     const i = m.slots[k];
     if (k === 'core' && !m.slots.torso) continue;
     if (!i) out.push(k === 'legs' ? 'Needs legs' : 'Needs a ' + SLOT_NAME[k].toLowerCase());
-    else if (i.hp <= 0) out.push(DEFS[i.id].name + ' is destroyed and must be replaced');
+    else if (i.hp <= 0) out.push(DEFS[i.id].name + (k === 'core' ? ' is destroyed and must be repaired' : ' is destroyed and must be replaced'));
   }
   const st = stats(m);
   if (m.slots.legs && m.slots.torso && st.size > st.carry) out.push(DEFS[m.slots.legs.id].name + ' cannot carry a ' + SIZE_NAME[st.size].toLowerCase() + ' chassis');
@@ -813,7 +813,7 @@ function passAll(pid) {
 // supply a player collects at the end of a round, before any catch-up bonus
 function incomeOf(p) {
   const n = S.objectives.filter(o => o.type === 'depot' && o.owner === p.id).length;
-  const easy = isEasy(p) ? 3 : 0;   // the Recruit runs a lean factory
+  const easy = isEasy(p) ? 2 : 0;   // the Recruit runs a lean factory
   return C.INCOME - easy + C.DEPOT * Math.min(n, C.DEPOT_FULL) + C.DEPOT_EXTRA * Math.max(0, n - C.DEPOT_FULL);
 }
 function catchupOf(p) {
@@ -1985,7 +1985,9 @@ function aiBuild(p) {
   while (p.workshop.length > C.WORKSHOP_MAX - 2) {
     const count = {};
     p.workshop.forEach(c => { const s = DEFS[c.id].slot; count[s] = (count[s] || 0) + 1; });
-    const worst = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+    const unarmed = p.hangar.filter(m => m.slots.torso && !m.slots.armL && !m.slots.armR).length + (p.hangar.concat(fieldMechs(p.id)).some(hasWeapon) ? 0 : 1);
+    const keepArms = (count.arm || 0) <= 2 + 2 * unarmed;
+    const worst = Object.keys(count).filter(k => !(k === 'arm' && keepArms)).sort((a, b) => count[b] - count[a])[0] || 'arm';
     const pile = p.workshop.filter(c => DEFS[c.id].slot === worst).sort((a, b) => DEFS[a.id].cost - DEFS[b.id].cost);
     scrapCard(p, pile[0].uid);
   }
