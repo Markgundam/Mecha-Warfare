@@ -2151,6 +2151,18 @@ function updateViewer(t, dt) {
   // idle: sway gently about the front view instead of spinning round, so left and right stay where the Workshop says they are
   else if (!HV.drag && !HV.sel && t - HV.lastInput > 2.5) HV.rot += (0.3 * Math.sin(t * 0.45) - HV.rot) * Math.min(1, dt * 1.2);
   HV.holder.rotation.y = HV.rot;
+  if (!HV.sel && HV.fit && HV.h) {
+    const f = HV.fit, tv = Math.tan(HV.cam.fov * Math.PI / 360), th = tv * HV.cam.aspect;
+    const top = HV.topEl && HV.topEl.isConnected ? HV.topEl.offsetTop + HV.topEl.offsetHeight + 6 : 8, bot = 10;
+    const u = Math.max(0.45, 1 - (top + bot) / HV.h);
+    const hh = (f.hi - f.lo) / 2 * 1.1, rr = f.r * 1.12;
+    // parts swing toward the camera as the mech turns: leave a little extra room for them
+    const d = Math.max(hh / (tv * u), rr / th) + f.r * 0.35;
+    HV.distT = Math.max(1.6, d);
+    HV.lookT.set(0, (f.lo + f.hi) / 2 + (top - bot) / (2 * HV.h) * 2 * HV.distT * tv, 0);
+  }
+  // a newly shown mech appears already framed; after that the camera eases
+  if (HV.snapUntil && t < HV.snapUntil) { HV.dist = HV.distT; HV.look.copy(HV.lookT); }
   HV.dist += (HV.distT - HV.dist) * k; HV.look.lerp(HV.lookT, k);
   const dir = new T.Vector3(0, 0.12, 1).normalize();
   HV.cam.position.copy(HV.look).addScaledVector(dir, HV.dist * HV.zoomU);
@@ -2267,8 +2279,11 @@ R3.hangar = function (el, m, owner, doctrine, opt) {
       const reach = Math.max(...[bb.min.x, bb.max.x].flatMap(x => [bb.min.z, bb.max.z].map(z => Math.hypot(x, z))));
       const k = Math.min(1, 0.98 / Math.max(0.01, reach), 2.4 / Math.max(0.01, bb.max.y));
       if (k < 1) R.root.scale.multiplyScalar(k);
-    }
-    HV.sig = sig;
+      // its extent once scaled: height span, and the farthest reach from the turning axis (any part, any angle)
+      const kk = Math.min(1, k);
+      HV.fit = { lo: Math.max(0, bb.min.y * kk), hi: bb.max.y * kk, r: reach * kk };
+    } else HV.fit = null;
+    HV.sig = sig; HV.snapUntil = clock() + 0.6;
     measureSlots();
   }
   if (HV.R) highlight(HV.R, opt.sel || null);
@@ -2286,9 +2301,10 @@ R3.hangar = function (el, m, owner, doctrine, opt) {
       const r = Math.hypot(local.x, local.z);
       HV.lookT.set(0, Math.max(0.35, local.y), r * 0.6);
       HV.distT = 2.1;
-    } else { HV.rotT = null; HV.lookT.set(0, 0.95, 0); HV.distT = 4.3; }
+    } else { HV.rotT = null; }
   }
   HV.onPick = opt.onPick || null;
+  HV.topEl = el.querySelector('.h3d-top');
   // floating badges pinned to parts of the mech (empty arms show what they take)
   let bx = el.querySelector('.hvb-box');
   if (!bx) { bx = document.createElement('div'); bx.className = 'hvb-box'; el.appendChild(bx); }
