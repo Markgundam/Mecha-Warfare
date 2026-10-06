@@ -359,8 +359,10 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 .res .rico { width: 18px; height: 18px; color: var(--muted); }
 .pin.slim .res div { padding: 4px 8px; } .pin.slim .res b { font-size: 19px; } .pin.slim .res span { font-size: 9px; }
 .res div:last-child { border-right: 0; }
-.res p { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; }
-.res p span { flex-basis: 100%; }
+/* number and income on one line, the word under them; the row never grows taller */
+.res p { margin: 0; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 4px; }
+.res p span { grid-column: 1 / -1; }
+.res p .rinc { margin-left: 0; overflow: hidden; text-overflow: ellipsis; }
 .res b { display: block; font-family: var(--display); font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
 .res span { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -455,7 +457,7 @@ button.slot:hover { border-color: var(--ink); }
 .h3d .bstep { background: rgba(14, 20, 27, .82); border-color: #3a4855; color: #eef3f6; padding: 4px 6px; }
 .h3d .bstep small, .h3d .bstep em { color: #a9b6c0; }
 .h3d .bstep.on { outline-color: #f4c431; }
-.plist { display: grid; gap: 4px; overflow: hidden; height: 40px; }
+.plist { display: grid; grid-template-rows: repeat(2, 36px); gap: 4px; overflow: hidden; height: 76px; }
 .pl { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 3px 6px; overflow: hidden; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); font: inherit; min-width: 0; }
 button.pl { cursor: pointer; } button.pl:hover { border-color: var(--ink); }
 .pl small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
@@ -2069,9 +2071,9 @@ function panelBase(p) {
 }
 // the mech's parts by name under the hangar; in Build each one opens that slot
 function partList(m, build) {
-  const SHORT = { torso: 'Chassis', legs: 'Legs', armL: 'L arm', armR: 'R arm' };
+  const SHORT = { torso: 'Chassis', legs: 'Legs', armL: 'Left arm', armR: 'Right arm' };
   const keys = ['torso', 'legs', 'armL', 'armR'].concat(m.slots.torso ? Array.from({ length: MW.auxCount(m) }, (_, i) => 'aux' + i) : []);
-  return '<div class="plist" style="grid-template-columns:repeat(' + keys.length + ',minmax(0,1fr))">' + keys.map(k => {
+  return '<div class="plist" style="grid-template-columns:repeat(' + Math.ceil(keys.length / 2) + ',minmax(0,1fr))">' + keys.map(k => {
     const inst = MW.getSlot(m, k), d = inst && D[inst.id], lab = SHORT[k] || 'Aux ' + (+k.slice(3) + 1);
     const cls = 'pl' + (d ? '' : ' none') + (inst && inst.hp <= 0 ? ' x' : '') + (ui.slotSel === k ? ' on' : '');
     const inner = '<small>' + lab + '</small><b>' + (d ? (k === 'torso' ? d.name.replace(' Chassis', '') : d.name) : 'Empty') + '</b>';
