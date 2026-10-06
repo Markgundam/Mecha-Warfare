@@ -172,7 +172,7 @@ const DOCTRINES = {
     blurb: 'A swarm of light, fast mecha that overwhelm by numbers and speed.',
     perks: ['Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Issue parts: Striker Chassis, Booster Legs (jump), Scatter Cannon, Plasma Blade'],
     traits: { fieldMax: 4, hangarMax: 4, move: 1, ep: 5, startMechs: 3 },
-    deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 2, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 3, w_smg: 3, a_jump: 3, a_cool: 1, a_over: 1, s_inferno: 2, s_cryo: 1, s_emp: 1, s_core: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
+    deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 3, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 3, w_smg: 3, a_jump: 3, a_cool: 1, a_over: 1, s_inferno: 2, s_cryo: 1, s_emp: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
   },
   armored: {
     name: 'Armored Doctrine',
@@ -186,7 +186,7 @@ const DOCTRINES = {
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
     perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +2 heat every round', 'Draws 3 cards a round instead of 2', 'Issue parts: Prototype Chassis (two energy mounts), Hover Skirt, Laser Rifle'],
     traits: { ap: 3, heatTick: 2, draw: 3 },
-    deck: { l_hover: 3, l_quad: 1, l_biped: 1, t_proto: 3, t_assault: 1, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 2, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 1, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
+    deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 2, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
 
