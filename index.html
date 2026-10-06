@@ -2074,7 +2074,7 @@ function partList(m, build) {
   return '<div class="plist">' + keys.map(k => {
     const inst = MW.getSlot(m, k), d = inst && D[inst.id], lab = SHORT[k] || 'Aux ' + (+k.slice(3) + 1);
     const cls = 'pl' + (d ? '' : ' none') + (inst && inst.hp <= 0 ? ' x' : '') + (ui.slotSel === k ? ' on' : '');
-    const inner = '<small>' + lab + '</small><b>' + (d ? d.name : 'Empty') + '</b>';
+    const inner = '<small>' + lab + '</small><b>' + (d ? (k === 'torso' ? d.name.replace(' Chassis', '') : d.name) : 'Empty') + '</b>';
     return build ? '<button type="button" class="' + cls + '" data-act="slot" data-key="' + k + '">' + inner + '</button>' : '<div class="' + cls + '">' + inner + '</div>';
   }).join('') + '</div>';
 }
