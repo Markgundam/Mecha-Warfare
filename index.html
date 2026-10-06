@@ -390,8 +390,9 @@ button.slot:hover { border-color: var(--ink); }
 .hp i { display: block; height: 100%; background: var(--good); }
 .slot.d .hp i { background: var(--warn); } .slot.x .hp i { background: var(--bad); }
 .tot { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--line); background: var(--raised); }
-.tot div { padding: 4px 5px; border-right: 1px solid var(--line-soft); min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.tot .tico { width: 18px; height: 18px; color: var(--muted); }
+.tot div { padding: 6px 8px; border-right: 1px solid var(--line-soft); min-width: 0; display: flex; align-items: center; gap: 7px; }
+.tot p { margin: 0; min-width: 0; display: flex; flex-direction: column; }
+.tot .tico { width: 20px; height: 20px; flex: none; color: var(--muted); }
 .tot .over .tico { color: var(--bad); }
 .tot div:last-child { border-right: 0; }
 .tot b { display: block; font-family: var(--display); font-size: 18px; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1312,14 +1313,14 @@ function statBlock(m, field) {
   const TOT_NAME = { HP: 'HP (frame)', Load: 'Load: weight / leg capacity', Energy: 'Energy: draw / core power', Move: 'Move per action', Armor: 'Armor', Heat: 'Heat capacity', Cool: 'Cooling per round' };
   const TOT_ICON = { HP: 'hp', Load: 'load', Energy: 'energy', Move: 'move', Armor: 'shield', Heat: 'incendiary', Cool: 'cryo' };
   const TOT_WORD = { HP: 'HP', Move: 'Move', Armor: 'Armour', Heat: 'Heat cap' };
-  const cell = (label, val, bad) => '<div' + (bad ? ' class="over"' : '') + ' title="' + TOT_NAME[label] + '" aria-label="' + TOT_NAME[label] + ' ' + val + '">' + ico(TOT_ICON[label], 'tico') + '<b>' + val + '</b><span>' + (TOT_WORD[label] || label) + '</span></div>';
+  const cell = (label, val, bad) => '<div' + (bad ? ' class="over"' : '') + ' title="' + TOT_NAME[label] + '" aria-label="' + TOT_NAME[label] + ' ' + val + '">' + ico(TOT_ICON[label], 'tico') + '<p><b>' + val + '</b><span>' + (TOT_WORD[label] || label) + '</span></p></div>';
   TOT_NAME.Cap = 'Capacity: pips used / chassis budget'; TOT_ICON.Cap = 'energy';
   let h = '<div class="tot tot5">' +
     cell('HP', MW.hpOf(m) + '/' + MW.maxHpOf(m), !!m.slots.torso && MW.hpOf(m) < MW.maxHpOf(m)) +
     cell('Move', st.move) +
     cell('Armor', armor) +
     cell('Heat', (field ? m.heat + '/' : '') + st.heatCap, field && m.heat > st.heatCap) +
-    '<div class="capcell' + (st.used > st.cap ? ' over' : '') + '" title="' + TOT_NAME.Cap + '">' + pipsHTML(Math.min(st.used, st.cap + 2), st.cap) + '<b>' + st.used + '/' + st.cap + '</b><span>Weight</span></div></div>';
+    '<div' + (st.used > st.cap ? ' class="over"' : '') + ' title="' + TOT_NAME.Cap + '" aria-label="' + TOT_NAME.Cap + ' ' + st.used + '/' + st.cap + '">' + ico('load', 'tico') + '<p><b>' + st.used + '/' + st.cap + '</b><span>Weight</span></p></div></div>';
   const sp = [];
   if (st.shield) sp.push('Shield ' + (field ? m.shield + '/' : '') + st.shield);
   if (st.selfRepair) sp.push('Self-repair ' + st.selfRepair);
