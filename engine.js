@@ -97,7 +97,7 @@ const DEFS = {};
    how many aux systems it carries, and often a signature trait. The reactor is built in: it can still be hit,
    overheated or detonated, but it is never fitted on its own. */
 const CHASSIS = {
-  b_torso: { name: 'Standard Chassis', cost: 3, mounts: ['any', 'any'], reactor: { hp: 4, power: 6, cooling: 2 }, trait: 'Universal mounts take any weapon' },
+  b_torso: { name: 'Standard Chassis', cost: 3, mounts: ['gun', 'any'], reactor: { hp: 4, power: 6, cooling: 2 }, trait: 'Universal right arm takes any weapon' },
   t_skirm: { name: 'Skirmisher Chassis', cost: 2, mounts: ['gun', 'any'], reactor: { hp: 3, power: 5, cooling: 3 }, trait: '+1 move' },
   t_light: { name: 'Scout Chassis', cost: 4, mounts: ['gun', 'energy'], reactor: { hp: 3, power: 7, cooling: 3 }, evasive: 10, trait: 'Evasive: enemies have −10% to hit it' },
   t_assault: { name: 'Striker Chassis', cost: 4, mounts: ['any', 'gun'], reactor: { hp: 4, power: 8, cooling: 3 }, meleeBonus: 1, trait: 'Melee weapons +1 damage' },
