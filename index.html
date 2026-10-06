@@ -1953,6 +1953,7 @@ function fitInfo(m, d) {
     if (after > st.cap) return { key, why: 'Needs ' + d.pips + ' pips · ' + Math.max(0, st.cap - st.used + (cur ? D[cur.id].pips || 0 : 0)) + ' free' };
   }
   if (d.slot === 'legs' && d.carry && d.carry < st.size) return { key, why: 'Can’t carry ' + MW.SIZE_NAME[st.size].toLowerCase() };
+  if (d.weapon && d.weapon.needsEntrench && !(m.slots.legs && MW.digsIn(m.slots.legs.id))) return { key, why: 'Needs legs that dig in' };
   if (cur && cur.id === d.id && cur.hp >= D[cur.id].hp) return { key, why: 'Already fitted' };
   return { key, why: '' };
 }

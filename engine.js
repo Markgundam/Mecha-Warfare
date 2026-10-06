@@ -415,6 +415,7 @@ function issues(m) {
   }
   const st = stats(m);
   if (m.slots.legs && m.slots.torso && st.size > st.carry) out.push(DEFS[m.slots.legs.id].name + ' cannot carry a ' + SIZE_NAME[st.size].toLowerCase() + ' chassis');
+  for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && m.slots.legs && needsDigLegs(DEFS[w.id]) && !hasDigLegs(m)) out.push(DEFS[w.id].name + ' needs legs that dig in (Quad Walker or Siege Anchors)'); }
   if (m.slots.torso && st.used > st.cap) out.push('Over capacity: parts need ' + st.used + ' pips, the chassis has ' + st.cap);
   for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && !fitsMount(armMount(m, k), DEFS[w.id])) out.push(DEFS[w.id].name + ' does not fit the ' + MOUNT_NAME[armMount(m, k)].toLowerCase() + ' mount'); }
   return out;
@@ -430,6 +431,13 @@ function weaponsOf(m) {
 }
 // legs that dig in: Siege Anchors (and must, before firing) and Quad Walkers (when they choose to)
 const digsIn = id => !!DEFS[id] && !!(DEFS[id].entrench || DEFS[id].dig);
+const needsDigLegs = d => !!(d && d.weapon && d.weapon.needsEntrench);
+const hasDigLegs = m => !!m.slots.legs && digsIn(m.slots.legs.id);
+// when the legs under it change, a dug-in-only weapon with nothing to dig in goes back to the Workshop
+function dropDugInWeapons(p, m) {
+  if (hasDigLegs(m)) return;
+  for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && needsDigLegs(DEFS[w.id])) { m.slots[k] = null; toWorkshop(p, w); log(DEFS[w.id].name + ' needs legs that dig in and returns to the Workshop.', 'p' + p.id); } }
+}
 const canEntrench = m => { const l = m.slots.legs; return !!l && l.hp > 0 && digsIn(l.id); };
 // Siege Anchors lock every weapon until the mech digs in; the railgun needs to be dug in wherever it is mounted
 function weaponLock(m, key) {
@@ -619,6 +627,7 @@ function install(p, m, key, src) {
   if (key === 'core') return fail('The reactor is built into the chassis.');
   if (key !== 'torso' && !m.slots.torso) return fail('Fit a chassis first: it decides what else can go on.');
   if (key.startsWith('arm') && !fitsMount(armMount(m, key), d)) return fail(d.name + ' needs a ' + MOUNT_NAME[mountOf(d)].toLowerCase() + ' mount: this arm is ' + MOUNT_NAME[armMount(m, key)].toLowerCase() + '.');
+  if (key.startsWith('arm') && needsDigLegs(d) && !hasDigLegs(m)) return fail(d.name + ' only fires dug in: fit a Quad Walker or Siege Anchors first.');
   if (p.ep < 1) return fail('No engineering capacity left this round.');
   const cost = installCost(src, p);
   if (p.supply < cost) return fail('Not enough Supply: ' + d.name + ' costs ' + cost + '.');
@@ -629,6 +638,7 @@ function install(p, m, key, src) {
   else { inst = inst0; p.workshop.splice(p.workshop.indexOf(inst0), 1); inst.paid = true; }
   setSlot(m, key, inst);
   toWorkshop(p, old);
+  if (key === 'legs') dropDugInWeapons(p, m);
   if (key === 'torso') {
     const n = auxCount(m);
     m.slots.aux.slice(n).forEach(a => toWorkshop(p, a));
@@ -648,6 +658,7 @@ function removePart(p, m, key) {
   setSlot(m, key, null);
   toWorkshop(p, inst);
   if (key === 'torso') { m.slots.aux.forEach(a => toWorkshop(p, a)); m.slots.aux = []; m.slots.core = null; }
+  if (key === 'legs') dropDugInWeapons(p, m);
   ensureBlank(p); return OK;
 }
 function repairCost(inst) { const d = DEFS[inst.id]; return Math.max(1, Math.ceil((d.hp - inst.hp + (d.hull && inst.hullHp != null ? d.hull - inst.hullHp : 0)) / 2)); }
@@ -2007,7 +2018,7 @@ const api = {
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
   acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, canRam, ramTargets, ram, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
-  activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
+  activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, digsIn, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
   radarBonus, isDamaged, aiStep,
   clearFx() { if (S) S.fx = []; }
 };
