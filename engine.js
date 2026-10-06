@@ -410,7 +410,7 @@ function issues(m) {
   for (const k of REQUIRED) {
     const i = m.slots[k];
     if (k === 'core' && !m.slots.torso) continue;
-    if (!i) out.push('Needs a ' + SLOT_NAME[k].toLowerCase());
+    if (!i) out.push(k === 'legs' ? 'Needs legs' : 'Needs a ' + SLOT_NAME[k].toLowerCase());
     else if (i.hp <= 0) out.push(DEFS[i.id].name + ' is destroyed and must be replaced');
   }
   const st = stats(m);

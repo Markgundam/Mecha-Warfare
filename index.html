@@ -358,12 +358,22 @@ fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: ins
 @keyframes resflash { 0% { background: color-mix(in srgb, var(--bad) 35%, var(--raised)); box-shadow: inset 0 0 0 2px var(--bad); transform: translateX(-3px); } 15% { transform: translateX(3px); } 30% { transform: translateX(-2px); } 45% { transform: none; } 100% { background: var(--raised); box-shadow: none; } }
 .res .rico { width: 22px; height: 22px; color: var(--muted); }
 .res div:last-child { border-right: 0; }
+.res p { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; }
+.res p span { flex-basis: 100%; }
 .res b { display: block; font-family: var(--display); font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
 .res span { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; }
 .tab { padding: 5px 10px; border: 1px solid var(--line); background: transparent; cursor: pointer; font-weight: 600; border-radius: 3px 3px 0 0; }
 .tab.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .tab i { font-style: normal; font-family: var(--mono); font-size: 10px; margin-left: 6px; opacity: .8; }
+/* frame tabs: one card per mech in the hangar, with its readiness in colour */
+.tabs.frames { gap: 6px; margin-bottom: 6px; }
+.ftab { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 12px 6px 10px; border-radius: 4px; border-left: 4px solid var(--line); min-width: 92px; }
+.ftab b { font-size: 15px; } .ftab i { margin-left: 0; text-transform: uppercase; letter-spacing: .05em; opacity: 1; }
+.ftab.ready { border-left-color: var(--good); } .ftab.ready i { color: var(--good); }
+.ftab.building { border-left-color: var(--warn); } .ftab.building i { color: var(--warn); }
+.ftab.empty { border-style: dashed; border-left-style: solid; } .ftab.empty i { color: var(--muted); }
+.ftab.on i { color: inherit; }
 .bp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-areas: "armL torso armR" ". core ." ". legs ."; gap: 5px; }
 .auxrow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 5px; }
 .slot { display: flex; flex-direction: column; gap: 2px; padding: 5px 7px; border: 1px solid var(--line); background: var(--raised); text-align: left; min-height: 52px; min-width: 0; border-radius: 2px; }
@@ -446,6 +456,13 @@ button.slot:hover { border-color: var(--ink); }
 .hvb-box { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .hvb { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1.5px dashed #f4c431; background: rgba(14, 20, 27, .78); color: #f4c431; cursor: pointer; }
 .hvb .mnt { width: 18px; height: 18px; border: 0; background: none; color: inherit; }
+/* a "+" marker on an empty part: tap it to see the parts that fit there */
+.hvb.plus { width: auto; height: auto; display: flex; flex-direction: column; align-items: center; gap: 2px; border: 0; background: none; border-radius: 0; cursor: pointer; }
+.hvb.plus i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #f4c431; color: #11161c; font: 700 26px/1 var(--body); font-style: normal; box-shadow: 0 0 0 3px rgba(14, 20, 27, .7), 0 0 14px rgba(244, 196, 49, .65); animation: pluspulse 1.6s ease-in-out infinite; }
+.hvb.plus span { font: 700 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: #fff; background: rgba(14, 20, 27, .82); padding: 1px 5px; border-radius: 2px; white-space: nowrap; }
+.hvb.plus:hover i, .hvb.plus:focus-visible i { background: #ffd95a; }
+@keyframes pluspulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .hvb.plus i { animation: none; } }
 .hvb .mnt .ico { width: 14px; height: 14px; }
 .bstep { display: flex; align-items: flex-start; gap: 4px; padding: 4px 5px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; text-align: left; color: var(--ink); min-width: 0; font: inherit; cursor: pointer; }
 .bstep i { font: 700 11px var(--mono); width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--line); color: var(--surface); flex: none; font-style: normal; }
@@ -1294,14 +1311,15 @@ function statBlock(m, field) {
   const st = MW.stats(m), t = m.slots.torso, armor = (t ? (D[t.id].armor || 0) : 0) + st.armorAll;
   const TOT_NAME = { HP: 'HP (frame)', Load: 'Load: weight / leg capacity', Energy: 'Energy: draw / core power', Move: 'Move per action', Armor: 'Armor', Heat: 'Heat capacity', Cool: 'Cooling per round' };
   const TOT_ICON = { HP: 'hp', Load: 'load', Energy: 'energy', Move: 'move', Armor: 'shield', Heat: 'incendiary', Cool: 'cryo' };
-  const cell = (label, val, bad) => '<div' + (bad ? ' class="over"' : '') + ' title="' + TOT_NAME[label] + '" aria-label="' + TOT_NAME[label] + ' ' + val + '">' + ico(TOT_ICON[label], 'tico') + '<b>' + val + '</b></div>';
+  const TOT_WORD = { HP: 'HP', Move: 'Move', Armor: 'Armour', Heat: 'Heat cap' };
+  const cell = (label, val, bad) => '<div' + (bad ? ' class="over"' : '') + ' title="' + TOT_NAME[label] + '" aria-label="' + TOT_NAME[label] + ' ' + val + '">' + ico(TOT_ICON[label], 'tico') + '<b>' + val + '</b><span>' + (TOT_WORD[label] || label) + '</span></div>';
   TOT_NAME.Cap = 'Capacity: pips used / chassis budget'; TOT_ICON.Cap = 'energy';
   let h = '<div class="tot tot5">' +
     cell('HP', MW.hpOf(m) + '/' + MW.maxHpOf(m), !!m.slots.torso && MW.hpOf(m) < MW.maxHpOf(m)) +
     cell('Move', st.move) +
     cell('Armor', armor) +
     cell('Heat', (field ? m.heat + '/' : '') + st.heatCap, field && m.heat > st.heatCap) +
-    '<div class="capcell' + (st.used > st.cap ? ' over' : '') + '" title="' + TOT_NAME.Cap + '">' + pipsHTML(Math.min(st.used, st.cap + 2), st.cap) + '<b>' + st.used + '/' + st.cap + '</b></div></div>';
+    '<div class="capcell' + (st.used > st.cap ? ' over' : '') + '" title="' + TOT_NAME.Cap + '">' + pipsHTML(Math.min(st.used, st.cap + 2), st.cap) + '<b>' + st.used + '/' + st.cap + '</b><span>Weight</span></div></div>';
   const sp = [];
   if (st.shield) sp.push('Shield ' + (field ? m.shield + '/' : '') + st.shield);
   if (st.selfRepair) sp.push('Self-repair ' + st.selfRepair);
@@ -1939,7 +1957,7 @@ function panelBase(p) {
   if (!m || !build) ui.slotSel = null;
   const tabList = [['frame', 'Frame']].concat(build ? [['cards', 'Parts']] : []).concat([['enemy', 'Enemy']]);
   if (!tabList.some(t => t[0] === ui.wtab)) ui.wtab = 'frame';
-  let h = '<div class="pin"><div class="res"><div title="Supply" aria-label="Supply" data-res="supply">' + ico('supply', 'rico') + rb('supply', p.supply) + '<small class="rinc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</small></div><div title="Engineering actions left" aria-label="Engineering" data-res="ep">' + ico('eng', 'rico') + rb('ep', p.ep) + '</div><div title="Cards left in your Arsenal deck" aria-label="Deck">' + ico('deck', 'rico') + '<b>' + p.deck.length + '</b></div><div title="Mecha on the field" aria-label="Fielded">' + ico('torso', 'rico') + '<b>' + MW.fieldMechs(p.id).length + '/' + MW.fieldMax(p.id) + '</b></div></div>' +
+  let h = '<div class="pin"><div class="res"><div title="Supply" aria-label="Supply" data-res="supply">' + ico('supply', 'rico') + '<p>' + rb('supply', p.supply) + '<small class="rinc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</small><span>Supply</span></p></div><div title="Engineering actions left" aria-label="Engineering" data-res="ep">' + ico('eng', 'rico') + '<p>' + rb('ep', p.ep) + '<span>Actions</span></p></div><div title="Cards left in your Arsenal deck" aria-label="Deck">' + ico('deck', 'rico') + '<p><b>' + p.deck.length + '</b><span>Deck</span></p></div><div title="Mecha on the field" aria-label="Fielded">' + ico('torso', 'rico') + '<p><b>' + MW.fieldMechs(p.id).length + '/' + MW.fieldMax(p.id) + '</b><span>Field</span></p></div></div>' +
     (m ? '<span class="lbl">' + m.name + ' totals · ' + (MW.issues(m).length ? 'not ready' : MW.role(m)) + '</span>' + statBlock(m, false) : '') + '</div>';
   h += tabs(tabList, ui.wtab, 'wtab') + '<div class="tabbody">';
   const cardHTML = (d, inst) => {
@@ -1967,13 +1985,13 @@ function panelBase(p) {
     return head + '<div class="cardgrid" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + (slice.join('') || '<p class="note">Nothing here.</p>') + '</div>' + pager(ui.pg, pages, 'pg');
   };
   if (ui.wtab === 'frame') {
-    h += '<div class="tabs">' + p.hangar.map(x => '<button type="button" class="tab' + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '">' + (MW.isBlank(x) ? '+ ' : '') + x.name + '<i>' + (MW.isBlank(x) ? 'new frame' : MW.issues(x).length ? 'building' : 'ready') + '</i></button>').join('') + '</div>';
+    h += '<span class="lbl">Your hangar · each frame is one mech · pick one to build</span><div class="tabs frames">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '"><b>' + x.name + '</b><i>' + { empty: 'Empty frame', building: 'Not ready', ready: 'Ready' }[stt] + '</i></button>'; }).join('') + '</div>';
     if (m) {
       const is = MW.issues(m);
       const missing = MW.isBlank(m) ? [] : ['torso', 'legs'].filter(k => !m.slots[k] || m.slots[k].hp <= 0);
       const warn = missing.length ? '<div class="h3d-warn">' + missing.map(k => (build ? '<button type="button" data-act="slot" data-key="' + k + '"' : '<span') + ' class="mwarn">⚠ ' + (m.slots[k] ? MW.slotName(k) + ' destroyed' : 'No ' + MW.slotName(k).toLowerCase()) + (build ? '</button>' : '</span>')).join('') + '<small>Can’t deploy</small></div>' : '';
       if (build && !R3on) h += buildSteps(m);
-      h += R3on ? '<div class="h3d" id="h3d">' + (build ? buildSteps(m) : '') + warn + '<span class="h3d-hint">' + (build ? 'Tap a part · the chest light is the core · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
+      h += R3on ? '<div class="h3d" id="h3d">' + (build ? buildSteps(m) : '') + warn + '<span class="h3d-hint">' + (build ? 'Tap + to add a part · tap a part to change it · drag to turn' : 'Drag to turn') + '</span></div>' : warn + blueprint(m, build);
       if (is.length && !MW.isBlank(m)) h += '<p class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</p>';
       if (build) {
         const inst = ui.slotSel && MW.getSlot(m, ui.slotSel);
@@ -1985,7 +2003,7 @@ function panelBase(p) {
             line += '<button type="button" class="btn sm" data-act="remove">Remove</button>';
           }
           h += line + '<button type="button" class="btn sm primary" data-act="findParts">Find parts ›</button><button type="button" class="btn sm ghost" data-act="slotClear" title="Deselect part" aria-label="Deselect part">✕</button></div>';
-        } else h += MW.isBlank(m) ? '<div class="slotline"><span class="note">A fresh frame. Tap a slot to start building ' + m.name + '.</span></div>' : '<div class="slotline"><span class="note">Tap a slot to repair, remove or find parts for it.</span><button type="button" class="btn sm ghost" data-act="dismantle">Dismantle</button></div>';
+        } else h += MW.isBlank(m) ? '<div class="slotline"><span class="note">An empty frame. Tap the + on the chassis to start building ' + m.name + '.</span></div>' : '<div class="slotline"><span class="note">Tap a slot to repair, remove or find parts for it.</span><button type="button" class="btn sm ghost" data-act="dismantle">Dismantle</button></div>';
       } else if (deploying) {
         const why = MW.canDeploy(p, m);
         h += '<button type="button" class="btn primary" data-act="pickDeploy" data-uid="' + m.uid + '"' + (why ? ' disabled' : '') + '>Deploy ' + m.name + '<small>' + (why || 'Then choose a tile next to your base') + '</small></button>';
@@ -2026,14 +2044,14 @@ function buildSteps(m) {
   const st = MW.stats(m), has = !!m.slots.torso, td = has ? D[m.slots.torso.id] : null;
   const step = (n, key, label, val, req, state, title) => '<button type="button" class="bstep ' + state + (ui.slotSel === key ? ' on' : '') + '" data-act="step" data-key="' + key + '"' + (state === 'locked' ? ' disabled' : '') + ' title="' + (title || label) + '"><i>' + n + '</i><span><b>' + label + '</b><small>' + val + '</small>' + (req ? '<em>' + req + '</em>' : '') + '</span></button>';
   const legs = m.slots.legs, legsOk = legs && st.carry >= st.size;
-  const armTxt = k => { const w = m.slots[k]; return w ? D[w.id].name.split(' ')[0] : 'empty'; };
+  const armTxt = k => { const w = m.slots[k]; return w ? D[w.id].name.split(' ')[0] : 'Empty'; };
   const auxN = has ? MW.auxCount(m) : 0, auxUsed = m.slots.aux.filter(Boolean).length;
   const firstOpen = !has ? 'torso' : !legsOk ? 'legs' : !m.slots.armR && !m.slots.armL ? 'arms' : '';
   let h = '<div class="bsteps">';
-  h += step(1, 'torso', 'Chassis', has ? td.name.replace(' Chassis', '') : 'Choose', has ? sizeBadge(td.size || 2) + ' ' + pipsHTML(st.cap) : 'sets everything else', has ? 'done' : 'next');
-  h += step(2, 'legs', 'Legs', legs ? D[legs.id].name.split(' ')[0] : 'Choose', has ? 'carry ' + MW.SIZE_NAME[st.size] : '', !has ? 'locked' : legsOk ? 'done' : firstOpen === 'legs' ? 'next warn' : 'warn', has ? '' : 'Pick a chassis first');
-  h += step(3, (m.slots.armR || !has || MW.armMount(m, 'armL') === 'any' && m.slots.armL) ? 'armR' : 'armR', 'Arms', armTxt('armL') + ' · ' + armTxt('armR'), has ? mountIco(MW.armMount(m, 'armL')) + mountIco(MW.armMount(m, 'armR')) : '', !has ? 'locked' : (m.slots.armL || m.slots.armR) ? (st.used > st.cap ? 'warn' : 'done') : firstOpen === 'arms' ? 'next' : '', has ? '' : 'Pick a chassis first');
-  h += step(4, 'aux0', 'Aux', has ? auxUsed + '/' + auxN + ' fitted' : '—', has ? pipsHTML(Math.min(st.used, st.cap + 2), st.cap, st.used > st.cap ? 'over' : '') : '', !has || !auxN ? 'locked' : st.used > st.cap ? 'warn' : auxUsed ? 'done' : '', has ? (auxN ? '' : 'This chassis has no aux slots') : 'Pick a chassis first');
+  h += step(1, 'torso', 'Chassis', has ? td.name.replace(' Chassis', '') : 'Empty', has ? MW.SIZE_NAME[td.size || 2] : 'start here', has ? 'done' : 'next');
+  h += step(2, 'legs', 'Legs', legs ? D[legs.id].name.split(' ')[0] : 'Empty', has && !legsOk ? 'must carry ' + MW.SIZE_NAME[st.size] : '', !has ? 'locked' : legsOk ? 'done' : firstOpen === 'legs' ? 'next warn' : 'warn', has ? '' : 'Pick a chassis first');
+  h += step(3, (m.slots.armR || !has || MW.armMount(m, 'armL') === 'any' && m.slots.armL) ? 'armR' : 'armR', 'Arms', armTxt('armL') + ' · ' + armTxt('armR'), '', !has ? 'locked' : (m.slots.armL || m.slots.armR) ? (st.used > st.cap ? 'warn' : 'done') : firstOpen === 'arms' ? 'next' : '', has ? '' : 'Pick a chassis first');
+  h += step(4, 'aux0', 'Aux', has ? auxUsed + '/' + auxN + ' fitted' : '—', has && st.used > st.cap ? 'too heavy' : '', !has || !auxN ? 'locked' : st.used > st.cap ? 'warn' : auxUsed ? 'done' : '', has ? (auxN ? '' : 'This chassis has no aux slots') : 'Pick a chassis first');
   return h + '</div>';
 }
 // swapping a chassis can drop parts: say which before it happens
@@ -2105,7 +2123,7 @@ const fittedNew = () => S.mechs.filter(m => m.owner === viewer()).concat(S.playe
 const COACH = [
   { t: 'Welcome, commander. You win by reaching <b>' + C.VP_WIN + ' victory points</b> or by destroying the enemy base. This training walks you through one round. You command <b>Azure</b>, at the bottom of the map. The strip under the map shows the phase you are in: <b>Build, Deploy, Combat</b>.', next: 'Start' },
   { t: 'Every round opens with new cards from your Arsenal. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
-  { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. The numbered strip shows each step.', hl: '.bsteps', next: 'Next' },
+  { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. Tap a gold <b>+</b> on an empty part to see what fits there.', hl: '.bsteps', next: 'Next' },
   { t: 'Not sure what something means? <b>Tap any stat or icon</b> for an explanation. Try the heart (HP) or the flame (heat).', hl: '.tot', next: 'Next' },
   { t: 'Your mecha are ready, so tap <b>End build</b>. (You will fit new parts in later rounds.)', hl: '[data-act=endBuild]', done: () => S.phase !== 'build' || uiPhase() === 'wait' },
   { t: 'Waiting for the enemy to finish building…', wait: true, done: () => S.phase !== 'build' },
@@ -2241,7 +2259,16 @@ function mountHangar() {
     if (!m) return;
     const build = isHuman() && S.current === p.id && uiPhase() === 'build';
     const badges = {};
-    if (build && m && m.slots.torso) ['armL', 'armR'].forEach(k => { if (!m.slots[k]) { const mt = MW.armMount(m, k); badges[k] = '<button type="button" class="hvb" data-act="slot" data-key="' + k + '" title="Empty ' + (k === 'armL' ? 'left' : 'right') + ' arm: takes ' + MW.MOUNT_NAME[mt].toLowerCase() + ' weapons" aria-label="Empty ' + (k === 'armL' ? 'left' : 'right') + ' arm, ' + MW.MOUNT_NAME[mt] + ' mount">' + mountIco(mt) + '</button>'; } });
+    const plus = (k, label, title) => '<button type="button" class="hvb plus" data-act="plus" data-key="' + k + '" title="' + title + '" aria-label="' + title + '"><i>+</i><span>' + label + '</span></button>';
+    if (build && m) {
+      if (!m.slots.torso) badges.torso = plus('torso', 'Chassis', 'Add a chassis: it decides everything else');
+      else {
+        if (!m.slots.legs) badges.legs = plus('legs', 'Legs', 'Add legs that carry a ' + MW.SIZE_NAME[MW.sizeOf(m)].toLowerCase() + ' chassis');
+        ['armL', 'armR'].forEach(k => { if (!m.slots[k]) { const mt = MW.armMount(m, k); badges[k] = plus(k, mt === 'any' ? 'Weapon' : MW.MOUNT_NAME[mt], 'Add a weapon to the ' + (k === 'armL' ? 'left' : 'right') + ' arm: takes ' + (mt === 'any' ? 'any' : MW.MOUNT_NAME[mt].toLowerCase()) + ' weapons'); } });
+        const auxFree = Array.from({ length: MW.auxCount(m) }, (_, i) => i).find(i => !m.slots.aux[i]);
+        if (m.slots.legs && (m.slots.armL || m.slots.armR) && auxFree != null) badges['aux' + auxFree] = plus('aux' + auxFree, 'Aux', 'Optional: add an aux system');
+      }
+    }
     window.R3.hangar(el, m, p.id, p.doctrine, { badges, sel: ui.slotSel, ghosts: build, onPick: build ? key => { if (key === 'core') key = 'torso'; const next = key && ui.slotSel !== key ? key : null; if (next === ui.slotSel) return; ui.slotSel = next; render(); } : null });
   } else if (ui.win === 'mech') {
     const sm = selMech();
@@ -2403,6 +2430,7 @@ function onAct(el) {
   switch (a) {
     case 'newMech': { const r = MW.newMech(p); if (r.ok) { ui.hangarSel = r.mech.uid; ui.slotSel = null; } return after(r, r.ok ? 'New frame laid down.' : ''); }
     case 'slot': ui.slotSel = ui.slotSel === el.dataset.key ? null : el.dataset.key; return render();
+    case 'plus': ui.slotSel = el.dataset.key; ui.wtab = 'cards'; ui.pg = 0; return render();
     case 'step': {
       // a step opens the Parts list filtered to what fits there
       let key = el.dataset.key;
