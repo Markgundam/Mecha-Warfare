@@ -1761,6 +1761,10 @@ function aiBestTile(m) {
   const aw = aiW(m.owner), threat = aw.caution > 0 ? threatMap(m.owner) : null;
   const hpFrac = hpOf(m) / Math.max(1, maxHpOf(m));
   const allies = S.mechs.filter(f => f.owner === m.owner && f !== m);
+  // the enemy base turret is certain damage at the end of the round, not a risk: know what it would do to this mech
+  const foe = S.players[1 - m.owner], eb = BASE_POS[1 - m.owner];
+  const turret = foe.base.hp > 0 ? (C.TURRET_DMG + trait(foe.id, 'turretDmg')) * trait(foe.id, 'turretShots') : 0;
+  const myHp = hpOf(m) + (m.plate || 0);
   let best = null;
   for (const k in r) {
     const [x, y] = k.split(',').map(Number), stay = x === m.x && y === m.y;
@@ -1769,6 +1773,12 @@ function aiBestTile(m) {
     if (o && o.type !== 'repair' && o.owner !== m.owner) v += (1 + objWorth(o, m.owner)) * aw.objective;
     // look ahead: how much the enemy could pour into this tile next round, weighed by how much we can take
     if (threat) v -= aw.caution * 0.45 * (threat[k] || 0) * (1.6 - hpFrac);
+    // never end a move where the turret would finish this mech, unless the base falls first; otherwise weigh the hit against what is left
+    if (turret && man(x, y, eb.x, eb.y) <= C.TURRET_RANGE) {
+      const weakest = !allies.some(f => man(f.x, f.y, eb.x, eb.y) <= C.TURRET_RANGE && hpOf(f) < hpOf(m));
+      const hit = weakest ? turret : turret * 0.4;
+      v -= hit >= myHp && foe.base.hp > 6 ? 1000 : 5 * hit / Math.max(1, myHp);
+    }
     // formation: hunters and wardens stay in support range, raiders spread across the map
     if (aw.cohesion > 0.05 || aw.cohesion < 0.3) { const near = allies.filter(f => man(f.x, f.y, x, y) <= 2).length; v += aw.cohesion * Math.min(2, near) * 1.2 - (aw.cohesion < 0.3 ? (0.3 - aw.cohesion) * 3 * allies.filter(f => man(f.x, f.y, x, y) <= 1).length : 0); }
     if (o && o.type === 'repair' && isDamaged(m)) v += 4;
