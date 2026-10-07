@@ -1123,10 +1123,10 @@ const KIND_NAME = { gun: 'Gun', energy: 'Energy', melee: 'Melee', heavy: 'Heavy'
 const kindIco = (d, cls) => ico(KIND_ICO[cardKind(d)] || cardKind(d), cls);
 // one word for the part's special rule; anything more lives in the details sheet
 const CHASSIS_KW = { b_torso: 'Universal', t_skirm: 'Quick', t_light: 'Evasive', t_assault: 'Brawler', t_heavy: 'Armoured', t_fortress: 'Bulwark', t_proto: 'Focus', c_sing: 'Volatile', s_frame: 'Shielded', s_core: 'Self-repair' };
-const LEG_KW = { jump: 'Jump', ram: 'Ram', stable: 'Stable', hover: 'Hover', surefoot: 'Sure-foot', entrench: 'Entrench' };
+const LEG_KW = { jump: 'Jump', tracks: 'Armoured', stable: 'Stable', hover: 'Hover', surefoot: 'Reinforced', entrench: 'Entrench' };
 function keyword(d) {
   const w = d.weapon;
-  if (w) return w.needsEntrench ? 'Dug-in' : w.burn ? 'Burn' : w.slow ? 'Slow' : w.shock ? 'Shock' : w.heatDmg ? 'Scorch' : w.indirect ? 'Lob' : w.ap ? 'Pierce' : w.siege ? 'Siege' : w.shots > 1 ? 'Twin' : '';
+  if (w) return w.needsEntrench ? 'Dug-in' : w.burn ? 'Burn' : w.slow ? 'Slow' : w.shock ? 'Shock' : w.heatDmg ? 'Scorch' : w.indirect ? 'Lob' : w.ap ? 'Pierce' : w.cat === 'energy' ? 'Melt' : w.siege ? 'Siege' : w.shots > 1 ? 'Twin' : '';
   if (d.slot === 'torso') return CHASSIS_KW[d.id] || (d.trait ? d.trait.split(':')[0] : '');
   if (d.slot === 'legs') return LEG_KW[d.mode] || '';
   return '';
@@ -1176,6 +1176,7 @@ function statList(d) {
     add('wheat', 'HEAT +' + w.heat, w.heat, -1, 'HEAT');
     if (w.ammo) add('ammo', 'AMMO ' + w.ammo, w.ammo, 1);
     if (w.ap) add('ap', 'Pierces armor', 1, 1);
+    else if (w.cat === 'energy') add('melt', 'Melts ' + MW.ENERGY_MELT + ' armor', 1, 1);
     if (w.indirect) add('indirect', 'Indirect fire', 1, 1);
     if (w.siege) add('siege', '×' + w.siege + ' vs base', w.siege, 1);
     if (w.heatDmg) add('heatDmg', 'Target +' + w.heatDmg + ' heat', w.heatDmg, 1);
@@ -1461,7 +1462,6 @@ function renderBoard() {
       for (const wp of MW.weaponsOf(sm)) if (MW.usable(sm, wp.key) && !wp.w.repair) MW.validTargets(sm, wp.key).forEach(t => { threat[t.x + ',' + t.y] = 1; });
     }
     if (ui.mode === 'fire') targets = MW.validTargets(sm, ui.weaponKey);
-    if (ui.mode === 'ram') targets = MW.ramTargets(sm).map(e => ({ x: e.x, y: e.y, uid: e.uid }));
   }
   if (human && S.phase === 'deploy' && ui.mode === 'deploy') dep = MW.deployTiles(cur.id).filter(t => !MW.mechAt(t[0], t[1]));
   const zones = [MW.deployTiles(0), MW.deployTiles(1)];
@@ -1877,7 +1877,6 @@ function actionsRow(m) {
   if (MW.canEntrench(m)) h += m.entrenched ? b('unentrench', 'anchor', 'Pack up') : b('entrench', 'anchor', 'Dig in', false, ' hl');
   h += b('overwatch', 'eye', 'Overwatch', m.overwatch) + b('brace', 'shield', 'Brace', m.braced);
   if (MW.wreckAt(m.x, m.y)) h += b('salvage', 'supply', 'Salvage', false, ' hl');
-  if (MW.ramTargets(m).length) h += b('ramMode', 'siege', ui.mode === 'ram' ? 'Pick target' : 'Ram', false, ' hl');
   if (MW.inDeployZone(m)) h += b('enter', 'base', 'To base', S.players[m.owner].hangar.filter(x => !MW.isBlank(x)).length >= MW.hangarMax(S.players[m.owner]));
   if (!MW.hasWeapon(m)) {
     const armed = ui.confirmNuke === m.uid;
@@ -2390,10 +2389,6 @@ function onTile(x, y) {
   }
   if (S.phase === 'combat') {
     const sm = selMech(), live = sm && sm.x != null && sm.owner === S.current && !MW.actGuard(sm);
-    if (ui.mode === 'ram' && live) {
-      const e = MW.ramTargets(sm).find(v => v.x === x && v.y === y);
-      if (e) { ui.mode = 'move'; return after(MW.ram(sm, e.uid)); }
-    }
     if (ui.mode === 'fire' && live) {
       const t = MW.validTargets(sm, ui.weaponKey).find(v => v.x === x && v.y === y);
       if (t) {
@@ -2557,7 +2552,6 @@ function onAct(el) {
     case 'unentrench': return after(MW.unentrench(sm));
     case 'salvage': return after(MW.salvage(sm));
     case 'enter': return after(MW.enterBase(sm));
-    case 'ramMode': ui.mode = ui.mode === 'ram' ? 'move' : 'ram'; return render();
     case 'endAct': { const r = MW.endActivation(sm); ui.sel = null; ui.mode = 'idle'; return after(r); }
   }
 }
@@ -2573,7 +2567,8 @@ function showRules() {
       ['Comebacks', 'Whoever is behind on points gets +1 Supply per point behind (at least ' + C.CATCHUP + ', at most ' + C.CATCHUP_MAX + '). A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Base damage always scores in full.'],
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
     ['Build', [['Start', 'Each side starts with mecha ready to deploy, each on a different chassis from its doctrine (Assault brings an extra one), and ' + C.EP + ' engineering actions a round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) take effect when collected: Supply Drop, Overtime Shift, Tech Requisition, Field Repairs.'],
-      ['Build', 'You get ' + C.EP + ' engineering actions a round. Fitting or repairing a part uses one and costs Supply; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads can ram and shove an adjacent enemy, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
+      ['Build', 'You get ' + C.EP + ' engineering actions a round. Fitting or repairing a part uses one and costs Supply; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads have armoured tracks, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
+      ['Energy weapons', 'Lasers, lances and projectors melt through 1 point of armour (2 for the Experimental doctrine). Pierce ignores armour completely.'],
       ['Reading a card', 'Every card has the same layout. Top left: its type (chassis, legs, aux, or the weapon mount it needs: gun, energy, melee, heavy). Middle: two numbers (weapons: damage and range; chassis: HP and size; legs: move and the heaviest chassis they carry). Bottom left: its one special rule as a word. Bottom right: its weight in capacity pips, and a flame if it runs hot. Tap i for every detail.'],
       ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Sell unused cards from their i details: parts 1 Supply, weapons 2, special parts 3, special weapons 4. Short on cards? Requisition one more from the Arsenal for ' + C.REQ_COST + ' Supply.']]],
     ['Fight', [['Turns', 'Mecha on the field at once: Assault 4, Experimental 3, Armored 2. Commanders alternate activating one mech, two actions each: move, fire a weapon (each once per activation), overwatch, brace, salvage, or return to base.'],

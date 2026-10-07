@@ -43,10 +43,10 @@ const DEFS = {};
 
   // Legs
   { id: 'l_boost', name: 'Booster Legs', slot: 'legs', cost: 4, en: 2, hp: 4, capacity: 9, move: 4, moveHeat: 1 },
-  { id: 'l_treads', name: 'Heavy Treads', slot: 'legs', cost: 4, hp: 10, capacity: 24, move: 3, armor: 1 },
+  { id: 'l_treads', name: 'Heavy Treads', slot: 'legs', cost: 4, hp: 10, armor: 2, capacity: 24, move: 3, armor: 1 },
   { id: 'l_quad', name: 'Quad Walker', slot: 'legs', cost: 5, hp: 8, capacity: 18, move: 3, dig: true },
   { id: 'l_hover', name: 'Hover Skirt', slot: 'legs', cost: 4, en: 3, hp: 4, capacity: 11, move: 4 },
-  { id: 'l_biped', name: 'Reinforced Biped', slot: 'legs', cost: 3, hp: 7, capacity: 15, move: 3 },
+  { id: 'l_biped', name: 'Reinforced Biped', slot: 'legs', cost: 3, hp: 7, armor: 1, capacity: 15, move: 3 },
 
   // Arms
   { id: 'w_blade', name: 'Plasma Blade', slot: 'arm', cost: 3, wt: 2, en: 2, hp: 4, weapon: { dmg: 4, range: 1, acc: 80, heat: 1, ap: true, melee: true } },
@@ -126,9 +126,9 @@ const fitsMount = (mount, d) => mount === 'any' || !d.weapon || mountOf(d) === m
 /* Locomotion: legs give a way of moving, not only a speed */
 const LOCO = {
   b_legs: { mode: null },
-  l_biped: { mode: 'surefoot', modeText: 'Sure-footed: cannot be knocked back' },
+  l_biped: { mode: 'surefoot', modeText: 'Reinforced: hits on the legs are reduced by 1' },
   l_boost: { mode: 'jump', modeText: 'Jump: moves over rocks, ruins and mecha' },
-  l_treads: { mode: 'ram', modeText: 'Ram: smash an adjacent enemy for 3 and shove it back' },
+  l_treads: { mode: 'tracks', modeText: 'Armoured tracks: hits on the legs are reduced by 2' },
   l_quad: { mode: 'stable', modeText: 'Stable: heavy weapons keep full accuracy after moving. Can dig in for +1 armour' },
   l_hover: { mode: 'hover', modeText: 'Hover: immune to slowing' },
   s_anchor: { mode: 'entrench', modeText: 'Entrench: dig in to fire siege guns' }
@@ -177,15 +177,15 @@ const DOCTRINES = {
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 3 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per 2 enemy mecha destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (ram), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { fieldMax: 2, plate: 3, plateRegen: 3, steady: 15, control: 2, killVp: 0.5, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 3 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per enemy mech destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (armoured), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { fieldMax: 2, plate: 3, plateRegen: 3, steady: 15, control: 2, killVp: 1, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, l_quad: 3, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 3, w_ram: 2, w_repair: 1, w_shield: 1, a_plate: 2, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_anchor: 2, s_frame: 1, x_supply: 2, x_overtime: 1, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +2 heat every round', 'Draws 3 cards a round instead of 2', 'Issue parts: Prototype Chassis (two energy mounts), Hover Skirt, Laser Rifle'],
-    traits: { ap: 3, heatTick: 2, draw: 3 },
+    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +2 heat every round', 'Draws 3 cards a round instead of 2', 'Energy weapons melt 2 armour instead of 1', 'Issue parts: Prototype Chassis (two energy mounts), Hover Skirt, Laser Rifle'],
+    traits: { ap: 3, heatTick: 2, draw: 3, melt: 1 },
     deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
@@ -240,7 +240,7 @@ const MAPS = {
     ruins: [[4, 1], [5, 5], [4, 5], [5, 1], [2, 3], [7, 3], [1, 0], [8, 6]],
     rules: { depotVp: false, crateVp: 1, crateEvery: 1, cratePairs: true, crateMax: 6, crateBand: [2, 7], baseHp: 8, crateSupply: 2 },
     traits: { armored: { killVp: 1, move: 1 } },
-    notes: 'Bases +8 HP, crates hold +2 Supply. Armored moves +1 and scores 1 point per kill.'
+    notes: 'Bases +8 HP, crates hold +2 Supply. Armored moves +1.'
   }
 };
 const MAP_IDS = Object.keys(MAPS);
@@ -771,7 +771,7 @@ function startCombat() {
     const st = stats(m);
     m.ap = (m.shutdown || st.underpowered) ? 1 : trait(m.owner, 'ap');
     if (m.shock) { m.ap = Math.max(1, m.ap - 1); m.shock = 0; }
-    m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false; m.rammed = false;
+    m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false;
   }
   log('Combat begins.', 'sys');
   S.current = S.first;
@@ -961,38 +961,6 @@ function move(m, x, y) {
   settle();
   return OK;
 }
-/* ---------- Ram: treads smash into an adjacent enemy and shove it back ---------- */
-const RAM_DMG = 3, CRASH_DMG = 2;
-function canRam(m) { return locoMode(m) === 'ram' && !m.rammed && m.ap > 0 && S.mechs.some(e => e.owner !== m.owner && man(e.x, e.y, m.x, m.y) === 1); }
-function ramTargets(m) { return locoMode(m) === 'ram' && !m.rammed ? S.mechs.filter(e => e.owner !== m.owner && man(e.x, e.y, m.x, m.y) === 1) : []; }
-function ram(m, uid) {
-  const g = actGuard(m); if (g) return fail(g);
-  if (locoMode(m) !== 'ram') return fail(m.name + ' has no treads to ram with.');
-  if (m.rammed) return fail(m.name + ' has already rammed this activation.');
-  const tm = fieldMech(uid);
-  if (!tm || tm.owner === m.owner || man(tm.x, tm.y, m.x, m.y) !== 1) return fail('Ram an enemy right next to you.');
-  S.active = m.uid; m.ap--; m.rammed = true; m.entrenched = false;
-  fx({ k: 'shot', x0: m.x, y0: m.y, x1: tm.x, y1: tm.y, hit: true, cat: 'siege' });
-  log(m.name + ' rams ' + tm.name + '.', 'p' + m.owner);
-  const dx = tm.x - m.x, dy = tm.y - m.y, nx = tm.x + dx, ny = tm.y + dy;
-  const immune = locoMode(tm) === 'surefoot' || locoMode(tm) === 'stable' || tm.entrenched;
-  applyDamage(tm, rollLocation(tm), RAM_DMG, false);
-  if (S.mechs.includes(tm) && !immune) {
-    const other = mechAt(nx, ny);
-    if (passable(nx, ny) && !other) {
-      fx({ k: 'move', uid: tm.uid, path: [[tm.x, tm.y], [nx, ny]] });
-      tm.x = nx; tm.y = ny;
-      log(tm.name + ' is shoved back to ' + coord(nx, ny) + '.', 'hit');
-    } else {
-      // nowhere to go: it crashes into the obstacle
-      log(tm.name + ' slams into ' + (other ? other.name : inb(nx, ny) ? 'the ' + (baseAt(nx, ny) != null ? 'base' : 'rubble') : 'the edge of the field') + '.', 'hit');
-      applyDamage(tm, 'torso', CRASH_DMG, true);
-      if (other && S.mechs.includes(other)) applyDamage(other, 'torso', 1, true);
-    }
-  } else if (S.mechs.includes(tm)) log(tm.name + ' holds its ground.', 'hit');
-  settle();
-  return OK;
-}
 /* ---------- Overwatch: hold fire, then shoot the first enemy that moves into range ---------- */
 function owReady(o, key) {
   const inst = getSlot(o, key);
@@ -1037,7 +1005,7 @@ function triggerOverwatch(mover) {
       fx({ k: 'shot', x0: o.x, y0: o.y, x1: mover.x, y1: mover.y, hit, cat: d.cat, uid: o.uid, key: wp.key });
       if (!hit) { fxFloat(mover.x, mover.y, 'Miss', 'info'); log(o.name + ' misses.', 'hit'); continue; }
       applyStatus(w, mover);
-      applyDamage(mover, rollLocation(mover), w.dmg + st.dmgBonus, w.ap);
+      applyDamage(mover, rollLocation(mover), w.dmg + st.dmgBonus, pierceOf(w, o.owner));
     }
   }
 }
@@ -1193,6 +1161,9 @@ function mostDamaged(m) {
   }
   return best;
 }
+const ENERGY_MELT = 1;
+// energy weapons melt through armour: 1 point for anyone, more for a doctrine built around them
+const pierceOf = (w, pid) => (w.ap ? true : w.cat === 'energy' ? ENERGY_MELT + (pid != null ? trait(pid, 'melt') || 0 : 0) : false);
 function applyDamage(tm, loc, dmg, ap) {
   if (!S.mechs.includes(tm)) return;
   let inst = getSlot(tm, loc);
@@ -1202,7 +1173,8 @@ function applyDamage(tm, loc, dmg, ap) {
     if (dmg <= 0) { fxFloat(tm.x, tm.y, 'Blocked', 'info'); log(tm.name + "'s shield absorbs the hit.", 'hit'); return; }
   }
   const st = stats(tm), d = DEFS[inst.id];
-  const armor = ap ? 0 : (d.armor || 0) + st.armorAll + (tm.braced ? 1 : 0);
+  // ap: true ignores armour outright; a number ignores that many points (energy weapons melt through 1)
+  const armor = ap === true ? 0 : Math.max(0, (d.armor || 0) + st.armorAll + (tm.braced ? 1 : 0) - (ap || 0));
   dmg = Math.max(1, dmg - armor);
   fxFloat(tm.x, tm.y, '−' + dmg, 'bad');
   // every hit lands on the hull (the frame); a hit on another part also knocks points off that part
@@ -1286,7 +1258,7 @@ function fire(m, key, target, part) {
       if (w.burn) { tm.burn = Math.max(tm.burn || 0, w.burn); fxFloat(tm.x, tm.y, 'Burning', 'warn'); log(tm.name + ' is set on fire.', 'hit'); }
       if (w.slow) { tm.slow = Math.max(tm.slow || 0, w.slow); fxFloat(tm.x, tm.y, 'Slowed', 'info'); log(tm.name + ' is slowed.', 'hit'); }
       if (w.shock) { tm.shock = 1; fxFloat(tm.x, tm.y, 'Shocked', 'info'); log(tm.name + ' is shocked: one action next round.', 'hit'); }
-      applyDamage(tm, part || rollLocation(tm), dmg, w.ap);
+      applyDamage(tm, part || rollLocation(tm), dmg, pierceOf(w, m.owner));
     }
   }
   settle();
@@ -1684,7 +1656,7 @@ function aiWeaponBest(m, wp, st) {
         if (part.startsWith('arm') && !DEFS[pi.id].weapon) continue;
       }
       const pc = hitChance(m, wp.key, tm, part) / 100;
-      const armor = w.ap ? 0 : (DEFS[pi.id].armor || 0) + ts.armorAll + (tm.braced ? 1 : 0);
+      const armor = w.ap ? 0 : Math.max(0, (DEFS[pi.id].armor || 0) + ts.armorAll + (tm.braced ? 1 : 0) - (pierceOf(w, m.owner) || 0));
       const dmg = Math.max(1, dmgRaw - armor);
       // a finishing shot is worth most; knocking out a core, weapon or legs comes next
       let mult = (part ? 0.9 : 1) * (1 + aw.focus * 0.8 * (1 - hull / Math.max(1, maxHpOf(tm)))) * (aiKillable(tm, m.owner) ? 1.5 : 1);
@@ -1765,19 +1737,11 @@ function aiBestTile(m) {
   const foe = S.players[1 - m.owner], eb = BASE_POS[1 - m.owner];
   const turret = foe.base.hp > 0 ? (C.TURRET_DMG + trait(foe.id, 'turretDmg')) * trait(foe.id, 'turretShots') : 0;
   const myHp = hpOf(m) + (m.plate || 0);
-  const canRamFrom = locoMode(m) === 'ram' && !m.rammed;
   let best = null;
   for (const k in r) {
     const [x, y] = k.split(',').map(Number), stay = x === m.x && y === m.y;
     const n = stay ? m.ap : m.ap - 1, av = aiAttackValue(m, x, y, n);
-    // treads can ram from here: sure damage, more if the target has nowhere to go, and it clears an enemy off an objective
-    let rv = 0;
-    if (canRamFrom && n >= 1) for (const e of S.mechs) {
-      if (e.owner === m.owner || man(e.x, e.y, x, y) !== 1) continue;
-      const nx = 2 * e.x - x, ny = 2 * e.y - y, blocked = !passable(nx, ny) || !!mechAt(nx, ny), eo = objAt(e.x, e.y);
-      rv = Math.max(rv, RAM_DMG + (blocked ? CRASH_DMG : 0) + (hpOf(e) <= RAM_DMG ? 3 : 0) + (eo && eo.type !== 'repair' ? 1.5 : 0));
-    }
-    let v = 10 * (0.5 + aw.aggro) * (av + Math.max(0, rv - av / Math.max(1, n)));
+    let v = 10 * (0.5 + aw.aggro) * av;
     const o = objAt(x, y);
     if (o && o.type !== 'repair' && o.owner !== m.owner) v += (1 + objWorth(o, m.owner)) * aw.objective;
     // look ahead: how much the enemy could pour into this tile next round, weighed by how much we can take
@@ -1861,10 +1825,6 @@ function aiCombatStep() {
     if (b && (b.x !== m.x || b.y !== m.y)) { if (move(m, b.x, b.y).ok) return true; }
   }
   const atk = aiBestAttack(m);
-  if (canRam(m)) {
-    const rt = ramTargets(m).map(e => { const nx = 2 * e.x - m.x, ny = 2 * e.y - m.y, blocked = !passable(nx, ny) || mechAt(nx, ny); return { e, v: RAM_DMG + (blocked ? CRASH_DMG : 0) + (hpOf(e) <= RAM_DMG ? 4 : 0) }; }).sort((a, b) => b.v - a.v)[0];
-    if (rt && (!atk || rt.v >= atk.ev) && ram(m, rt.e.uid).ok) return true;
-  }
   if (atk && fire(m, atk.key, atk.target, atk.part).ok) return true;
   if (wreckAt(m.x, m.y) && salvage(m).ok) return true;
   if (m.moves === 1) {
@@ -1961,7 +1921,7 @@ function aiDesign(p, m) {
     const ws = weaponsOf(tmp), mode = DEFS[tmp.slots.legs.id].mode;
     const heavyW = ws.filter(wp => mountOf(wp.def) === 'heavy').length, meleeW = ws.filter(wp => wp.w.melee).length;
     score += (st.evasive || 0) * 0.25 + (st.meleeBonus || 0) * meleeW * 3 + (st.bulwark || 0) * 2;
-    score += mode === 'jump' ? 2 + aw.objective : mode === 'ram' ? 1.5 + aw.aggro * 2 : mode === 'stable' ? 1 + heavyW * 3 : mode === 'hover' ? 1.5 : mode === 'surefoot' ? 1 : 0;
+    score += mode === 'jump' ? 2 + aw.objective : mode === 'tracks' ? 1.5 : mode === 'stable' ? 1 + heavyW * 3 : mode === 'hover' ? 1.5 : mode === 'surefoot' ? 1 : 0;
     // anchored mecha only earn their keep with long guns, since they fire from one spot
     if (DEFS[tmp.slots.legs.id].entrench) { const longest = Math.max(0, ...weaponsOf(tmp).map(wp => wp.w.range || 0)); score -= weaponsOf(tmp).some(wp => wp.w.needsEntrench) ? 0 : longest >= 5 ? 12 : 30; }
     if (!best || score > best.score) best = { score, pick };
@@ -2037,9 +1997,9 @@ const api = {
   setRng(f) { rnd = f; },
   newGame, concede, terrain, baseAt, turretTiles, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
-  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, canRam, ramTargets, ram, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
+  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
-  activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, digsIn, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
+  activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, digsIn, ENERGY_MELT, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
   radarBonus, isDamaged, aiStep,
   clearFx() { if (S) S.fx = []; }
 };
