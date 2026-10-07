@@ -765,8 +765,19 @@ function endDeploy() {
 }
 
 /* ---------- Combat phase ---------- */
+// weapons knocked offline come back at half strength once their round out is over
+function restartWeapons() {
+  const all = S.mechs.concat(...S.players.map(p => p.hangar));
+  for (const m of all) for (const k of ['armL', 'armR']) {
+    const i = m.slots[k];
+    if (!i || i.offUntil == null || S.round <= i.offUntil) continue;
+    delete i.offUntil;
+    if (i.hp <= 0) { i.hp = DEFS[i.id].hp; log(m.name + "'s " + DEFS[i.id].name + ' is back online.', 'p' + m.owner); }
+  }
+}
 function startCombat() {
   S.phase = 'combat'; S.active = null; S.order = [];
+  restartWeapons();
   for (const m of S.mechs) {
     const st = stats(m);
     m.ap = (m.shutdown || st.underpowered) ? 1 : trait(m.owner, 'ap');
@@ -1137,13 +1148,35 @@ function validTargets(m, key) {
   return out;
 }
 function radarBonus(pid) { return S.objectives.filter(o => o.type === 'radar' && o.owner === pid).length * C.RADAR_ACC; }
+/* Aiming. A shot at the body does full damage to the hull. A shot at a limb is harder to land and only half of it
+   reaches the hull, but all of it lands on the part: arms lose their weapon for a round, legs slow down.
+   The reactor sits inside the chassis and cannot be aimed at; it is only hurt by overheating. */
+const AIM = {
+  torso: { acc: 0, hull: 1 },
+  armL: { acc: 15, hull: 0.5 }, armR: { acc: 15, hull: 0.5 },
+  legs: { acc: 10, hull: 0.5 }
+};
+// what a hit on this part would do, before the dice: chance, damage to the part and to the hull, and what it would knock out
+function aimPreview(m, key, tm, part) {
+  part = AIM[part] ? part : 'torso';
+  const wd = DEFS[getSlot(m, key).id], w = wd.weapon, st = stats(m), ts = stats(tm);
+  let pi = getSlot(tm, part);
+  if (!pi || pi.hp <= 0) { part = 'torso'; pi = tm.slots.torso; }
+  const a = AIM[part] || AIM.torso, pierce = pierceOf(w, m.owner);
+  const armor = pierce === true ? 0 : Math.max(0, (DEFS[pi.id].armor || 0) + ts.armorAll + (tm.braced ? 1 : 0) - (pierce || 0));
+  const raw = w.dmg + st.dmgBonus + (w.melee ? st.meleeBonus : 0);
+  const dmg = Math.max(1, raw - armor), shots = w.shots || 1;
+  const hull = Math.floor(dmg * a.hull), shield = tm.shield || 0;
+  return { part, chance: hitChance(m, key, tm, part), dmg, hull, shots, heat: a.heat ? dmg : 0,
+    ko: part !== 'torso' && dmg * shots - shield >= pi.hp, kill: hull * shots - shield >= hpOf(tm) + hullOf(tm) + Math.min(plateMax(tm), tm.plate == null ? plateMax(tm) : tm.plate) };
+}
 function hitChance(m, key, tm, part) {
   const w = DEFS[getSlot(m, key).id].weapon, st = stats(m), ts = stats(tm);
   let c = w.acc + radarBonus(m.owner) + (m.moves ? 0 : trait(m.owner, 'steady'));
   if (m.moves && mountOf(DEFS[getSlot(m, key).id]) === 'heavy' && locoMode(m) !== 'stable' && !m.entrenched) c -= 15;
   c -= ts.evasive || 0;
   if (terrain(tm.x, tm.y) === 'ruins' && !w.melee && !st.ignoreCover) c -= 20;
-  if (part) c -= part === 'core' ? 25 : 10;
+  if (part && AIM[part]) c -= AIM[part].acc;
   return Math.max(5, Math.min(95, c));
 }
 function rollLocation(tm) {
@@ -1164,7 +1197,7 @@ function mostDamaged(m) {
 const ENERGY_MELT = 1;
 // energy weapons melt through armour: 1 point for anyone, more for a doctrine built around them
 const pierceOf = (w, pid) => (w.ap ? true : w.cat === 'energy' ? ENERGY_MELT + (pid != null ? trait(pid, 'melt') || 0 : 0) : false);
-function applyDamage(tm, loc, dmg, ap) {
+function applyDamage(tm, loc, dmg, ap, aimed) {
   if (!S.mechs.includes(tm)) return;
   let inst = getSlot(tm, loc);
   if (!inst || inst.hp <= 0) { loc = 'torso'; inst = tm.slots.torso; }
@@ -1182,15 +1215,23 @@ function applyDamage(tm, loc, dmg, ap) {
   if (loc !== 'torso') {
     const a = Math.min(Math.max(0, inst.hp), dmg);
     inst.hp -= a;
-    if (a && inst.hp === 0) { log(tm.name + "'s " + d.name + ' (' + slotName(loc).toLowerCase() + ') is knocked out.', 'kill'); fxFloat(tm.x, tm.y, d.name + ' out', 'warn'); }
+    if (a && inst.hp === 0) {
+      const weapon = loc.startsWith('arm') && !!d.weapon;
+      if (weapon) inst.offUntil = S.round + 1;
+      log(tm.name + "'s " + d.name + ' (' + slotName(loc).toLowerCase() + ') is knocked ' + (weapon ? 'offline until round ' + (S.round + 2) : 'out') + '.', 'kill');
+      fxFloat(tm.x, tm.y, d.name + (weapon ? ' offline' : ' out'), 'warn');
+    }
   }
-  let left = dmg;
+  const aim = aimed && loc !== 'torso' ? AIM[loc] : null;
+  let left = aim ? Math.floor(dmg * aim.hull) : dmg;
+  const toHull = left;
+  if (aim && aim.heat) { tm.heat += dmg; fxFloat(tm.x, tm.y, '+' + dmg + ' heat', 'warn'); }
   const lg = tm.slots.legs;
   if (hullOf(tm) > 0) { const a = Math.min(hullOf(tm), left); lg.hullHp = hullOf(tm) - a; left -= a; }
   const pl = Math.min(plateMax(tm), tm.plate == null ? plateMax(tm) : tm.plate);
   if (pl > 0 && left > 0) { const a = Math.min(pl, left); tm.plate = pl - a; left -= a; }
   frame.hp = Math.max(0, frame.hp - left);
-  log(tm.name + ' takes ' + dmg + ' damage' + (loc !== 'torso' ? ' to its ' + slotName(loc).toLowerCase() : '') + ': HP ' + hpOf(tm) + '/' + maxHpOf(tm) + '.', hpOf(tm) === 0 ? 'kill' : 'hit');
+  log(tm.name + ' takes ' + dmg + ' damage' + (loc !== 'torso' ? ' to its ' + slotName(loc).toLowerCase() + (aim ? ' (' + toHull + ' to the hull' + (aim.heat ? ', +' + dmg + ' heat' : '') + ')' : '') : '') + ': HP ' + hpOf(tm) + '/' + maxHpOf(tm) + '.', hpOf(tm) === 0 ? 'kill' : 'hit');
   if (hpOf(tm) <= 0) destroyMech(tm);
 }
 function destroyMech(tm) {
@@ -1258,7 +1299,7 @@ function fire(m, key, target, part) {
       if (w.burn) { tm.burn = Math.max(tm.burn || 0, w.burn); fxFloat(tm.x, tm.y, 'Burning', 'warn'); log(tm.name + ' is set on fire.', 'hit'); }
       if (w.slow) { tm.slow = Math.max(tm.slow || 0, w.slow); fxFloat(tm.x, tm.y, 'Slowed', 'info'); log(tm.name + ' is slowed.', 'hit'); }
       if (w.shock) { tm.shock = 1; fxFloat(tm.x, tm.y, 'Shocked', 'info'); log(tm.name + ' is shocked: one action next round.', 'hit'); }
-      applyDamage(tm, part || rollLocation(tm), dmg, pierceOf(w, m.owner));
+      applyDamage(tm, AIM[part] ? part : 'torso', dmg, pierceOf(w, m.owner), true);
     }
   }
   settle();
@@ -1636,7 +1677,8 @@ function withPos(m, x, y, fn) { const ox = m.x, oy = m.y; m.x = x; m.y = y; try 
 function aiWeaponBest(m, wp, st) {
   const w = wp.w;
   if (w.repair || !usable(m, wp.key)) return null;
-  if (m.heat + w.heat + st.shotHeat + st.passiveHeat > st.heatCap) return null;
+  // leave room for the heat the round itself will add (reactor idle heat, and the doctrine's overclocking)
+  if (m.heat + w.heat + st.shotHeat + st.passiveHeat + Math.ceil(trait(m.owner, 'heatTick') || 0) > st.heatCap) return null;
   let best = null;
   const dmgRaw = w.dmg + st.dmgBonus, shots = w.shots || 1;
   for (const t of validTargets(m, wp.key)) {
@@ -1648,21 +1690,23 @@ function aiWeaponBest(m, wp, st) {
     }
     const tm = fieldMech(t.uid), ts = stats(tm);
     const hull = hpOf(tm);
-    for (const part of [null, 'torso', 'core', 'legs', 'armL', 'armR']) {
-      let pi = tm.slots.torso;
-      if (part) {
-        pi = getSlot(tm, part);
-        if (!pi || pi.hp <= 0) continue;
-        if (part.startsWith('arm') && !DEFS[pi.id].weapon) continue;
+    for (const part of ['torso', 'legs', 'armL', 'armR']) {
+      const pi = getSlot(tm, part);
+      if (!pi || pi.hp <= 0) continue;
+      if (part.startsWith('arm') && !DEFS[pi.id].weapon) continue;
+      const pv = aimPreview(m, wp.key, tm, part), pc = pv.chance / 100;
+      // a finishing shot is worth most; otherwise hull damage, plus what a knock-out takes away from the enemy
+      let mult = (1 + aw.focus * 0.8 * (1 - hull / Math.max(1, maxHpOf(tm)))) * (aiKillable(tm, m.owner) ? 1.5 : 1);
+      if (pv.kill) mult = 3 + aw.focus;
+      let ko = 0;
+      if (!pv.kill && pv.ko) {
+        const pd = DEFS[pi.id];
+        // a weapon is only offline for a round, so a disarm is worth about one round of what it would have done
+        ko = part === 'legs' ? 1 : pd.weapon && !pd.weapon.repair ? 0.35 * pd.weapon.dmg * (pd.weapon.shots || 1) * pd.weapon.acc / 100 : 0.3;
       }
-      const pc = hitChance(m, wp.key, tm, part) / 100;
-      const armor = w.ap ? 0 : Math.max(0, (DEFS[pi.id].armor || 0) + ts.armorAll + (tm.braced ? 1 : 0) - (pierceOf(w, m.owner) || 0));
-      const dmg = Math.max(1, dmgRaw - armor);
-      // a finishing shot is worth most; knocking out a core, weapon or legs comes next
-      let mult = (part ? 0.9 : 1) * (1 + aw.focus * 0.8 * (1 - hull / Math.max(1, maxHpOf(tm)))) * (aiKillable(tm, m.owner) ? 1.5 : 1);
-      if (dmg >= hull) mult = 3 + aw.focus;
-      else if (part && dmg >= pi.hp) mult = part === 'core' ? 1.8 : part === 'legs' ? 1.3 : part === 'torso' ? 1.2 : 1.6;
-      const ev = pc * dmg * shots * mult + (w.heatDmg ? 0.5 : 0);
+      // reactor heat matters when it tips the target over its limit
+      const heatGain = pv.heat && tm.heat + pv.heat > ts.heatCap ? 1.5 : pv.heat ? 0.3 : 0;
+      const ev = pc * (pv.hull * shots * mult + ko + heatGain) + (w.heatDmg ? 0.5 : 0);
       if (!best || ev > best.ev) best = { key: wp.key, target: t, part, ev };
     }
   }
@@ -1941,7 +1985,7 @@ function aiBuild(p) {
   if (C.REQ_COST && p.supply >= C.REQ_COST + 14 && p.workshop.length <= C.WORKSHOP_MAX - 3 && !canRequisition(p)) { requisition(p); return; }
   for (const c of p.workshop.slice()) if (DEFS[c.id].slot === 'tactic') playTactic(p, c.uid);
   for (const m of p.hangar) for (const { key, inst } of partsOf(m)) {
-    if (inst.hp <= 0) { if (key === 'core') repair(p, m, key); else removePart(p, m, key); }
+    if (inst.hp <= 0) { if (key === 'core') repair(p, m, key); else if (inst.offUntil == null) removePart(p, m, key); }
     else if (worn(inst)) repair(p, m, key);
   }
   for (const m of p.hangar) if (!isBlank(m)) aiOutfit(p, m);
@@ -1999,7 +2043,7 @@ const api = {
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
   acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
-  activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, digsIn, ENERGY_MELT, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
+  activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, digsIn, ENERGY_MELT, AIM, aimPreview, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
   radarBonus, isDamaged, aiStep,
   clearFx() { if (S) S.fx = []; }
 };

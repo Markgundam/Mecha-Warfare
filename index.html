@@ -728,10 +728,21 @@ button.rost { cursor: pointer; }
 .pk-h { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); min-width: 0; }
 .pk-h span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-h .ib { margin-left: auto; width: 24px; height: 24px; }
-.pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.pb { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; height: 38px; padding: 0 6px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 3px; cursor: pointer; min-width: 0; text-align: left; }
-.pb span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.pb b { font-family: var(--mono); font-size: 11.5px; font-weight: 500; color: var(--bad); white-space: nowrap; }
+.pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 4px; }
+/* one aim choice: icon, what it does in words, then the chance and the hull damage */
+.pb { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 42px; padding: 4px 8px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 3px; cursor: pointer; min-width: 0; text-align: left; font: inherit; }
+.pb:hover { border-color: var(--ink); }
+.pb.body { grid-column: 1 / -1; border-color: var(--ink); border-width: 2px; }
+.pb.kill { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--raised)); }
+.pb .pbi { width: 18px; height: 18px; color: var(--muted); }
+.pbt { display: flex; flex-direction: column; min-width: 0; }
+.pbt b { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pbt b small { font: 500 10px var(--mono); color: var(--muted); margin-left: 3px; }
+.pbt em { font-style: normal; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pbn { display: flex; flex-direction: column; align-items: flex-end; }
+.pbn b { font: 600 15px var(--mono); } .pbn small { font: 500 10px var(--mono); color: var(--bad); white-space: nowrap; }
+.pt { font: 600 9px var(--mono); font-style: normal; text-transform: uppercase; letter-spacing: .05em; margin-left: 5px; padding: 1px 4px; border-radius: 2px; }
+.pt.ko { background: var(--warn); color: #1b1408; } .pt.kill { background: var(--bad); color: #fff; }
 .olbl { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .orow { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 6px; align-items: center; height: 22px; font-size: 12.5px; }
 .orow span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1836,7 +1847,7 @@ function oddsAgainst(tm) {
   const rows = MW.weaponsOf(sh).filter(wp => !wp.w.repair).map(wp => {
     let txt;
     const lock = MW.weaponLock(sh, wp.key);
-    if (wp.inst.hp <= 0) txt = '<em>knocked out</em>';
+    if (wp.inst.hp <= 0) txt = '<em>' + (wp.inst.offUntil != null ? 'offline · back round ' + (wp.inst.offUntil + 1) : 'knocked out') + '</em>';
     else if (lock) txt = '<em>' + lock.toLowerCase() + '</em>';
     else {
       const ch = MW.hitChance(sh, wp.key, tm, null), inR = MW.validTargets(sh, wp.key).some(t => t.uid === tm.uid);
@@ -1854,21 +1865,26 @@ function enemyWeaponsLine0(m) {
   const parts = MW.weaponsOf(m).map(wp => '<span>' + ico(wp.def.cat, 'sm k-' + wp.def.cat) + ' ' + wp.def.name + ' ' + (wp.w.repair ? 'repair' : (wp.w.dmg + st.dmgBonus) + ' dmg · rng ' + MW.effRange(wp.w, st)) + (wp.inst.hp <= 0 ? ' (out)' : '') + '</span>');
   return '<div class="ewl">' + (parts.join('') || '<span>Unarmed</span>') + '</div>';
 }
+// the aim picker: every choice says what it does, how likely it is and what it would knock out
 function picker(m) {
   const tm = MW.fieldMech(ui.pendingTarget);
   if (!tm) return '';
-  const inst = MW.getSlot(m, ui.weaponKey), w = D[inst.id].weapon, st = MW.stats(m), ts = MW.stats(tm);
-  const row = (part, label) => {
-    const ch = MW.hitChance(m, ui.weaponKey, tm, part);
-    let dmg = w.dmg + st.dmgBonus;
-    if (part) { const pi = MW.getSlot(tm, part); dmg = Math.max(1, dmg - (w.ap ? 0 : (D[pi.id].armor || 0) + ts.armorAll + (tm.braced ? 1 : 0))); }
-    return '<button type="button" class="pb" data-act="shoot" data-part="' + (part || '') + '"><span>' + label + '</span><b>' + ch + '% · ' + dmg + ' dmg</b></button>';
+  const inst = MW.getSlot(m, ui.weaponKey), wd = D[inst.id], ts = MW.stats(tm);
+  const opt = part => {
+    const pi = MW.getSlot(tm, part);
+    if (!pi || pi.hp <= 0) return '';
+    const pv = MW.aimPreview(m, ui.weaponKey, tm, part), pd = D[pi.id], n = pv.shots > 1 ? ' ×' + pv.shots : '';
+    let title, effect, icon;
+    if (part === 'torso') { title = 'Body'; icon = 'torso'; effect = 'Full damage to the hull'; }
+    else if (part === 'legs') { title = 'Legs'; icon = 'legs'; effect = pv.ko ? 'Cripples it: 1 move' : pi.hp - pv.dmg * pv.shots <= pd.hp / 2 ? 'Slows it: −1 move' : 'Wears the legs down'; }
+    else { title = (part === 'armL' ? 'Left arm' : 'Right arm'); icon = pd.weapon ? 'dmg' : 'shield'; effect = pd.weapon ? (pv.ko ? 'Offline next round: ' : 'Damages ') + pd.name : (pv.ko ? 'Knocks out ' : 'Damages ') + pd.name; }
+    const tag = pv.kill ? '<i class="pt kill">Destroys</i>' : pv.ko ? '<i class="pt ko">KO</i>' : '';
+    return '<button type="button" class="pb' + (part === 'torso' ? ' body' : '') + (pv.kill ? ' kill' : '') + '" data-act="shoot" data-part="' + part + '" aria-label="Aim at ' + title + ', ' + pv.chance + ' percent, ' + effect + '">' +
+      ico(icon, 'pbi') + '<span class="pbt"><b>' + title + (part !== 'torso' ? ' <small>' + pi.hp + '/' + pd.hp + '</small>' : '') + tag + '</b><em>' + effect + '</em></span>' +
+      '<span class="pbn"><b>' + pv.chance + '%</b><small>−' + pv.hull + n + ' hull</small></span></button>';
   };
-  let h = '<div class="pk-h">' + ico(D[inst.id].cat, 'sm k-' + D[inst.id].cat) + '<span>Aim ' + D[inst.id].name + ' at ' + tm.name + (tm.shield > 0 ? ' · shield ' + tm.shield : '') + '</span><button type="button" class="ib" data-act="cancelFire" aria-label="Cancel aiming">✕</button></div><div class="pick">' + row(null, 'Centre mass');
-  for (const key of ['torso', 'core', 'armL', 'armR', 'legs']) {
-    const pi = MW.getSlot(tm, key);
-    if (pi && pi.hp > 0) h += row(key, MW.slotName(key) + ' ' + pi.hp + '/' + D[pi.id].hp);
-  }
+  let h = '<div class="pk-h">' + kindIco(wd, 'sm k-' + cardKind(wd)) + '<span>Aim ' + wd.name + ' at ' + tm.name + ' · hull ' + MW.hpOf(tm) + '/' + MW.maxHpOf(tm) + (tm.shield > 0 ? ' · shield ' + tm.shield : '') + '</span><button type="button" class="ib" data-act="cancelFire" aria-label="Cancel aiming">✕</button></div><div class="pick">';
+  for (const key of ['torso', 'armL', 'armR', 'legs']) h += opt(key);
   return h + '</div>';
 }
 function actionsRow(m) {
@@ -2568,14 +2584,15 @@ function showRules() {
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
     ['Build', [['Start', 'Each side starts with mecha ready to deploy, each on a different chassis from its doctrine (Assault brings an extra one), and ' + C.EP + ' engineering actions a round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) take effect when collected: Supply Drop, Overtime Shift, Tech Requisition, Field Repairs.'],
       ['Build', 'You get ' + C.EP + ' engineering actions a round. Fitting or repairing a part uses one and costs Supply; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads have armoured tracks, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
+      ['Aiming', 'Pick where a shot goes. Body: no penalty, full damage to the hull. Weapon arm (−15%): knocks that weapon offline for the rest of the round and the next (it restarts at half strength), half the damage reaches the hull. Legs (−10%): slows the mech, 1 move once destroyed, half to the hull. The reactor sits inside the chassis and cannot be aimed at.'],
       ['Energy weapons', 'Lasers, lances and projectors melt through 1 point of armour (2 for the Experimental doctrine). Pierce ignores armour completely.'],
       ['Reading a card', 'Every card has the same layout. Top left: its type (chassis, legs, aux, or the weapon mount it needs: gun, energy, melee, heavy). Middle: two numbers (weapons: damage and range; chassis: HP and size; legs: move and the heaviest chassis they carry). Bottom left: its one special rule as a word. Bottom right: its weight in capacity pips, and a flame if it runs hot. Tap i for every detail.'],
       ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Sell unused cards from their i details: parts 1 Supply, weapons 2, special parts 3, special weapons 4. Short on cards? Requisition one more from the Arsenal for ' + C.REQ_COST + ' Supply.']]],
     ['Fight', [['Turns', 'Mecha on the field at once: Assault 4, Experimental 3, Armored 2. Commanders alternate activating one mech, two actions each: move, fire a weapon (each once per activation), overwatch, brace, salvage, or return to base.'],
-      ['Shooting', 'Centre mass hits a random part. Aiming costs 10% accuracy, 25% for the core. Ruins give 20% cover. Rocks block direct fire; indirect weapons ignore them.'],
+      ['Shooting', 'Ruins give 20% cover. Rocks block direct fire; indirect weapons ignore them.'],
       ['Disarmed', 'A mech with no working weapon can Detonate: its core blasts every tile within 2 (full damage next to it, half at range 2), flattens ruins, knocks objectives back to neutral and hits an adjacent enemy base. Or Strip it in the field: special parts go back to the Workshop, standard parts give 1 Supply each.'],
       ['Overwatch', 'Hold fire for the round: the first enemy to end a move in range of a ready weapon is shot automatically. Tiles under enemy overwatch are striped red when you move.']]],
-    ['Damage', [['HP', 'A mech’s HP is its frame’s HP, the bar under it on the map. Every hit lowers it; at 0 the mech is destroyed. A hit on another part also damages that part: arms lose their weapon, legs slow, a core cuts power.'],
+    ['Damage', [['HP', 'A mech’s HP is its frame’s HP, the bar under it on the map. Every hit lowers it; at 0 the mech is destroyed. A hit on another part also damages that part: a weapon knocked out goes offline for a round, legs slow, a reactor cuts power.'],
       ['Heat', 'Firing and boosting build heat; cooling removes some each round. Heat over capacity at Resolution damages the core and leaves one action next round.'],
       ['Weapons', Object.keys(CAT_NAME).map(k => '<span class="chip">' + ico(k, 'sm k-' + k) + ' ' + CAT_NAME[k] + '</span>').join(' ')]]],
     ['Special', [['Specials', '5 per deck, gold ★. Inferno Cannon burns (1 damage at each of 3 Resolutions), Cryo Lance slows (−2 move), EMP Projector shocks (one action next round). Aegis Frame and Lattice Core are tougher standard parts.'],
