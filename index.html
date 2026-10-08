@@ -725,6 +725,10 @@ button.rost { cursor: pointer; }
 .ab:disabled { opacity: .4; cursor: not-allowed; }
 .ab.hl { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--raised)); }
 .ab.end { flex: 1.3; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tgs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.tg { display: flex; flex-direction: column; align-items: flex-start; padding: 3px 9px; border: 1px solid var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--raised)); color: var(--ink); border-radius: 3px; cursor: pointer; font: inherit; }
+.tg b { font-size: 12.5px; font-weight: 600; } .tg small { font: 500 10px var(--mono); color: var(--muted); }
+.tg:hover { background: color-mix(in srgb, var(--bad) 18%, var(--raised)); }
 .pk-h { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); min-width: 0; }
 .pk-h span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-h .ib { margin-left: auto; width: 24px; height: 24px; }
@@ -772,6 +776,10 @@ button.rost { cursor: pointer; }
 .h3d-top .chips .chip { background: rgba(14, 20, 27, .72); color: #eef3f6; border-color: rgba(255, 255, 255, .14); }
 .h3d-top .h3d-warn { position: static; }
 .cardgrid { display: grid; gap: 6px; flex: 1; min-height: 0; }
+.pfil { display: flex; gap: 4px; flex: none; }
+.pfc { flex: 1; min-width: 0; padding: 5px 4px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 3px; font: 600 12px var(--body); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pfc i { font: 500 10px var(--mono); font-style: normal; color: var(--muted); margin-left: 4px; }
+.pfc.on { background: var(--ink); color: var(--bg); border-color: var(--ink); } .pfc.on i { color: inherit; opacity: .8; }
 .partscroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
 .partscroll > .lbl { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: 2px 0; }
 .cardlist { display: grid; gap: 6px; }
@@ -1865,6 +1873,17 @@ function enemyWeaponsLine0(m) {
   const parts = MW.weaponsOf(m).map(wp => '<span>' + ico(wp.def.cat, 'sm k-' + wp.def.cat) + ' ' + wp.def.name + ' ' + (wp.w.repair ? 'repair' : (wp.w.dmg + st.dmgBonus) + ' dmg · rng ' + MW.effRange(wp.w, st)) + (wp.inst.hp <= 0 ? ' (out)' : '') + '</span>');
   return '<div class="ewl">' + (parts.join('') || '<span>Unarmed</span>') + '</div>';
 }
+// everything the armed weapon can reach, as buttons: picking a target never depends on tapping it through the scenery
+function targetChips(m) {
+  const wd = D[MW.getSlot(m, ui.weaponKey).id], ts = MW.validTargets(m, ui.weaponKey);
+  if (!ts.length) return '<div class="tgs"><span class="note">Nothing in reach of ' + wd.name + '.</span></div>';
+  return '<div class="tgs" role="group" aria-label="Targets"><span class="lbl">Targets</span>' + ts.map(t => {
+    const tm = t.type === 'mech' ? MW.fieldMech(t.uid) : null;
+    const label = tm ? tm.name : t.type === 'base' ? 'Enemy base' : 'Target';
+    const info = tm ? (wd.weapon.repair ? 'repair' : MW.hitChance(m, ui.weaponKey, tm, null) + '%') + ' · ' + MW.hpOf(tm) + '/' + MW.maxHpOf(tm) : 'always hits';
+    return '<button type="button" class="tg" data-act="pickTarget" data-x="' + t.x + '" data-y="' + t.y + '"><b>' + label + '</b><small>' + info + '</small></button>';
+  }).join('') + '</div>';
+}
 // the aim picker: every choice says what it does, how likely it is and what it would knock out
 function picker(m) {
   const tm = MW.fieldMech(ui.pendingTarget);
@@ -1912,6 +1931,7 @@ function mechDock(m, closable) {
   if (S.phase === 'combat' && m.owner !== viewer()) return h + oddsAgainst(m) + enemyWeaponsLine(m);
   if (live && ui.mode === 'fire' && ui.pendingTarget != null) return h + picker(m);
   h += weaponRows(m, live);
+  if (live && ui.mode === 'fire' && MW.getSlot(m, ui.weaponKey)) h += targetChips(m);
   if (live) h += actionsRow(m);
   else if (own) h += '<p class="note">' + guard + '</p>';
   return h;
@@ -2058,14 +2078,18 @@ function panelBase(p) {
       }
     } else h += '<p class="note">The hangar is full of mecha on the field. A fresh frame appears here when one deploys or returns.</p>';
   } else if (ui.wtab === 'cards') {
-    // with no chassis yet, the only sensible first step is choosing one
-    if (m && !m.slots.torso && !ui.slotSel) ui.slotSel = 'torso';
-    const type = ui.slotSel ? MW.slotType(ui.slotSel) : null;
+    // the list follows the selected slot (a frame with no chassis starts on chassis), unless a filter is picked by hand
+    const auto = ui.slotSel ? MW.slotType(ui.slotSel) : (m && !m.slots.torso ? 'torso' : null);
+    const type = ui.pf === 'all' ? null : ui.pf && ui.pf !== 'auto' ? ui.pf : auto;
+    const slotType = ui.slotSel && MW.slotType(ui.slotSel) === type ? ui.slotSel : null;
+    const nOf = t => p.workshop.filter(c => D[c.id].slot === t).length;
+    const chip = (f, label, n) => '<button type="button" class="pfc' + ((f === 'all' ? !type : type === f) ? ' on' : '') + '" data-act="pf" data-f="' + f + '">' + label + (n != null ? '<i>' + n + '</i>' : '') + '</button>';
+    h += '<div class="pfil" role="group" aria-label="Show parts">' + chip('all', 'All', p.workshop.length) + chip('torso', 'Chassis', nOf('torso')) + chip('legs', 'Legs', nOf('legs')) + chip('arm', 'Weapons', nOf('arm')) + chip('aux', 'Aux', nOf('aux')) + '</div>';
     const ws = p.workshop.filter(c => !type || D[c.id].slot === type || D[c.id].slot === 'tactic');
     const std = MW.standardFor(p).map(id => D[id]).filter(d => !type || d.slot === type);
     const cols = winSpace(230).wide ? 3 : 2, list = items => '<div class="cardlist" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' + items.join('') + '</div>';
     const rq = MW.canRequisition(p), rqNeed = p.supply < C.REQ_COST && !(!p.deck.length || p.workshop.length >= C.WORKSHOP_MAX);
-    h += '<div class="slotline"><span class="note">' + (type ? 'Parts for the ' + MW.slotName(ui.slotSel).toLowerCase() : 'Fit to ' + (m ? m.name : 'a frame') + '. Tap i on a card for details, or to sell it') + '</span>' + (type ? '<button type="button" class="btn sm ghost" data-act="slotClear">Show all</button>' : '') +
+    h += '<div class="slotline"><span class="note">' + (slotType ? 'Parts for the ' + MW.slotName(slotType).toLowerCase() : 'Fit to ' + (m ? m.name : 'a frame') + '. Tap i on a card for details, or to sell it') + '</span>' +
       '<button type="button" class="btn sm' + (rq ? (rqNeed ? ' blocked' : '') : '') + '"' + (rq ? (rqNeed ? ' data-need="supply" aria-disabled="true"' : ' disabled title="' + rq + '"') : ' data-act="requisition"') + '>' + (rq && rqNeed ? 'Needs ' + C.REQ_COST + si('supply') : '+1 card · ' + C.REQ_COST + si('supply')) + '</button></div>' +
       (() => {
         // sort every card into fits / won't fit for this mech, keeping the reason
@@ -2074,10 +2098,10 @@ function panelBase(p) {
         const stdOk = std.filter(d => fits(d.id)), stdNo = std.filter(d => !fits(d.id));
         const stepName = { torso: 'Step 1 · Chassis', legs: 'Step 2 · Legs', arm: 'Step 3 · Weapons', aux: 'Step 4 · Aux systems' }[type] || '';
         const no = wsNo.length + stdNo.length;
-        return '<div class="partscroll">' + (stepName ? '<span class="stephead">' + stepName + (m && m.slots.torso && type === 'legs' ? ' · must carry ' + MW.SIZE_NAME[MW.sizeOf(m)].toLowerCase() : '') + (type === 'arm' && m ? ' · ' + MW.MOUNT_NAME[MW.armMount(m, ui.slotSel)].toLowerCase() + ' mount' : '') + '</span>' : '') +
+        return '<div class="partscroll">' + (stepName ? '<span class="stephead">' + stepName + (m && m.slots.torso && type === 'legs' ? ' · must carry ' + MW.SIZE_NAME[MW.sizeOf(m)].toLowerCase() : '') + (type === 'arm' && m && slotType ? ' · ' + MW.MOUNT_NAME[MW.armMount(m, slotType)].toLowerCase() + ' mount' : '') + '</span>' : '') +
           '<span class="lbl">Your cards · ' + wsOk.length + '</span>' + (wsOk.length ? list(wsOk.map(c => cardHTML(D[c.id], c))) : '<p class="note">No cards that fit' + (type ? ' here' : '') + '.</p>') +
           '<span class="lbl">Standard and ' + DOC_NAME(p.doctrine) + ' issue · never runs out</span>' + (stdOk.length ? list(stdOk.map(d => cardHTML(d, null))) : '<p class="note">No standard part fits here.</p>') +
-          (no ? '<details class="wontfit"><summary>Won’t fit · ' + no + '</summary>' + list(wsNo.map(c => cardHTML(D[c.id], c)).concat(stdNo.map(d => cardHTML(d, null)))) + '</details>' : '') + '</div>';
+          (no ? '<details class="wontfit"' + (!type && m && !m.slots.torso ? ' open' : '') + '><summary>' + (!type && m && !m.slots.torso ? 'Needs a chassis first' : 'Won’t fit') + ' · ' + no + '</summary>' + list(wsNo.map(c => cardHTML(D[c.id], c)).concat(stdNo.map(d => cardHTML(d, null)))) + '</details>' : '') + '</div>';
       })();
     p.workshop.forEach(c => ui.seen.add(c.uid));
   } else {
@@ -2451,7 +2475,8 @@ function onAct(el) {
   if (a === 'itab') { ui.itab = el.dataset.tab; ui.lpg = 0; return render(); }
   if (a === 'pg') { ui.pg = Math.max(0, (ui.pg || 0) + (+el.dataset.d)); return render(); }
   if (a === 'lpg') { ui.lpg = Math.max(0, (ui.lpg || 0) + (+el.dataset.d)); return render(); }
-  if (a === 'findParts') { ui.wtab = 'cards'; ui.pg = 0; return render(); }
+  if (a === 'findParts') { ui.wtab = 'cards'; ui.pg = 0; ui.pf = 'auto'; return render(); }
+  if (a === 'pf') { ui.pf = el.dataset.f; ui.pg = 0; return render(); }
   if (a === 'closeOverlay') { $('#overlay').hidden = true; return; }
   if (a === 'toStart') { $('#overlay').hidden = true; document.querySelectorAll('.confetti').forEach(c => c.remove()); return showStart(); }
   if (a === 'battleMenu') return showBattleMenu(false);
@@ -2485,7 +2510,7 @@ function onAct(el) {
   switch (a) {
     case 'newMech': { const r = MW.newMech(p); if (r.ok) { ui.hangarSel = r.mech.uid; ui.slotSel = null; } return after(r, r.ok ? 'New frame laid down.' : ''); }
     case 'slot': ui.slotSel = ui.slotSel === el.dataset.key ? null : el.dataset.key; return render();
-    case 'plus': ui.slotSel = el.dataset.key; ui.wtab = 'cards'; ui.pg = 0; return render();
+    case 'plus': ui.slotSel = el.dataset.key; ui.wtab = 'cards'; ui.pg = 0; ui.pf = 'auto'; return render();
     case 'step': {
       // a step opens the Parts list filtered to what fits there
       let key = el.dataset.key;
@@ -2552,6 +2577,7 @@ function onAct(el) {
       if (!MW.validTargets(sm, el.dataset.key).length) toast('No target in reach of this weapon. The lit tiles show its range: move closer first.');
     } return render();
     case 'cancelFire': ui.mode = 'move'; ui.pendingTarget = null; return render();
+    case 'pickTarget': return onTile(+el.dataset.x, +el.dataset.y);
     case 'shoot': {
       const tm = MW.fieldMech(ui.pendingTarget);
       if (!tm) return render();

@@ -1105,7 +1105,7 @@ R3.mount = function (el, onTap) {
   const scene = new T.Scene();
   scene.fog = new T.Fog(0x8e9a9f, 26, 60);
   const cam = new T.OrthographicCamera(-5, 5, 5, -5, 0.1, 100);
-  scene.add(new T.HemisphereLight(0xdfe3e0, 0x4f5250, 0.8));
+  const hemi = new T.HemisphereLight(0xdfe3e0, 0x4f5250, 0.8); scene.add(hemi);
   const sun = new T.DirectionalLight(0xf2ead8, 0.75);
   sun.position.set(-5, 11, 7); sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
@@ -1113,7 +1113,7 @@ R3.mount = function (el, onTap) {
   sun.shadow.bias = -0.0015;
   scene.add(sun);
   const group = new T.Group(); scene.add(group);
-  BD = { el, renderer, scene, cam, group, sun, onTap, recs: {}, tiles: {}, ov: {}, props: {}, labels: [], queue: [], anims: [], shake: 0, flip: false, crates: {}, wrecks: {}, objs: {}, sel: null, active: null,
+  BD = { el, renderer, scene, cam, group, sun, hemi, onTap, recs: {}, tiles: {}, ov: {}, props: {}, labels: [], queue: [], anims: [], shake: 0, flip: false, crates: {}, wrecks: {}, objs: {}, sel: null, active: null,
     rig: { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }, rigT: { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }, viewEl: EL_TOP, viewAz: 0, userT: -9, intent: null, focusTok: 0, size: { w: 1, h: 1 } };
   BD.parts = new Particles(group, 260);
   const resize = () => { const w = el.clientWidth || 1, h = el.clientHeight || 1; renderer.setSize(w, h, false); BD.size = { w, h }; };
@@ -1256,40 +1256,77 @@ function bindCameraInput(cv) {
     ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     BD.scene.updateMatrixWorld(true); BD.cam.updateMatrixWorld();
     ray.setFromCamera(ndc, BD.cam);
-    const hits = ray.intersectObjects(BD.group.children, true);
+    const hits = ray.intersectObjects(BD.group.children, true), cands = [];
     for (const h of hits) {
       let o = h.object;
       while (o && !o.userData.tile && !o.userData.uid) o = o.parent;
       if (!o) continue;
-      if (o.userData.uid) { const rec = BD.recs[o.userData.uid]; if (rec && !rec.gone) { BD.onTap && BD.onTap(rec.x, rec.y); return; } continue; }
-      const [x, y] = o.userData.tile.split(',').map(Number);
-      BD.onTap && BD.onTap(x, y); return;
+      if (o.userData.uid) { const rec = BD.recs[o.userData.uid]; if (rec && !rec.gone) cands.push([rec.x, rec.y]); continue; }
+      cands.push(o.userData.tile.split(',').map(Number));
     }
+    const isTarget = c => BD.ov[key(c[0], c[1])] && BD.ov[key(c[0], c[1])].userData.kind === 'target';
+    let pick = cands.find(isTarget);
+    if (!pick) {
+      // nothing on the line is a target: take the nearest target within a finger's width of the tap
+      let best = 34;
+      for (const k in BD.ov) {
+        if (BD.ov[k].userData.kind !== 'target') continue;
+        const [x, y] = k.split(',').map(Number), w = worldTile(x, y); w.y = 0.45; w.project(BD.cam);
+        const d = Math.hypot((w.x - ndc.x) / 2 * r.width, (w.y - ndc.y) / 2 * r.height);
+        if (d < best) { best = d; pick = [x, y]; }
+      }
+    }
+    if (!pick) pick = cands[0];
+    if (pick && BD.onTap) BD.onTap(pick[0], pick[1]);
   };
   cv.addEventListener('pointerup', end);
   cv.addEventListener('pointercancel', e => { pts.delete(e.pointerId); g = null; });
   cv.addEventListener('wheel', e => { e.preventDefault(); BD.userT = clock(); BD.rigT.zoom = Math.max(0.8, Math.min(3.5, BD.rigT.zoom * Math.exp(-e.deltaY * 0.0015))); keepOnBoard(BD.rigT, 1.2); }, { passive: false });
 }
 
+/* Every map has its own biome: ground, sky and light, what its blocking terrain is made of, how its ruins have weathered,
+   and the small things scattered on the ground. Layout and rules are the engine's; only the look changes here. */
+const BIOMES = {
+  // Open Field: a green meadow, tree clumps for cover
+  open: { sky: 0xa9cbdc, isle: [0x6b5a44, 0x54473a], spike: [0x5f5142, 0x4d4236], tile: [0x6f9457, 0x678b50], scuff: 0x567a41,
+    hemi: [0xeaf4e0, 0x4c5c3e], sun: 0xfff2d2, ruin: [0x9c9a8e, 0x84817a], rock: 'trees', deco: 'meadow' },
+  // Three Lanes: a sandstone canyon, mesas for walls
+  lanes: { sky: 0xe6cfa6, isle: [0x9c6c46, 0x7e5537], spike: [0x8a5e3c, 0x714c31], tile: [0xc6a273, 0xbd9868], scuff: 0xa5804f,
+    hemi: [0xfff2da, 0x8c6c4a], sun: 0xffe4b4, ruin: [0xcba67a, 0xb28c60], rock: 'mesa', deco: 'desert' },
+  // Uplink: an arctic relay station, ice and snow
+  uplink: { sky: 0xb9cad8, isle: [0x70808e, 0x5a6875], spike: [0x9db4c6, 0x86a0b4], tile: [0xbccbd8, 0xb1c1cf], scuff: 0x9db0c1,
+    hemi: [0xe6eef6, 0x64748a], sun: 0xe6eeff, ruin: [0xaab5bf, 0x8f9ba7], rock: 'ice', deco: 'snow' },
+  // Scrapyard: rust, oil and stacked containers
+  salvage: { sky: 0x8f867a, isle: [0x4f463e, 0x3e3731], spike: [0x4a423b, 0x3a342f], tile: [0x6e655c, 0x655c54], scuff: 0x4b443e,
+    hemi: [0xdad2c6, 0x403c38], sun: 0xffdcae, ruin: [0x8c705a, 0x715c4b], rock: 'scrap', deco: 'yard' }
+};
+let BIO = BIOMES.open;
+const q = v => Math.round(v * 20) / 20;                       // keeps random sizes to a few shared shapes
 function buildBoard(S) {
   const MW = window.MW, W = MW.W, H = MW.H, g = BD.group;
+  BIO = BIOMES[S.map] || BIOMES.open;
+  BD.renderer.setClearColor(BIO.sky);
+  if (BD.scene.fog) BD.scene.fog.color.setHex(BIO.sky);
+  if (BD.hemi) { BD.hemi.color.setHex(BIO.hemi[0]); BD.hemi.groundColor.setHex(BIO.hemi[1]); }
+  BD.sun.color.setHex(BIO.sun);
   // the floating island under the board
-  const isl = mesh(box(H + 0.5, 1.6, W + 0.5), toon(0x6b6157), g, [0, -0.95, 0], null, { t: 0.03 });
+  const isl = mesh(box(H + 0.5, 1.6, W + 0.5), toon(BIO.isle[0]), g, [0, -0.95, 0], null, { t: 0.03 });
   isl.receiveShadow = true; isl.userData.ground = true;
-  mesh(box(H + 0.2, 0.5, W + 0.2), toon(0x564d45), g, [0, -1.9, 0], null, { t: 0.03 }).userData.ground = true;
+  mesh(box(H + 0.2, 0.5, W + 0.2), toon(BIO.isle[1]), g, [0, -1.9, 0], null, { t: 0.03 }).userData.ground = true;
   for (let i = 0; i < 26; i++) {
     const r = rand(0.25, 0.7), side = i % 4;
     const px = side < 2 ? rand(-H / 2, H / 2) : (side === 2 ? -1 : 1) * (H / 2 + 0.1);
     const pz = side >= 2 ? rand(-W / 2, W / 2) : (side === 0 ? -1 : 1) * (W / 2 + 0.1);
-    mesh(cone(r, rand(0.8, 2.2), 5), toon(i % 2 ? 0x5d544b : 0x4f4740), g, [px, -2.1 - rand(0, 0.6), pz], [Math.PI, rand(0, 3), 0], { t: 0.025 });
+    mesh(cone(r, rand(0.8, 2.2), 5), toon(BIO.spike[i % 2]), g, [px, -2.1 - rand(0, 0.6), pz], [Math.PI, rand(0, 3), 0], { t: 0.025 });
   }
   // tiles
   for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
     const k = key(x, y), p = tp(x, y);
-    const shade = ((x + y) % 2 ? 0x7f8892 : 0x757e88);
+    const shade = BIO.tile[(x + y) % 2];
     const t = mesh(box(0.97, 0.22, 0.97), toon(shade), g, [p.x, -0.11, p.z], null, { t: 0.012, recv: true });
     t.castShadow = false; t.receiveShadow = true; t.userData.tile = k; t.userData.ground = true;
-    if (Math.random() < 0.35) mesh(box(rand(0.2, 0.5), 0.005, 0.02), toon(0x5d646b), g, [p.x + rand(-0.25, 0.25), 0.004, p.z + rand(-0.25, 0.25)], [0, rand(0, 3), 0], flat).userData.ground = true;
+    const ter0 = MW.terrain(x, y);
+    if (ter0 !== 'rock' && MW.baseAt(x, y) == null) groundDeco(p, !!MW.objAt(x, y) || ter0 === 'ruins' || ter0 === 'rubble');
     const ov = new T.Mesh(new T.PlaneGeometry(0.92, 0.92), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
     ov.rotation.x = -Math.PI / 2; ov.position.set(p.x, 0.012, p.z); ov.userData.tile = k; ov.renderOrder = 2; g.add(ov);
     BD.ov[k] = ov; BD.tiles[k] = t;
@@ -1324,23 +1361,84 @@ function buildTurretRing(pid, S) {
   return g;
 }
 function propGroup(k, p) { const pg = new T.Group(); pg.position.copy(p); pg.userData.tile = k; BD.group.add(pg); return pg; }
-function windows(parent, w, h, d, y0, rows) {
-  for (let r = 0; r < rows; r++) for (const sx of [-1, 1]) mesh(box(0.06, 0.05, 0.005), toon(0x2d3640), parent, [sx * w * 0.22, y0 + r * 0.16, d / 2 + 0.003], null, flat);
+// small things on open ground: low and flat so they never hide a mech or block a tap
+function groundDeco(p, busy) {
+  const g = BD.group, at = (dx, dz) => [p.x + dx, 0, p.z + dz];
+  const put = (geo, col, pos, rot, y) => { const m = mesh(geo, toon(col), g, [pos[0], y, pos[2]], rot || null, flat); m.userData.ground = true; return m; };
+  const n = busy ? 1 : 3;
+  for (let i = 0; i < n; i++) {
+    if (Math.random() > 0.55) continue;
+    const pos = at(rand(-0.36, 0.36), rand(-0.36, 0.36)), ry = rand(0, 3);
+    if (BIO.deco === 'meadow') {
+      if (Math.random() < 0.7) for (let j = 0; j < 3; j++) put(cone(0.02, q(rand(0.06, 0.12)), 4), j % 2 ? 0x5f8a45 : 0x6f9a52, [pos[0] + rand(-0.04, 0.04), 0, pos[2] + rand(-0.04, 0.04)], [rand(-0.2, 0.2), ry, rand(-0.2, 0.2)], 0.04);
+      else put(sph(0.018, 6), Math.random() < 0.5 ? 0xf2e6a0 : 0xe9eef2, pos, null, 0.03);
+    } else if (BIO.deco === 'desert') {
+      if (Math.random() < 0.6) put(box(q(rand(0.05, 0.1)), 0.03, q(rand(0.05, 0.09))), 0xb9925e, pos, [0, ry, 0], 0.015);
+      else { put(cyl(0.006, 0.006, 0.08, 4), 0x8a6a44, pos, [0.3, ry, 0.2], 0.04); put(cyl(0.006, 0.006, 0.07, 4), 0x8a6a44, pos, [-0.3, ry + 1, 0.3], 0.035); }
+    } else if (BIO.deco === 'snow') {
+      if (Math.random() < 0.65) { const m = put(sph(q(rand(0.07, 0.13)), 8), 0xffffff, pos, null, 0); m.scale.y = 0.3; }
+      else put(box(q(rand(0.12, 0.2)), 0.004, q(rand(0.1, 0.16))), 0xbfd8ea, pos, [0, ry, 0], 0.004);
+    } else {
+      if (Math.random() < 0.5) { const m = put(cyl(q(rand(0.07, 0.13)), q(rand(0.07, 0.13)), 0.003, 10), 0x38322e, pos, null, 0.003); m.scale.z = rand(0.6, 1); }
+      else if (Math.random() < 0.6) put(box(q(rand(0.05, 0.12)), 0.025, 0.03), Math.random() < 0.5 ? 0x8c5a3a : 0x7a7f84, pos, [0, ry, 0], 0.013);
+      else put(tor(0.045, 0.016), 0x2c2a29, pos, [Math.PI / 2, 0, 0], 0.016);
+    }
+  }
+  // the old scuff marks stay as wear on the ground
+  if (Math.random() < 0.3) mesh(box(q(rand(0.2, 0.5)), 0.005, 0.02), toon(BIO.scuff), g, [p.x + rand(-0.25, 0.25), 0.004, p.z + rand(-0.25, 0.25)], [0, rand(0, 3), 0], flat).userData.ground = true;
 }
 function buildRock(p, k) {
-  const pg = propGroup(k, p), c = 0x8c8a82, c2 = 0x77756e;
-  const h1 = rand(0.7, 1.1);
-  const b = mesh(box(0.62, h1, 0.6), toon(c), pg, [0, h1 / 2, 0], [0, rand(-0.3, 0.3), rand(-0.08, 0.08)]);
-  windows(b, 0.62, h1, 0.6, -h1 / 2 + 0.2, Math.floor(h1 / 0.18));
-  mesh(box(0.66, 0.06, 0.5), toon(c2), pg, [0.06, h1 + 0.02, -0.02], [0.25, 0.2, 0.18]);
-  mesh(box(0.34, 0.35, 0.3), toon(c2), pg, [0.22, 0.17, 0.25], [0, 0.4, 0.15]);
-  for (let i = 0; i < 3; i++) mesh(cyl(0.008, 0.008, rand(0.15, 0.3), 4), toon(0x8a5a3c), pg, [rand(-0.2, 0.2), h1 + 0.08, rand(-0.2, 0.2)], [rand(-0.5, 0.5), 0, rand(-0.5, 0.5)], flat);
-  for (let i = 0; i < 4; i++) mesh(box(rand(0.08, 0.16), 0.06, rand(0.08, 0.14)), toon(c2), pg, [rand(-0.4, 0.4), 0.03, rand(-0.4, 0.4)], [0, rand(0, 3), 0]);
+  const pg = propGroup(k, p);
+  if (BIO.rock === 'trees') {
+    // a clump of conifers round a mossy boulder
+    mesh(sph(0.22, 8), toon(0x7d8078), pg, [0.16, 0.1, 0.18]).scale.set(1.2, 0.7, 1);
+    mesh(sph(0.1, 6), toon(0x6f9a52), pg, [0.2, 0.22, 0.14], null, flat).scale.y = 0.4;
+    for (const [x, z, sc] of [[-0.2, -0.18, 1.15], [0.2, -0.24, 0.9], [-0.24, 0.24, 0.8], [0.02, 0.02, 1.3]]) {
+      const tr = new T.Group(); tr.position.set(x + rand(-0.04, 0.04), 0, z + rand(-0.04, 0.04)); tr.scale.setScalar(sc * rand(0.9, 1.1)); tr.rotation.y = rand(0, 3); pg.add(tr);
+      mesh(cyl(0.035, 0.045, 0.24, 6), toon(0x6a4a32), tr, [0, 0.12, 0]);
+      mesh(cone(0.2, 0.34, 7), toon(0x3f6b3c), tr, [0, 0.36, 0]);
+      mesh(cone(0.155, 0.3, 7), toon(0x4a7a44), tr, [0, 0.56, 0]);
+      mesh(cone(0.1, 0.26, 7), toon(0x578a4e), tr, [0, 0.74, 0]);
+    }
+  } else if (BIO.rock === 'mesa') {
+    // a stack of weathered sandstone slabs with strata bands, and a cactus at its foot
+    const cols = [0xc98f58, 0xb97d49, 0xd6a36b, 0xa96f40];
+    let y = 0;
+    [[0.74, 0.3, 0.7], [0.62, 0.26, 0.6], [0.5, 0.24, 0.5], [0.36, 0.2, 0.34]].forEach(([w, h, d], i) => {
+      mesh(wedge(w, h, d, 0.86, 0.86), toon(cols[i]), pg, [rand(-0.03, 0.03), y + h / 2, rand(-0.03, 0.03)], [0, rand(-0.25, 0.25), 0]);
+      mesh(box(w * 0.9, 0.018, d * 0.9), toon(0x8f5a33), pg, [0, y + 0.012, 0], [0, rand(-0.2, 0.2), 0], flat);
+      y += h;
+    });
+    const cx = 0.34, cz = 0.34;
+    mesh(cyl(0.04, 0.045, 0.3, 8), toon(0x5f8a4c), pg, [cx, 0.15, cz]);
+    mesh(cyl(0.025, 0.025, 0.12, 6), toon(0x5f8a4c), pg, [cx + 0.07, 0.2, cz], [0, 0, 0.9]);
+    mesh(cyl(0.025, 0.025, 0.1, 6), toon(0x5f8a4c), pg, [cx + 0.11, 0.26, cz]);
+    for (let i = 0; i < 3; i++) mesh(box(q(rand(0.08, 0.14)), 0.06, q(rand(0.08, 0.12))), toon(cols[i]), pg, [rand(-0.4, 0.1), 0.03, rand(0.2, 0.42)], [0, rand(0, 3), 0]);
+  } else if (BIO.rock === 'ice') {
+    // jagged ice shards breaking out of a snow drift, with a frosted pine
+    mesh(sph(0.36, 10), toon(0xe9f1f7), pg, [0, 0, 0]).scale.set(1, 0.3, 1);
+    for (const [x, z, h, rr, tilt] of [[0, 0, 1.05, 0.2, 0.05], [-0.2, 0.12, 0.7, 0.15, 0.3], [0.2, -0.1, 0.8, 0.16, -0.28], [0.08, 0.24, 0.5, 0.12, 0.4], [-0.14, -0.22, 0.56, 0.12, -0.35]])
+      mesh(cone(rr, h, 5), toon(h > 0.75 ? 0x8fcdea : 0x6fb6dc), pg, [x, h / 2, z], [tilt, rand(0, 3), tilt * 0.6]);
+    const tr = new T.Group(); tr.position.set(-0.32, 0, -0.3); pg.add(tr);
+    mesh(cyl(0.03, 0.04, 0.2, 6), toon(0x5a4334), tr, [0, 0.1, 0]);
+    mesh(cone(0.16, 0.28, 7), toon(0x3d5f55), tr, [0, 0.3, 0]); mesh(cone(0.12, 0.24, 7), toon(0x47695f), tr, [0, 0.46, 0]);
+    mesh(cone(0.07, 0.1, 7), toon(0xffffff), tr, [0, 0.58, 0], null, flat);
+  } else if (BIO.rock === 'scrap') {
+    // stacked shipping containers, one skewed, with junk piled against them
+    const cols = [0xa6533a, 0x3f7f86, 0xc79a3a, 0x6b7a52];
+    const can = (x, y, z, ry, c) => { const b = mesh(box(0.72, 0.3, 0.34), toon(c), pg, [x, y, z], [0, ry, 0]); for (let i = -3; i <= 3; i++) mesh(box(0.012, 0.24, 0.345), toon(0x2f2b28), b, [i * 0.1, 0, 0], null, flat); mesh(box(0.012, 0.26, 0.3), toon(0x2f2b28), b, [0.362, 0, 0], null, flat); };
+    can(0, 0.15, -0.1, 0.1, cols[0]); can(0.02, 0.15, 0.26, -0.12, cols[1]); can(-0.02, 0.45, 0.06, 0.5, cols[2]);
+    if (Math.random() < 0.6) can(0.04, 0.75, 0.04, 0.2, cols[3]);
+    mesh(tor(0.09, 0.035), toon(0x2a2827), pg, [-0.36, 0.09, 0.38], [0.3, 0.4, 0]);
+    for (let i = 0; i < 4; i++) mesh(box(q(rand(0.08, 0.16)), q(rand(0.04, 0.1)), q(rand(0.06, 0.12))), toon(i % 2 ? 0x8c5a3a : 0x70757a), pg, [rand(-0.42, 0.42), 0.04, rand(0.3, 0.44)], [rand(-0.3, 0.3), rand(0, 3), 0]);
+  }
   BD.props[k] = pg;
 }
 function buildRuin(p, k, rubble) {
   if (BD.props[k]) { BD.group.remove(BD.props[k]); }
-  const pg = propGroup(k, p), c = 0x96938a, c2 = 0x7d7b74;
+  const pg = propGroup(k, p), c = BIO.ruin[0], c2 = BIO.ruin[1];
+  // what has settled on the stonework: moss, sand, snow or rust
+  const cap = { meadow: 0x6f9a52, desert: 0xdcb983, snow: 0xffffff, yard: 0x8c5a3a }[BIO.deco];
   if (rubble) {
     for (let i = 0; i < 9; i++) mesh(box(rand(0.08, 0.2), rand(0.04, 0.12), rand(0.08, 0.2)), toon(i % 2 ? c : c2), pg, [rand(-0.35, 0.35), 0.04, rand(-0.35, 0.35)], [rand(-0.3, 0.3), rand(0, 3), rand(-0.3, 0.3)]);
     pg.userData.rubble = true;
@@ -1348,10 +1446,16 @@ function buildRuin(p, k, rubble) {
     const wall = (x, z, ry, len) => {
       const g2 = new T.Group(); g2.position.set(x, 0, z); g2.rotation.y = ry; pg.add(g2);
       const steps = [0.42, 0.34, 0.22, 0.12];
-      steps.forEach((hh, i) => { const seg = mesh(box(len / steps.length, hh, 0.08), toon(i % 2 ? c : c2), g2, [-len / 2 + (i + 0.5) * len / steps.length, hh / 2, 0]); if (i === 0) mesh(box(0.06, 0.07, 0.005), toon(0x2d3640), seg, [0, 0.06, 0.043], null, flat); });
+      steps.forEach((hh, i) => {
+        const seg = mesh(box(len / steps.length, hh, 0.08), toon(i % 2 ? c : c2), g2, [-len / 2 + (i + 0.5) * len / steps.length, hh / 2, 0]);
+        if (i === 0) mesh(box(0.06, 0.07, 0.005), toon(0x2d3640), seg, [0, 0.06, 0.043], null, flat);
+        if (i % 2 === 0 || BIO.deco === 'snow') mesh(box(len / steps.length * 0.96, 0.025, 0.1), toon(cap), seg, [0, hh / 2 + 0.01, 0], null, flat);
+      });
     };
     wall(-0.05, -0.32, 0, 0.75); wall(-0.33, 0.02, Math.PI / 2, 0.6);
     for (let i = 0; i < 3; i++) mesh(box(rand(0.06, 0.12), 0.05, rand(0.06, 0.12)), toon(c2), pg, [rand(0, 0.35), 0.025, rand(0, 0.35)], [0, rand(0, 3), 0]);
+    // a drift of whatever the biome leaves in a sheltered corner
+    const d = mesh(sph(0.2, 8), toon(cap), pg, [-0.18, 0, -0.18], null, flat); d.scale.set(1, 0.22, 1);
   }
   BD.props[k] = pg;
 }
@@ -1372,6 +1476,7 @@ function buildBase(p, k, pid) {
   const mu = new T.Object3D(); mu.position.set(0, 0.04, 0.42); bar.add(mu);
   mesh(cyl(0.006, 0.006, 0.35, 4), toon(INK), pg, [0.3, 0.75, -0.3], null, flat);
   const lamp = new T.Mesh(sph(0.03, 8), glow(tc.ring)); lamp.position.set(0.3, 0.93, -0.3); pg.add(lamp);
+  pg.userData.base = true;
   BD.props[k] = pg;
   BD['base' + pid] = { tur, mu, pg, lamp };
 }
@@ -1915,6 +2020,27 @@ function updateBoard(t, dt) {
   const pulse = 0.5 + 0.5 * Math.sin(t * 5);
   for (const k in BD.ov) { const ov = BD.ov[k], kd = ov.userData.kind; if (kd === 'target' || kd === 'dep') ov.material.opacity = (OV_OP[kd] || 0.4) * (0.6 + 0.5 * pulse); }
   for (const k in BD.objs) { const r = BD.objs[k]; if (r.dish) r.dish.rotation.y = t * 0.8; }
+  {
+    const tg = [];
+    for (const k in BD.ov) if (BD.ov[k].userData.kind === 'target') tg.push(k);
+    const az = BD.rig.az, cx = Math.sin(az), cz = Math.cos(az), tilted = BD.rig.el < 1.2;
+    const hides = k => {
+      if (!tg.length) return false;
+      const [x, y] = k.split(',').map(Number), p = worldTile(x, y);
+      for (const tk of tg) {
+        if (tk === k) return true;
+        if (!tilted) continue;
+        const [ax, ay] = tk.split(',').map(Number), q = worldTile(ax, ay);
+        const dx = p.x - q.x, dz = p.z - q.z, along = dx * cx + dz * cz, across = Math.abs(dx * cz - dz * cx);
+        if (along > 0.4 && along < 1.7 && across < 0.8) return true;      // between the target and the camera
+      }
+      return false;
+    };
+    const ease = Math.min(1, dt * 9);
+    const sink = (g, k) => { if (!g || g.userData.base) return; const want = hides(k) ? 0.16 : 1; if (Math.abs(g.scale.y - want) > 0.002) g.scale.y += (want - g.scale.y) * ease; };
+    for (const k in BD.props) sink(BD.props[k], k);
+    for (const k in BD.objs) sink(BD.objs[k].pg, k);
+  }
   for (const k in BD.wrecks) {
     const w = BD.wrecks[k];
     w.userData.glow.material.opacity = 0.2 + 0.35 * (0.5 + 0.5 * Math.sin(t * 3.5));
