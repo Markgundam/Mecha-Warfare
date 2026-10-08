@@ -2657,7 +2657,11 @@ function showGame() {
 const TAGS = { assault: 'Fast frames, blades and close-range guns.', armored: 'Heavy hulls, shields and long guns.', experimental: 'Energy weapons and unstable reactors.' };
 function openSetup(mode) {
   ui.startMode = mode;
-  if (ui.cmd == null) ui.cmd = gamesIndex().filter(g => g.mode === 'ai' && g.status === 'over').length < 2 ? 'recruit' : 'random';
+  if (ui.cmd == null) {
+    let saved = null;
+    try { saved = localStorage.getItem('mw-cmd'); } catch (e) { /* storage unavailable */ }
+    ui.cmd = saved === 'random' || (saved && MW.PERSONAS[saved] && !MW.PERSONAS[saved].hidden) ? saved : gamesIndex().filter(g => g.mode === 'ai' && g.status === 'over').length < 2 ? 'recruit' : 'random';
+  }
   const ai = mode === 'ai';
   $('#setup-mode').textContent = ai ? 'Against the AI' : 'Two players';
   $('#leg0').innerHTML = '<span class="who">' + ico('user', 'sm') + (ai ? ' You' : ' Player 1') + '</span><b>Azure</b><small>' + (ai ? 'pick your doctrine' : 'first player') + '</small>';
@@ -2804,13 +2808,18 @@ function setupStep(n) {
   $('#start').scrollTop = 0;
 }
 $('#back2').addEventListener('click', () => setupStep(1));
+document.addEventListener('change', e => {
+  if (!e.target || e.target.id !== 'cmd1') return;
+  ui.cmd = e.target.value;
+  try { localStorage.setItem('mw-cmd', ui.cmd); } catch (err) { /* storage unavailable */ }
+});
 $('#setup').addEventListener('submit', e => {
   e.preventDefault();
   if ($('#setup').dataset.step !== '2') return setupStep(2);
   const f = new FormData(e.target), keys = Object.keys(MW.DOCTRINES);
   let d1 = f.get('doc1');
   if (d1 === 'random') d1 = keys[Math.floor(Math.random() * keys.length)];
-  const cs = document.getElementById('cmd1'); ui.cmd = cs ? cs.value : 'random';
+  const cs = document.getElementById('cmd1'); if (cs) ui.cmd = cs.value;
   MW.newGame({ map: f.get('map') || 'open', players: [{ name: 'Azure', doctrine: f.get('doc0'), isAI: false }, { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai', persona: ui.cmd !== 'random' ? ui.cmd : null }] });
   MW.S.startedAt = Date.now();
   MW.S.gameId = (ui.startMode === 'ai' ? 'ai-' : 'local-') + MW.S.startedAt;
