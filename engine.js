@@ -1283,6 +1283,7 @@ function fire(m, key, target, part) {
     if (t.type === 'base') {
       const bd = Math.round(dmg * (w.siege || 1)), bp = S.players[t.pid];
       bp.base.hp -= bd; S.players[m.owner].siegeDmg = (S.players[m.owner].siegeDmg || 0) + bd;
+      (bp.siegedBy = bp.siegedBy || {})[m.uid] = S.round;
       aiAdjust(t.pid, 'hold', 0.08);
       fx({ k: 'shot', x0: m.x, y0: m.y, x1: t.x, y1: t.y, hit: true, cat: d.cat, uid: m.uid, key });
       fxFloat(t.x, t.y, '−' + bd, 'bad');
@@ -1602,13 +1603,15 @@ function aiAdjust(pid, k, d, cap) {
   p.ai.adj[k] = clamp((p.ai.adj[k] || 0) + d, -(cap || 0.8), cap || 0.8);
 }
 // read the board once a round and choose how to fight it
+const aiSieger = (pid, e) => { const sb = S.players[pid].siegedBy; return !!sb && sb[e.uid] != null && sb[e.uid] >= S.round - 1; };
 function aiStance(pid) {
   const p = S.players[pid], a = p.ai;
   if (!a || a.stanceRound === S.round) return;
   a.stanceRound = S.round;
   const foe = S.players[1 - pid], w = aiW(pid);
   const mine = fieldMechs(pid), theirs = fieldMechs(1 - pid);
-  const nearBase = theirs.filter(e => man(e.x, e.y, p.base.x, p.base.y) <= 4).length;
+  // attackers at the gates, or anyone who shelled the base this round or last, however far away they stand
+  const nearBase = theirs.filter(e => man(e.x, e.y, p.base.x, p.base.y) <= 4 || aiSieger(pid, e)).length;
   const gap = (foe.vp || 0) - (p.vp || 0);
   const myHp = mine.reduce((t, m) => t + hpOf(m) / Math.max(1, maxHpOf(m)), 0) / Math.max(1, mine.length);
   let stance = null;
@@ -1761,13 +1764,14 @@ function aiGoal(m) {
     for (const e of S.mechs) if (e.owner !== m.owner) {
       // wounded prey draws hunters; intruders near home draw defenders
       const prey = 1 + aw.focus * 0.5 * (1 - hpOf(e) / Math.max(1, maxHpOf(e)));
-      const intruder = defending && man(e.x, e.y, own.x, own.y) <= 4 ? 2 : 1;
+      const intruder = aiSieger(m.owner, e) ? 3 : defending && man(e.x, e.y, own.x, own.y) <= 4 ? 2 : 1;
       cands.push({ x: e.x, y: e.y, cost: (dTo(e.x, e.y) * 1.1 - 1) / ((0.5 + aw.aggro) * prey * intruder), pref: rng });
     }
     const b = BASE_POS[1 - m.owner];
     if (!defending) cands.push({ x: b.x, y: b.y, cost: dTo(b.x, b.y) * (siege ? 0.6 : Math.max(0.6, 1.3 - S.round * 0.035)) / (0.5 + 0.5 * aw.siege), pref: rng });
   }
-  if (defending) cands.push({ x: own.x, y: own.y, cost: dTo(own.x, own.y) * 0.8, pref: 2 });
+  // fall back on the base only when there is nobody shelling it to go after
+  if (defending && !S.mechs.some(e => e.owner !== m.owner && aiSieger(m.owner, e))) cands.push({ x: own.x, y: own.y, cost: dTo(own.x, own.y) * 0.8, pref: 2 });
   cands.sort((a, b) => a.cost - b.cost);
   return cands[0] || null;
 }
