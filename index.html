@@ -157,7 +157,7 @@ fieldset.seat { --sc: var(--p0); --ss: var(--p0-soft); border-left: 4px solid va
 fieldset.seat .opts { gap: 6px; }
 fieldset.mapsel { border: 0; border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 3px 8px 6px; border-radius: 3px; margin: 0; }
 fieldset.mapsel .seathead b { color: var(--ink); }
-#setup[data-step="1"] .s2, #setup[data-step="2"] .s1 { display: none !important; }
+#setup:not([data-step="1"]) .s1, #setup:not([data-step="2"]) .s2, #setup:not([data-step="3"]) .s3 { display: none !important; }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 #setup .opts.maps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 @media (min-width: 700px) { #setup .opts.maps { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
@@ -189,6 +189,90 @@ fieldset.seat.p1 { --sc: var(--p1); --ss: var(--p1-soft); }
 .seathead small { font-size: 12px; color: var(--muted); }
 fieldset.seat .opt:has(input:checked) { border-color: var(--sc); box-shadow: inset 4px 0 0 var(--sc); }
 .opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* doctrine picker: one doctrine in focus, the others a swipe or an arrow away; fills the screen, the mech first */
+#setup[data-step] { flex: 1 0 auto; margin-block: 0; max-width: 1100px; min-height: calc(100% - 0px); gap: 10px; }
+#setup[data-step] .phead { flex: none; }
+fieldset.seat[data-seat] { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 8px; }
+.dcar { flex: 1; min-height: 360px; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: stretch; gap: 6px; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.dnav { display: grid; place-items: center; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; cursor: pointer; color: var(--ink); padding: 0; }
+.dnav:hover { border-color: var(--sc); color: var(--sc); }
+.dnav:active { transform: translateY(1px); }
+.dnav svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.dview { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--line); border-top: 4px solid var(--sc); border-radius: 3px;
+  background: radial-gradient(ellipse 60% 55% at 38% 58%, color-mix(in srgb, var(--ss) 85%, transparent), var(--surface) 75%); }
+.dcard { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(250px, 1fr); align-items: center; gap: 0 12px; padding: 12px 24px 12px 8px; }
+.dcard.go-r { animation: dIn .25s ease-out; --dx: 40px; } .dcard.go-l { animation: dIn .25s ease-out; --dx: -40px; }
+@keyframes dIn { from { opacity: 0; transform: translateX(var(--dx)); } }
+@media (prefers-reduced-motion: reduce) { .dcard.go-r, .dcard.go-l { animation: none; } }
+.dpic { height: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.dpic img { height: 100%; width: 100%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 14px 18px rgba(0,0,0,.18)); }
+.dpic .dq { height: min(70%, 340px); aspect-ratio: 4 / 5; display: grid; place-items: center; font: 900 clamp(80px, 14vw, 180px) var(--display); color: var(--muted); border: 3px dashed var(--line); border-radius: 8px; }
+.dtext { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dhead { display: flex; flex-direction: column; gap: 4px; }
+.dhead h3 { margin: 0; font-family: var(--display); font-size: clamp(34px, 5.5vw, 60px); font-weight: 900; text-transform: uppercase; line-height: .92; color: var(--sc);  }
+.dhead h3.long { font-size: clamp(30px, 4.2vw, 50px); }
+.dhead .dstyle { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.dplay { margin: 0; font-size: 17px; line-height: 1.4; max-width: 34ch; }
+.dstats { display: flex; gap: 6px; }
+.dstats .dstat { flex: 1 1 0; max-width: 104px; min-width: 0; }
+.dstat { border: 1px solid var(--line); background: var(--raised); border-radius: 3px; padding: 4px 2px 5px; text-align: center; }
+.dstat b { display: block; font-family: var(--display); font-size: 22px; font-weight: 900; line-height: 1.05; }
+.dstat small { display: block; font-family: var(--mono); font-size: 9px; line-height: 1.2; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
+.dstat.up { border-color: var(--good); box-shadow: inset 0 -3px 0 var(--good); } .dstat.up b { color: var(--good); }
+.dstat.down { border-color: var(--bad); box-shadow: inset 0 -3px 0 var(--bad); } .dstat.down b { color: var(--bad); }
+.dpros { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 15px; font-weight: 600; }
+.dpros .good { color: var(--good); } .dpros .bad { color: var(--bad); }
+.drand { display: flex; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.drand li { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.drand img { width: 64px; height: 80px; object-fit: contain; flex: none; }
+.drand b { font-family: var(--display); text-transform: uppercase; font-size: 13px; }
+.dpager { flex: none; display: flex; justify-content: center; align-items: center; gap: 10px; padding: 8px 0 0; }
+.dpager .dnav { display: none; width: 52px; height: 40px; }
+.ddots { display: flex; justify-content: center; gap: 4px; }
+.ddots label { position: relative; cursor: pointer; padding: 6px 4px; }
+.ddots input { position: absolute; opacity: 0; pointer-events: none; }
+.ddots span { display: block; height: 8px; width: 8px; border-radius: 4px; background: var(--line); transition: width .2s, background .2s; }
+.ddots label:has(input:checked) span { width: 28px; background: var(--sc); }
+.ddots label:has(input:focus-visible) span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cmdrow { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 16px; margin-top: 10px; padding: 12px 14px; background: var(--surface); border: 2px solid var(--sc); border-radius: 4px; }
+.cmdrow:empty { display: none; }
+.cmdhead { display: flex; flex-direction: column; line-height: 1.05; }
+.cmdhead b { font-family: var(--display); font-size: 26px; font-weight: 900; text-transform: uppercase; color: var(--sc); }
+.cmdhead span { font-size: 16px; color: var(--muted); }
+.cmdchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cmdchip { position: relative; cursor: pointer; }
+.cmdchip input { position: absolute; opacity: 0; pointer-events: none; }
+.cmdchip span { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; font-weight: 600; font-size: 17px; color: var(--ink); }
+.cmdchip em { font-style: normal; font-family: var(--mono); font-size: 16px; padding: 0 5px; border-radius: 2px; background: var(--good); color: #fff; }
+.cmdchip:hover span { border-color: var(--sc); }
+.cmdchip input:checked + span { background: var(--sc); border-color: var(--sc); color: #fff; }
+.cmdchip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cmdblurb { grid-column: 1 / -1; margin: 0; font-size: 16px; color: var(--ink); }
+@media (max-width: 640px) {
+  .cmdrow { grid-template-columns: minmax(0, 1fr); padding: 10px 12px; gap: 8px; }
+  .cmdhead { flex-direction: row; align-items: baseline; gap: 8px; }
+  .cmdhead b { font-size: 22px; }
+  .cmdchips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; }
+  .cmdchip { display: flex; }
+  .cmdchip span { width: 100%; flex-direction: column; justify-content: center; gap: 2px; padding: 6px 4px; font-size: 16px; line-height: 1.1; }
+  .cmdchip em { padding: 0 4px; }
+}
+@media (max-width: 640px) {
+  .dcar { grid-template-columns: minmax(0, 1fr); min-height: 370px; }
+  .dcar > .dnav { display: none; }
+  .dpager .dnav { display: grid; }
+  .dview { background: radial-gradient(ellipse 75% 45% at 50% 38%, color-mix(in srgb, var(--ss) 85%, transparent), var(--surface) 75%); }
+  .dcard { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 6px 12px 12px; }
+  .dpic { flex: 1; height: auto; }
+  .dtext { flex: none; gap: 10px; }
+  .dhead { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; }
+  .dhead h3 { font-size: 34px; }
+  .dplay { font-size: 15px; max-width: none; }
+  .dpros { font-size: 14px; }
+  .dstat b { font-size: 19px; }
+  .dstat small { font-size: 8px; letter-spacing: 0; }
+  .drand img { width: 52px; height: 65px; }
+}
 .brief { border-left: 1px solid var(--line); padding-left: 32px; }
 .brief ol { margin: 8px 0 20px; padding: 0; list-style: none; counter-reset: ph; display: flex; flex-direction: column; gap: 10px; }
 .brief li { counter-increment: ph; display: grid; grid-template-columns: 34px 1fr; }
@@ -894,6 +978,66 @@ button.rost { cursor: pointer; }
   .board { gap: 1px; }
   .sheet dl { grid-template-columns: 1fr; gap: 2px; } .sheet dd { margin-bottom: 8px; }
 }
+/* battlefield picker: the map large, a short description, and a guided tour */
+fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--accent) 22%, var(--surface)); border-left-color: var(--accent); }
+.mapseat .dhead h3 { color: var(--ink); }
+.mcard { grid-template-columns: minmax(0, 1fr) minmax(280px, 1fr); }
+.mpic { padding: 4px 0; }
+.bigmap { height: 100%; width: 100%; max-width: 100%; display: block; overflow: visible; }
+.bigmap .t { fill: var(--tile); } .bigmap .r { fill: var(--rock); } .bigmap .u { fill: var(--ruin); stroke: var(--rock); stroke-width: .03; stroke-dasharray: .08 .06; }
+.bigmap .zone { opacity: 0; } .bigmap .z0 { fill: color-mix(in srgb, var(--p0) 40%, transparent); } .bigmap .z1 { fill: color-mix(in srgb, var(--p1) 40%, transparent); }
+.bigmap .b0 rect { fill: var(--p0); } .bigmap .b1 rect { fill: var(--p1); } .bigmap .base circle { fill: none; stroke: #fff; stroke-width: .07; }
+.o-depot circle, .o-depot path:not(.star) { fill: var(--good); } .bigmap .star { fill: var(--accent); stroke: var(--surface); stroke-width: .03; }
+.o-radar circle { fill: var(--c-energy); } .o-radar .ring { fill: none; stroke: var(--c-energy); stroke-width: .06; }
+.o-uplink rect { fill: var(--accent); stroke: var(--ink); stroke-width: .04; }
+.o-repair path { fill: var(--muted); }
+.bigmap .crate, .mkey .crate { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: var(--accent); stroke-width: .06; stroke-dasharray: .18 .12; }
+.mkey .crate { stroke-width: 1.2; stroke-dasharray: 2.5 1.5; }
+.mkey .ring { stroke-width: 1.3; }
+.mkey .o-uplink rect, .mkey.o-uplink rect { stroke-width: .8; }
+.bigmap .feat, .bigmap .mt { transition: opacity .25s; }
+.bigmap.touring .feat:not(.hl), .bigmap.touring .mt.t { opacity: .28; }
+.bigmap.touring .zone.hl { opacity: 1; }
+.bigmap.touring .hl:not(.zone) { animation: hlPulse 1.4s ease-in-out infinite; }
+@keyframes hlPulse { 0%, 100% { filter: drop-shadow(0 0 0 transparent); } 50% { filter: drop-shadow(0 0 .12px var(--ink)) drop-shadow(0 0 .06px var(--ink)); } }
+@media (prefers-reduced-motion: reduce) { .bigmap.touring .hl:not(.zone) { animation: none; } }
+.mkeys { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.mkeys li { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; }
+.mkey { width: 18px; height: 18px; flex: none; }
+.tourgo { align-self: flex-start; flex-direction: row; align-items: center; gap: 8px; font-size: 18px; padding: 10px 18px; }
+.tourgo svg { width: 18px; height: 18px; fill: currentColor; }
+.tourhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tourhead .btn { padding: 4px 10px; }
+.tourt { margin: 0; font-family: var(--display); font-size: clamp(28px, 3.6vw, 44px); font-weight: 900; text-transform: uppercase; line-height: .95; color: var(--ink); }
+.tourbar { display: flex; gap: 4px; }
+.tourbar i { flex: 1; height: 5px; border-radius: 3px; background: var(--line); }
+.tourbar i.done { background: color-mix(in srgb, var(--accent) 55%, var(--line)); } .tourbar i.on { background: var(--accent); }
+.tournav .btn { justify-content: center; font-size: 17px; padding-block: 10px; }
+.mrand { flex-wrap: wrap; }
+.mrand .minimap { height: 92px; }
+@media (max-width: 640px) {
+  .mcard .mpic { flex: 1; min-height: 0; }
+  .mrand .minimap { height: 64px; }
+  .tourgo { align-self: stretch; justify-content: center; }
+  .mkeys { gap: 4px 12px; }
+}
+/* Start screens: no text smaller than 16px */
+#start :is(.lbl, .note, .btn, .btn.sm, .btn small, .mode span, .newbie, .newbie b, .nrow b, .nrow small, .nrow .code, .rg-res, .net-pick select, .net-pick .lbl,
+  .seathead .who, .seathead small, .dhead .dstyle, .dplay, .drand b, .cmdpick, .cmdpick select,
+  .mapopt b, .mapopt small, .mapinfo small, .mapinfo p, .mapq) { font-size: 16px; }
+#start .lbl, #start .mapopt small, #start .mapinfo small, #start .dhead .dstyle, #start .cmdpick { letter-spacing: .03em; }
+#start .seathead .who .ico { width: 15px; height: 15px; }
+#start .dplay { font-size: 18px; }
+#start .dstat { padding: 6px 4px 7px; }
+#start .dstat b { font-size: 26px; }
+#start .dstat small { font: 500 16px/1.15 var(--body); text-transform: none; letter-spacing: 0; margin-top: 2px; }
+#start .dstats .dstat { max-width: 120px; }
+#start .mapinfo b { font-size: 22px; }
+@media (max-width: 640px) {
+  #start .dplay { font-size: 17px; }
+  #start .dstat b { font-size: 22px; }
+  #start .seathead small { display: block; width: 100%; }
+}
 </style>
 
 <div id="app">
@@ -948,30 +1092,47 @@ button.rost { cursor: pointer; }
       <div class="row"><button class="btn ghost" type="button" id="net-back">‹ Back</button></div>
     </div>
     <form id="setup" class="menu" data-step="1" hidden>
-      <div class="phead s1"><h2>Choose doctrines</h2><span class="lbl" id="setup-mode"></span></div>
-      <div class="phead s2"><h2>Choose battlefield</h2><span class="lbl" id="setup-vs"></span></div>
-      <div class="dlegend" id="dlegend"></div>
-      <fieldset class="seat p0 s1">
+      <div class="phead s1"><h2 id="h-s1">Your doctrine</h2><span class="lbl" id="setup-mode"></span></div>
+      <div class="phead s2"><h2 id="h-s2">Opponent</h2><span class="lbl">Step 2 of 3</span></div>
+      <div class="phead s3"><h2>Choose battlefield</h2><span class="lbl" id="setup-vs"></span></div>
+      <fieldset class="seat p0 s1" data-seat="0">
         <legend class="seathead" id="leg0">Azure doctrine</legend>
-        <div class="opts" id="doc0"></div>
-        <div class="decklist" id="deck0"></div>
+        <div class="dcar" data-seat="0">
+          <button type="button" class="dnav" data-dnav="-1" aria-label="Previous doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <div class="dview" id="dview0" aria-live="polite"></div>
+          <button type="button" class="dnav" data-dnav="1" aria-label="Next doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <div class="dpager"><button type="button" class="dnav" data-dnav="-1" aria-label="Previous doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ddots" id="doc0"></div><button type="button" class="dnav" data-dnav="1" aria-label="Next doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div>
       </fieldset>
-      <fieldset class="seat p1 s1">
+      <fieldset class="seat p1 s2" data-seat="1">
         <legend class="seathead" id="leg1">Ember doctrine</legend>
-        <div class="opts" id="doc1"></div>
-        <div class="decklist" id="deck1"></div>
+        <div class="dcar" data-seat="1">
+          <button type="button" class="dnav" data-dnav="-1" aria-label="Previous doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <div class="dview" id="dview1" aria-live="polite"></div>
+          <button type="button" class="dnav" data-dnav="1" aria-label="Next doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <div class="dpager"><button type="button" class="dnav" data-dnav="-1" aria-label="Previous doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ddots" id="doc1"></div><button type="button" class="dnav" data-dnav="1" aria-label="Next doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div>
+        <div class="cmdrow" id="cmdrow"></div>
       </fieldset>
-      <fieldset class="mapsel s2">
+      <fieldset class="seat mapseat s3" data-seat="map">
         <legend class="vh">Battlefield</legend>
-        <div class="opts maps" id="mapopts"></div>
-        <div class="mapinfo"><b id="mapname"></b><small id="mapgoal"></small><p id="mapblurb"></p></div>
+        <div class="dcar" data-seat="map">
+          <button type="button" class="dnav" data-dnav="-1" aria-label="Previous battlefield"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <div class="dview" id="mview" aria-live="polite"></div>
+          <button type="button" class="dnav" data-dnav="1" aria-label="Next battlefield"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <div class="dpager"><button type="button" class="dnav" data-dnav="-1" aria-label="Previous battlefield"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ddots" id="mapopts"></div><button type="button" class="dnav" data-dnav="1" aria-label="Next battlefield"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div>
       </fieldset>
       <div class="row s1">
         <button class="btn ghost" type="button" id="back">‹ Back</button>
-        <button class="btn primary grow" type="submit" id="next">Next: battlefield ›</button>
+        <button class="btn primary grow" type="submit" id="next">Next: opponent ›</button>
       </div>
       <div class="row s2">
-        <button class="btn ghost" type="button" id="back2">‹ Doctrines</button>
+        <button class="btn ghost" type="button" data-step-to="1">‹ Your doctrine</button>
+        <button class="btn primary grow" type="submit" id="next2">Next: battlefield ›</button>
+      </div>
+      <div class="row s3">
+        <button class="btn ghost" type="button" id="back2" data-step-to="2">‹ Opponent</button>
         <button class="btn primary grow" type="submit" id="go">Start battle</button>
       </div>
     </form>
@@ -2681,6 +2842,77 @@ function showGame() {
   tick();
 }
 const TAGS = { assault: 'Fast frames, blades and close-range guns.', armored: 'Heavy hulls, shields and long guns.', experimental: 'Energy weapons and unstable reactors.' };
+// how each doctrine plays, in plain words, for the doctrine picker
+const PLAY = {
+  assault: { style: 'Swarm', line: 'Many fast, light mecha. Grab objectives and overwhelm.' },
+  armored: { style: 'Fortress', line: 'Two near-unkillable mecha. Hold ground and grind them down.' },
+  experimental: { style: 'Overclock', line: 'Prototypes with extra actions and cards. Mind the heat.' }
+};
+const DOC_ORDER = () => Object.keys(MW.DOCTRINES);
+function docStats(id) {
+  const doc = MW.DOCTRINES[id], t = doc.traits || {}, C0 = MW.C;
+  const n = (v, d) => v == null ? d : v;
+  // the typical frame in this deck, against the standard frame every side can build
+  let hp = 0, cnt = 0;
+  for (const [cid, k] of Object.entries(doc.deck)) { const d = D[cid]; if (d && d.slot === 'torso' && !d.special) { hp += d.hp * k; cnt += k; } }
+  const frame = cnt ? Math.round(hp / cnt) : D.b_torso.hp, std = D.b_torso.hp;
+  // [label, value, standard, sign, always shown, higher is worse]
+  return [
+    ['On field', n(t.fieldMax, C0.FIELD_MAX), C0.FIELD_MAX, '', true],
+    ['Frame HP', Math.abs(frame - std) >= 2 ? frame : std, std, ''],
+    ['Move', n(t.move, 0), 0, '+'],
+    ['Actions', n(t.ap, C0.AP), C0.AP, ''],
+    ['Cards drawn', n(t.draw, C0.DRAW), C0.DRAW, ''],
+    ['Plating', n(t.plate, 0), 0, '+'],
+    ['Repair / round', n(t.plateRegen, 0), 0, '+'],
+    ['Heat / round', n(t.heatTick, 0), 0, '+', false, true]
+  ].filter(([, v, base, , always]) => always || v !== base).map(([l, v, base, sign, , worse]) => {
+    const better = worse ? v < base : v > base, poorer = worse ? v > base : v < base;
+    return '<div class="dstat' + (better ? ' up' : poorer ? ' down' : '') + '" title="' + l + ': standard is ' + base + '"><b>' + (sign && v > 0 ? sign : '') + v + '</b><small>' + l + '</small></div>';
+  }).join('');
+}
+const docPic = (id, cls, owner) => { const src = R3on && MW.DOCTRINES[id] ? window.R3.portrait(id, owner) : null; return src ? '<img' + (cls ? ' class="' + cls + '"' : '') + ' src="' + src + '" alt="">' : ''; };
+// the doctrine in focus for one seat
+function renderDoc(seat, dir) {
+  const el = document.querySelector('input[name=doc' + seat + ']:checked'), id = el ? el.value : DOC_ORDER()[0];
+  const anim = dir ? ' go-' + (dir > 0 ? 'r' : 'l') : '';
+  let h;
+  if (id === 'random') {
+    h = '<div class="dcard' + anim + '"><div class="dpic"><span class="dq" aria-hidden="true">?</span></div>' +
+      '<div class="dtext"><div class="dhead"><h3>Random</h3><span class="dstyle">Revealed at the start</span></div>' +
+      '<ul class="drand">' + DOC_ORDER().map(k => '<li>' + docPic(k, '', seat) + '<b>' + DOC_NAME(k) + '</b></li>').join('') + '</ul></div></div>';
+  } else {
+    const d = MW.DOCTRINES[id], P = PLAY[id] || { style: '', line: d.blurb };
+    h = '<div class="dcard' + anim + '"><div class="dpic">' + (docPic(id, '', seat) || '<span class="dq" aria-hidden="true">' + DOC_NAME(id)[0] + '</span>') + '</div>' +
+      '<div class="dtext"><div class="dhead"><h3' + (DOC_NAME(id).length > 9 ? ' class="long"' : '') + '>' + DOC_NAME(id) + '</h3><span class="dstyle">' + P.style + '</span></div>' +
+      '<p class="dplay">' + P.line + '</p>' +
+      '<div class="dstats">' + docStats(id) + '</div>' +
+      '</div></div>';
+  }
+  $('#dview' + seat).innerHTML = h;
+}
+// step to the previous or next doctrine for a seat, wrapping round
+function navDoc(seat, dir) {
+  const inputs = [...document.querySelectorAll('input[name=doc' + seat + ']')];
+  if (!inputs.length) return;
+  const i = Math.max(0, inputs.findIndex(x => x.checked)), next = inputs[(i + dir + inputs.length) % inputs.length];
+  next.checked = true;
+  renderDoc(seat, dir);
+  saveDoc(seat);
+}
+function saveDoc(seat) {
+  const el = document.querySelector('input[name=doc' + seat + ']:checked');
+  if (el) try { localStorage.setItem('mw-doc' + seat, el.value); } catch (e) { /* storage unavailable */ }
+}
+const CMD_RANDOM = 'Any of the commanders, picked when the battle starts.';
+function cmdRow() {
+  if (ui.startMode !== 'ai') { $('#cmdrow').innerHTML = ''; return; }
+  const P = MW.PERSONAS[ui.cmd];
+  const ids = Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).sort((a, b) => !!MW.PERSONAS[b].easy - !!MW.PERSONAS[a].easy).concat('random');
+  $('#cmdrow').innerHTML = '<div class="cmdhead"><b>Commander</b><span>how the AI fights</span></div>' +
+    '<div class="cmdchips" role="radiogroup" aria-label="AI commander">' + ids.map(k => { const Q = MW.PERSONAS[k]; return '<label class="cmdchip"><input type="radio" name="cmd1" value="' + k + '"' + (ui.cmd === k ? ' checked' : '') + '><span>' + (Q ? Q.name : 'Random') + (Q && Q.easy ? '<em>Easy</em>' : '') + '</span></label>'; }).join('') + '</div>' +
+    '<p class="cmdblurb">' + (P ? P.blurb : CMD_RANDOM) + '</p>';
+}
 function openSetup(mode) {
   ui.startMode = mode;
   if (ui.cmd == null) {
@@ -2689,12 +2921,15 @@ function openSetup(mode) {
     ui.cmd = saved === 'random' || (saved && MW.PERSONAS[saved] && !MW.PERSONAS[saved].hidden) ? saved : gamesIndex().filter(g => g.mode === 'ai' && g.status === 'over').length < 2 ? 'recruit' : 'random';
   }
   const ai = mode === 'ai';
-  $('#setup-mode').textContent = ai ? 'Against the AI' : 'Two players';
-  $('#leg0').innerHTML = '<span class="who">' + ico('user', 'sm') + (ai ? ' You' : ' Player 1') + '</span><b>Azure</b><small>' + (ai ? 'pick your doctrine' : 'first player') + '</small>';
-  $('#leg1').innerHTML = '<span class="who">' + (ai ? ico('cpu', 'sm') + ' AI' : ico('user', 'sm') + ' Player 2') + '</span><b>Ember</b><small>' + (ai ? 'the computer opponent' : 'second player') + '</small>';
+  $('#setup-mode').textContent = (ai ? 'Against the AI' : 'Two players') + ' · Step 1 of 3';
+  $('#h-s1').textContent = ai ? 'Your doctrine' : 'Azure doctrine';
+  $('#h-s2').textContent = ai ? 'Your opponent' : 'Ember doctrine';
+  $('#leg0').innerHTML = '<span class="who">' + ico('user', 'sm') + (ai ? ' You' : ' Player 1') + '</span><b>Azure</b><small>swipe to compare</small>';
+  $('#leg1').innerHTML = '<span class="who">' + (ai ? ico('cpu', 'sm') + ' AI' : ico('user', 'sm') + ' Player 2') + '</span><b>Ember</b><small>' + (ai ? 'the computer' : 'second player') + '</small>';
   $('#menu').hidden = true; $('#setup').hidden = false;
+  cmdRow();
+  renderDoc(0); renderDoc(1);
   setupStep(1);
-  updateDeckLists();
 }
 const GROUPS = [['torso', 'Frames'], ['core', 'Cores'], ['legs', 'Legs'], ['arm', 'Arms'], ['aux', 'Aux'], ['special', 'Specials'], ['event', 'Events']];
 function deckGroups(id) {
@@ -2728,14 +2963,6 @@ function deckList(id, who) {
     return '<div><b><i class="g-' + k + '"></i>' + l + ' ' + n + '</b><span>' + g[k].map(([d, c]) => d.name + (c > 1 ? ' ×' + c : '')).join(' · ') + note + '</span></div>';
   }).join('');
   return '<summary>' + who + ' deck: ' + DOC_NAME(id) + ' · ' + Object.values(MW.DOCTRINES[id].deck).reduce((a, b) => a + b, 0) + ' cards · show list</summary><div class="dl">' + rows + '</div>';
-}
-function updateDeckLists() {
-  const v0 = (document.querySelector('input[name=doc0]:checked') || {}).value, v1 = (document.querySelector('input[name=doc1]:checked') || {}).value;
-  const btn = id => '<button type="button" class="btn sm ghost" data-act="deckList" data-doc="' + id + '">How ' + DOC_NAME(id) + ' fights, and all 40 cards ›</button>';
-  $('#deck0').innerHTML = v0 ? btn(v0) : '';
-  const cmd = ui.startMode === 'ai' ? '<label class="cmdpick">Commander <select id="cmd1" aria-label="AI commander"><option value="random">Random</option>' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).sort((a, b) => !!MW.PERSONAS[b].easy - !!MW.PERSONAS[a].easy).map(k => '<option value="' + k + '"' + (ui.cmd === k ? ' selected' : '') + ' title="' + MW.PERSONAS[k].blurb + '">' + MW.PERSONAS[k].name + '</option>').join('') + '</select></label>' : '';
-  const btnShort = id => '<button type="button" class="btn sm ghost" data-act="deckList" data-doc="' + id + '">How ' + DOC_NAME(id) + ' fights ›</button>';
-  $('#deck1').innerHTML = '<div class="deckrow">' + (v1 && v1 !== 'random' ? (cmd ? btnShort(v1) : btn(v1)) : '<span class="note">Deck picked at random.</span>') + cmd + '</div>';
 }
 function deployWarn(ready) {
   const o = $('#overlay');
@@ -2780,32 +3007,168 @@ function miniMap(id) {
   return '<svg class="minimap" viewBox="0 0 ' + H + ' ' + W + '" aria-hidden="true">' + g + '</svg>';
 }
 function mapChoice() { try { const v = localStorage.getItem('mw-map'); return v && (MW.MAPS[v] || v === 'random') ? v : 'open'; } catch (e) { return 'open'; } }
+// a large plan of a map for the battlefield picker, every feature tagged so the tour can point at it
+function bigMap(id) {
+  const M = MW.MAPS[id], W = M.W, H = M.H, C0 = MW.C, cell = (x, y) => [y, W - 1 - x], has = (list, x, y) => list.some(q => q[0] === x && q[1] === y);
+  const man = (x, y, a, b) => Math.abs(x - a) + Math.abs(y - b);
+  let tiles = '', zones = '', feats = '';
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+    const [c, r] = cell(x, y), rock = has(M.rocks, x, y), ruin = has(M.ruins, x, y);
+    tiles += '<rect class="mt ' + (rock ? 'r feat' : ruin ? 'u feat' : 't') + '"' + (rock ? ' data-f="rock"' : ruin ? ' data-f="ruin"' : '') + ' x="' + (c + .05) + '" y="' + (r + .05) + '" width=".9" height=".9" rx=".06"/>';
+    M.bases.forEach(([bx, by], i) => { if ((bx !== x || by !== y) && man(x, y, bx, by) <= C0.TURRET_RANGE) zones += '<rect class="zone z' + i + '" data-f="zone' + i + '" x="' + (c + .05) + '" y="' + (r + .05) + '" width=".9" height=".9" rx=".06"/>'; });
+  }
+  // where crates land: a band on the Scrapyard, the centre line elsewhere
+  const [lo, hi] = M.rules.cratePairs ? M.rules.crateBand : [Math.floor(W / 2), Math.floor(W / 2)];
+  const [, rTop] = cell(hi, 0);
+  feats += '<rect class="feat crate" data-f="crate" x=".06" y="' + (rTop + .06) + '" width="' + (H - .12) + '" height="' + (hi - lo + 1 - .12) + '" rx=".1"/>';
+  const depotVp = M.rules.depotVp !== false;
+  M.obj.forEach(([x, y, t]) => {
+    const [c, r] = cell(x, y), cx = c + .5, cy = r + .5;
+    let g = '';
+    if (t === 'uplink') g = '<rect x="' + (cx - .3) + '" y="' + (cy - .3) + '" width=".6" height=".6" transform="rotate(45 ' + cx + ' ' + cy + ')"/>';
+    else if (t === 'repair') g = '<path d="M' + (cx - .1) + ' ' + (cy - .32) + 'h.2v.22h.22v.2h-.22v.22h-.2v-.22h-.22v-.2h.22z"/>';
+    else if (t === 'radar') g = '<circle cx="' + cx + '" cy="' + cy + '" r=".14"/><circle class="ring" cx="' + cx + '" cy="' + cy + '" r=".3"/>';
+    else g = '<circle cx="' + cx + '" cy="' + cy + '" r=".28"/>' + (depotVp && x > (W - 1) / 2 ? '<path class="star" d="' + starPath(c + .78, r + .22, .17) + '"/>' : '');
+    feats += '<g class="feat o-' + t + '" data-f="' + t + '">' + g + '</g>';
+  });
+  M.bases.forEach(([x, y], i) => { const [c, r] = cell(x, y); feats += '<g class="feat base b' + i + '" data-f="base' + i + '"><rect x="' + (c + .05) + '" y="' + (r + .05) + '" width=".9" height=".9" rx=".18"/><circle cx="' + (c + .5) + '" cy="' + (r + .5) + '" r=".2"/></g>'; });
+  return '<svg class="bigmap" viewBox="-.1 -.1 ' + (H + .2) + ' ' + (W + .2) + '" role="img" aria-label="Plan of ' + M.name + '">' + tiles + '<g class="zones">' + zones + '</g>' + feats + '</svg>';
+}
+function starPath(cx, cy, r) {
+  let d = '';
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .45 : r; d += (i ? 'L' : 'M') + (cx + rr * Math.cos(a)).toFixed(3) + ' ' + (cy + rr * Math.sin(a)).toFixed(3); }
+  return d + 'Z';
+}
+const OBJ_KEY = { depot: 'Supply depot', radar: 'Radar', uplink: 'Uplink', repair: 'Repair station', crate: 'Crate drops' };
+function mapKeySym(t) {
+  const s = { depot: '<circle cx="8" cy="8" r="5"/>', radar: '<circle cx="8" cy="8" r="2.6"/><circle class="ring" cx="8" cy="8" r="5.5"/>', uplink: '<rect x="3.5" y="3.5" width="9" height="9" transform="rotate(45 8 8)"/>', repair: '<path d="M6.3 2.5h3.4v3.8h3.8v3.4H9.7v3.8H6.3V9.7H2.5V6.3h3.8z"/>', crate: '<rect class="crate" x="1.5" y="3" width="13" height="10" rx="1.5"/>' }[t];
+  return '<svg class="mkey o-' + t + '" viewBox="0 0 16 16" aria-hidden="true">' + s + '</svg>';
+}
+// the stops on a map's tour: what to look at, and what it does
+function tourSteps(id) {
+  const M = MW.MAPS[id], C0 = MW.C, ai = ui.startMode === 'ai', types = M.obj.map(o => o[2]), n = t => types.filter(x => x === t).length;
+  const depotVp = M.rules.depotVp !== false, salvage = !!M.rules.cratePairs;
+  const st = [
+    { t: ai ? 'Your base' : 'Azure base', f: ['base0', 'zone0'], x: 'Bottom of the map. Its turret hits enemies inside the shaded area (' + C0.TURRET_RANGE + ' tiles). Come back here to cool down and restock ammo. If it falls, you lose.' },
+    { t: ai ? 'Enemy base' : 'Ember base', f: ['base1', 'zone1'], x: 'Top of the map. Destroy it to win outright, or reach ' + C0.VP_WIN + ' victory points first. Keep out of its shaded area unless you are attacking.' }
+  ];
+  if (n('depot')) st.push({ t: 'Supply depots', f: ['depot'], x: depotVp ? 'End a round on one to hold it: +' + C0.DEPOT + ' Supply every round. Depots on the enemy half (★) also score a victory point each round.' : 'End a round on one to hold it: +' + C0.DEPOT + ' Supply every round. On this map they score no points.' });
+  if (n('radar')) st.push({ t: 'Radar stations', f: ['radar'], x: 'Hold one for a victory point every round and +' + C0.RADAR_ACC + '% accuracy for your mecha.' });
+  if (n('uplink')) st.push({ t: 'The uplink', f: ['uplink'], x: 'Worth ' + (M.rules.uplinkVp || 2) + ' victory points every round to whoever holds it. Expect the whole battle to be fought here.' });
+  if (n('repair')) st.push({ t: 'Repair stations', f: ['repair'], x: 'End a round here and the station repairs ' + C0.STATION_REPAIR + ' HP on a damaged part.' });
+  st.push(salvage
+    ? { t: 'Salvage crates', f: ['crate'], x: 'A pair of crates drops inside the dashed area every round. The first mech to reach one scores a victory point and takes what is inside.' }
+    : { t: 'Crate drops', f: ['crate'], x: 'Every other round a crate lands on the centre line: Supply or a special card for the first mech to reach it.' });
+  if (M.rocks.length) st.push({ t: 'Rocks', f: ['rock'], x: 'Block movement and direct fire. Booster Legs jump over them, and artillery fires over them.' });
+  if (M.ruins.length) st.push({ t: 'Ruins', f: ['ruin'], x: 'Mecha standing in ruins are 20% harder to hit. Explosions can flatten them.' });
+  if (M.notes) st.push({ t: 'Special rules', f: [], x: M.notes });
+  return st;
+}
+function mapChoice() { try { const v = localStorage.getItem('mw-map'); return v && (MW.MAPS[v] || v === 'random') ? v : 'open'; } catch (e) { return 'open'; } }
 function buildMaps() {
   const cur = mapChoice();
-  $('#mapopts').innerHTML = MW.MAP_IDS.map(id => '<label class="opt mapopt" title="' + MW.MAPS[id].blurb + '"><input type="radio" name="map" value="' + id + '"' + (id === cur ? ' checked' : '') + '>' + miniMap(id) + '<b>' + MW.MAPS[id].name + '</b><small>' + MW.MAPS[id].goal + '</small></label>').join('') +
-    '<label class="opt mapopt maprand" title="Picked when the battle starts."><input type="radio" name="map" value="random"' + (cur === 'random' ? ' checked' : '') + '><span class="mapq">?</span><b>Random</b></label>';
-  updateMapInfo();
+  $('#mapopts').innerHTML = MW.MAP_IDS.concat('random').map(id => '<label title="' + (MW.MAPS[id] ? MW.MAPS[id].name : 'Random') + '"><input type="radio" name="map" value="' + id + '"' + (id === cur ? ' checked' : '') + ' aria-label="' + (MW.MAPS[id] ? MW.MAPS[id].name : 'Random') + '"><span></span></label>').join('');
+  renderMap();
 }
-function updateMapInfo() {
-  const el = document.querySelector('input[name=map]:checked'), id = el ? el.value : 'open', M = MW.MAPS[id];
-  $('#mapname').textContent = M ? M.name : 'Random';
-  $('#mapgoal').textContent = M ? M.goal + ' · ' + M.W + '×' + M.H : 'Any of the ' + MW.MAP_IDS.length;
-  $('#mapblurb').textContent = M ? M.blurb + (M.notes ? ' Map balance: ' + M.notes : '') : 'One of the battlefields, picked at random when the battle starts.';
+const mapId = () => { const el = document.querySelector('input[name=map]:checked'); return el ? el.value : 'open'; };
+// the battlefield in focus, or its tour when one is running
+function renderMap(dir) {
+  const id = mapId(), M = MW.MAPS[id], anim = dir ? ' go-' + (dir > 0 ? 'r' : 'l') : '';
+  if (!ui.tour || ui.tour.id !== id) ui.tour = null;
+  let h;
+  if (!M) {
+    h = '<div class="dcard mcard' + anim + '"><div class="dpic"><span class="dq" aria-hidden="true">?</span></div>' +
+      '<div class="dtext"><div class="dhead"><h3>Random</h3><span class="dstyle">Picked when the battle starts</span></div>' +
+      '<ul class="drand mrand">' + MW.MAP_IDS.map(k => '<li>' + miniMap(k) + '<b>' + MW.MAPS[k].name + '</b></li>').join('') + '</ul></div></div>';
+  } else if (ui.tour) {
+    const steps = tourSteps(id), i = ui.tour.i, S0 = steps[i];
+    h = '<div class="dcard mcard touring"><div class="dpic mpic">' + bigMap(id) + '</div>' +
+      '<div class="dtext"><div class="tourhead"><span class="dstyle">Tour of ' + M.name + ' · ' + (i + 1) + ' of ' + steps.length + '</span><button type="button" class="btn ghost" data-tour="end">End tour</button></div>' +
+      '<h3 class="tourt">' + S0.t + '</h3><p class="dplay">' + S0.x + '</p>' +
+      '<div class="tourbar">' + steps.map((x, j) => '<i' + (j === i ? ' class="on"' : j < i ? ' class="done"' : '') + '></i>').join('') + '</div>' +
+      '<div class="row tournav"><button type="button" class="btn" data-tour="prev"' + (i ? '' : ' disabled') + '>‹ Back</button><button type="button" class="btn primary grow" data-tour="' + (i < steps.length - 1 ? 'next' : 'end') + '">' + (i < steps.length - 1 ? 'Next: ' + steps[i + 1].t + ' ›' : 'Done') + '</button></div></div></div>';
+  } else {
+    const types = M.obj.map(o => o[2]), keys = ['uplink', 'radar', 'depot', 'repair'].filter(t => types.indexOf(t) >= 0);
+    h = '<div class="dcard mcard' + anim + '"><div class="dpic mpic">' + bigMap(id) + '</div>' +
+      '<div class="dtext"><div class="dhead"><h3' + (M.name.length > 9 ? ' class="long"' : '') + '>' + M.name + '</h3><span class="dstyle">' + M.goal + ' · ' + M.W + '×' + M.H + '</span></div>' +
+      '<p class="dplay">' + M.blurb + '</p>' +
+      '<ul class="mkeys">' + keys.map(t => { const c = types.filter(x => x === t).length; return '<li>' + mapKeySym(t) + (c > 1 ? c + ' ' : '') + OBJ_KEY[t] + (c > 1 && t !== 'radar' ? 's' : c > 1 ? 's' : '') + '</li>'; }).join('') + '<li>' + mapKeySym('crate') + OBJ_KEY.crate + '</li></ul>' +
+      '<button type="button" class="btn primary tourgo" data-tour="start"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>Take the tour</button></div></div>';
+  }
+  $('#mview').innerHTML = h;
+  if (ui.tour) {
+    const f = tourSteps(id)[ui.tour.i].f, svg = $('#mview .bigmap');
+    svg.classList.add('touring');
+    svg.querySelectorAll('[data-f]').forEach(el => { if (f.indexOf(el.dataset.f) >= 0) el.classList.add('hl'); });
+  }
+}
+const updateMapInfo = () => renderMap();
+function navMap(dir) {
+  const inputs = [...document.querySelectorAll('input[name=map]')];
+  if (!inputs.length) return;
+  const i = Math.max(0, inputs.findIndex(x => x.checked)), next = inputs[(i + dir + inputs.length) % inputs.length];
+  next.checked = true; ui.tour = null;
+  try { localStorage.setItem('mw-map', next.value); } catch (e) { /* storage unavailable */ }
+  renderMap(dir);
+}
+function tourGo(a) {
+  const id = mapId();
+  if (!MW.MAPS[id]) return;
+  const n = tourSteps(id).length;
+  if (a === 'start') ui.tour = { id, i: 0 };
+  else if (a === 'end') ui.tour = null;
+  else if (ui.tour) ui.tour.i = Math.max(0, Math.min(n - 1, ui.tour.i + (a === 'next' ? 1 : -1)));
+  renderMap();
+  const b = a === 'end' ? $('#mview .tourgo') : $('#mview [data-tour=next], #mview .tournav .primary');
+  if (b) b.focus({ preventScroll: true });
 }
 function buildSetup() {
   buildMaps();
-  const docs = Object.entries(MW.DOCTRINES);
-  const pic = id => { const src = R3on && MW.DOCTRINES[id] ? window.R3.portrait(id) : null; return src ? '<img class="opt-mech" src="' + src + '" alt="" aria-hidden="true">' : ''; };
-  const opt = (name, id, title, text, checked) => '<label class="opt' + (MW.DOCTRINES[id] ? ' has-mech' : ' opt-random') + '" title="' + text + '"><input type="radio" name="' + name + '" id="' + name + '-' + id + '" value="' + id + '"' + (checked ? ' checked' : '') + '>' + (MW.DOCTRINES[id] ? pic(id) + '<b>' + title + '</b>' : '<span class="rnd-ico" aria-hidden="true">?</span><b>' + title + '</b><span>' + text + '</span>') + '</label>';
-  $('#dlegend').innerHTML = '';
-  setTimeout(updateDeckLists, 0);
-  $('#doc0').innerHTML = docs.map(([id, d], i) => opt('doc0', id, d.name.replace(' Doctrine', ''), TAGS[id], i === 0)).join('');
-  $('#doc1').innerHTML = opt('doc1', 'random', 'Random', 'Decided when the battle starts.', true) + docs.map(([id, d]) => opt('doc1', id, d.name.replace(' Doctrine', ''), TAGS[id], false)).join('');
+  const keys = DOC_ORDER();
+  let s0 = null, s1 = null;
+  try { s0 = localStorage.getItem('mw-doc0'); s1 = localStorage.getItem('mw-doc1'); } catch (e) { /* storage unavailable */ }
+  if (!MW.DOCTRINES[s0]) s0 = keys[0];
+  if (s1 !== 'random' && !MW.DOCTRINES[s1]) s1 = 'random';
+  const dot = (seat, id, cur) => '<label title="' + (id === 'random' ? 'Random' : DOC_NAME(id)) + '"><input type="radio" name="doc' + seat + '" value="' + id + '"' + (id === cur ? ' checked' : '') + ' aria-label="' + (id === 'random' ? 'Random' : DOC_NAME(id)) + '"><span></span></label>';
+  $('#doc0').innerHTML = keys.map(id => dot(0, id, s0)).join('');
+  $('#doc1').innerHTML = ['random'].concat(keys).map(id => dot(1, id, s1)).join('');
+  renderDoc(0); renderDoc(1);
 }
 document.addEventListener('change', e => {
-  if (e.target.name === 'doc0' || e.target.name === 'doc1') updateDeckLists();
-  if (e.target.name === 'map') { updateMapInfo(); try { localStorage.setItem('mw-map', e.target.value); } catch (err) { /* storage unavailable */ } }
+  const m = /^doc([01])$/.exec(e.target.name || '');
+  if (m) { renderDoc(+m[1]); saveDoc(+m[1]); }
+  if (e.target.name === 'map') { ui.tour = null; renderMap(); try { localStorage.setItem('mw-map', e.target.value); } catch (err) { /* storage unavailable */ } }
   if (e.target.id === 'net-doc') updateNetDeck();
+});
+// arrows and swipes on the doctrine picker
+document.addEventListener('click', e => {
+  const n = e.target.closest('[data-dnav]');
+  if (n) { const seat = n.closest('[data-seat]').dataset.seat; if (seat === 'map') navMap(+n.dataset.dnav); else navDoc(+seat, +n.dataset.dnav); }
+  const tb = e.target.closest('[data-tour]');
+  if (tb && !tb.disabled) tourGo(tb.dataset.tour);
+  const st = e.target.closest('[data-step-to]');
+  if (st) setupStep(+st.dataset.stepTo);
+});
+document.querySelectorAll('.dcar').forEach(car => {
+  let x0 = null, y0 = 0;
+  car.addEventListener('pointerdown', e => { if (e.target.closest('button, select')) return; x0 = e.clientX; y0 = e.clientY; });
+  const end = e => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0; x0 = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) { if (car.dataset.seat === 'map') { if (ui.tour) tourGo(dx < 0 ? 'next' : 'prev'); else navMap(dx < 0 ? 1 : -1); } else navDoc(+car.dataset.seat, dx < 0 ? 1 : -1); }
+  };
+  car.addEventListener('pointerup', end);
+  car.addEventListener('pointercancel', () => { x0 = null; });
+});
+document.addEventListener('keydown', e => {
+  const f = $('#setup');
+  if (f.hidden || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+  const step = f.dataset.step;
+  if (e.target.closest && e.target.closest('select, input[type=text], input[name^=doc], input[name=map], input[name=cmd1]')) return;
+  const d = e.key === 'ArrowRight' ? 1 : -1;
+  e.preventDefault();
+  if (step === '3') { if (ui.tour) tourGo(d > 0 ? 'next' : 'prev'); else navMap(d); }
+  else navDoc(step === '1' ? 0 : 1, d);
 });
 function updateNetDeck() {
   const v = $('#net-doc').value;
@@ -2823,29 +3186,32 @@ document.addEventListener('click', e => {
   if (a && !a.disabled) return onAct(a);
   if (e.target.id === 'overlay') $('#overlay').hidden = true;
 });
-// setup comes in two steps, each one screen: doctrines, then the battlefield
+// setup comes in three steps, each one screen: your doctrine, the opponent, then the battlefield
 function setupStep(n) {
   $('#setup').dataset.step = n;
-  if (n === 2) {
+  if (n === 1) $('#setup-mode').textContent = (ui.startMode === 'ai' ? 'Against the AI' : 'Two players') + ' · Step 1 of 3';
+  if (n === 3) {
     const f = new FormData($('#setup')), nm = v => v === 'random' ? 'Random' : DOC_NAME(v);
-    $('#setup-vs').textContent = nm(f.get('doc0')) + ' vs ' + nm(f.get('doc1'));
+    $('#setup-vs').textContent = nm(f.get('doc0')) + ' vs ' + nm(f.get('doc1')) + ' · Step 3 of 3';
     updateMapInfo();
   }
   $('#start').scrollTop = 0;
 }
-$('#back2').addEventListener('click', () => setupStep(1));
 document.addEventListener('change', e => {
-  if (!e.target || e.target.id !== 'cmd1') return;
+  if (!e.target || e.target.name !== 'cmd1') return;
   ui.cmd = e.target.value;
   try { localStorage.setItem('mw-cmd', ui.cmd); } catch (err) { /* storage unavailable */ }
+  const P = MW.PERSONAS[ui.cmd], p = $('#cmdrow .cmdblurb');
+  if (p) p.textContent = P ? P.blurb : CMD_RANDOM;
 });
 $('#setup').addEventListener('submit', e => {
   e.preventDefault();
-  if ($('#setup').dataset.step !== '2') return setupStep(2);
+  const step = +$('#setup').dataset.step;
+  if (step < 3) return setupStep(step + 1);
   const f = new FormData(e.target), keys = Object.keys(MW.DOCTRINES);
   let d1 = f.get('doc1');
   if (d1 === 'random') d1 = keys[Math.floor(Math.random() * keys.length)];
-  const cs = document.getElementById('cmd1'); if (cs) ui.cmd = cs.value;
+  const cs = document.querySelector('input[name=cmd1]:checked'); if (cs) ui.cmd = cs.value;
   MW.newGame({ map: f.get('map') || 'open', players: [{ name: 'Azure', doctrine: f.get('doc0'), isAI: false }, { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai', persona: ui.cmd !== 'random' ? ui.cmd : null }] });
   MW.S.startedAt = Date.now();
   MW.S.gameId = (ui.startMode === 'ai' ? 'ai-' : 'local-') + MW.S.startedAt;

@@ -2357,11 +2357,13 @@ const ARCHETYPE = {
 };
 const PORTRAITS = {};
 let PR = null;
-R3.portrait = function (doctrine) {
-  if (PORTRAITS[doctrine]) return PORTRAITS[doctrine];
+R3.portrait = function (doctrine, owner) {
+  owner = owner ? 1 : 0;
+  const key = doctrine + '|' + owner;
+  if (PORTRAITS[key]) return PORTRAITS[key];
   const L = ARCHETYPE[doctrine];
   if (!L) return null;
-  return (PORTRAITS[doctrine] = R3.snapshot(L, doctrine));
+  return (PORTRAITS[key] = R3.snapshot(L, doctrine, owner, { w: 480, h: 600 }));
 };
 // a picture of any loadout: { torso, core, legs, armL, armR, aux: [] }, missing parts left off
 R3.snapshot = function (L, doctrine, owner, opt) {
