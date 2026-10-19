@@ -1096,7 +1096,10 @@ function iso(G) { G.el = EL_34; G.az = BD.viewAz + ISO_AZ; }
 // straight down, for choosing tiles to move or deploy to
 function topDown(G) { G.el = EL_TOP; G.az = BD.viewAz; }
 R3.mount = function (el, onTap) {
-  if (BD) { if (BD.el !== el) { el.appendChild(BD.renderer.domElement); BD.el = el; } BD.onTap = onTap; return; }
+  if (BD) {
+    if (BD.el !== el) { if (BD.ro) { BD.ro.unobserve(BD.el); BD.ro.observe(el); } el.appendChild(BD.renderer.domElement); BD.el = el; BD.resize(); }
+    BD.onTap = onTap; return;
+  }
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
@@ -1116,8 +1119,9 @@ R3.mount = function (el, onTap) {
   BD = { el, renderer, scene, cam, group, sun, hemi, onTap, recs: {}, tiles: {}, ov: {}, props: {}, labels: [], queue: [], anims: [], shake: 0, flip: false, crates: {}, wrecks: {}, objs: {}, sel: null, active: null,
     rig: { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }, rigT: { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }, viewEl: EL_TOP, viewAz: 0, userT: -9, intent: null, focusTok: 0, size: { w: 1, h: 1 } };
   BD.parts = new Particles(group, 260);
-  const resize = () => { const w = el.clientWidth || 1, h = el.clientHeight || 1; renderer.setSize(w, h, false); BD.size = { w, h }; };
-  if (window.ResizeObserver) new ResizeObserver(resize).observe(el); else window.addEventListener('resize', resize);
+  const resize = () => { const e = BD.el, w = e.clientWidth || 1, h = e.clientHeight || 1; renderer.setSize(w, h, false); BD.size = { w, h }; };
+  BD.resize = resize;
+  if (window.ResizeObserver) { BD.ro = new ResizeObserver(resize); BD.ro.observe(el); } else window.addEventListener('resize', resize);
   resize();
   bindCameraInput(renderer.domElement);
   loop();
@@ -1140,7 +1144,7 @@ function baseExtent(az, el) {
   return { hw, hh };
 }
 function camUpdate(dt) {
-  const C = BD.rig, G = BD.rigT, k = 1 - Math.exp(-dt * 6), cam = BD.cam;
+  const C = BD.rig, G = BD.rigT, k = 1 - Math.exp(-dt * (BD.camRate || 6)), cam = BD.cam;
   let da = G.az - C.az; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
   C.az += da * k; C.el += (G.el - C.el) * k; C.zoom += (G.zoom - C.zoom) * k; C.tx += (G.tx - C.tx) * k; C.tz += (G.tz - C.tz) * k;
   const P = new T.Vector3(C.tx, 0, C.tz);
@@ -1227,7 +1231,7 @@ function bindCameraInput(cv) {
     if (pts.size === 1) { const p = [...pts.values()][0]; g = { mode: 'one', x: p.x, y: p.y, tx: G.tx, tz: G.tz, moved: false }; }
     else if (pts.size === 2) { const t = two(); g = { mode: 'two', d: t.d, zoom: G.zoom, moved: true }; }
   };
-  cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }; pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); startGesture(); });
+  cv.addEventListener('pointerdown', e => { if (BD.inputOff) return; try { cv.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }; pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); startGesture(); });
   cv.addEventListener('pointermove', e => {
     if (!pts.has(e.pointerId) || !g) return;
     const p = pts.get(e.pointerId); p.x = e.clientX; p.y = e.clientY;
@@ -1281,7 +1285,7 @@ function bindCameraInput(cv) {
   };
   cv.addEventListener('pointerup', end);
   cv.addEventListener('pointercancel', e => { pts.delete(e.pointerId); g = null; });
-  cv.addEventListener('wheel', e => { e.preventDefault(); BD.userT = clock(); BD.rigT.zoom = Math.max(0.8, Math.min(3.5, BD.rigT.zoom * Math.exp(-e.deltaY * 0.0015))); keepOnBoard(BD.rigT, 1.2); }, { passive: false });
+  cv.addEventListener('wheel', e => { if (BD.inputOff) return; e.preventDefault(); BD.userT = clock(); BD.rigT.zoom = Math.max(0.8, Math.min(3.5, BD.rigT.zoom * Math.exp(-e.deltaY * 0.0015))); keepOnBoard(BD.rigT, 1.2); }, { passive: false });
 }
 
 /* Every map has its own biome: ground, sky and light, what its blocking terrain is made of, how its ruins have weathered,
@@ -1326,7 +1330,7 @@ function buildBoard(S) {
     const t = mesh(box(0.97, 0.22, 0.97), toon(shade), g, [p.x, -0.11, p.z], null, { t: 0.012, recv: true });
     t.castShadow = false; t.receiveShadow = true; t.userData.tile = k; t.userData.ground = true;
     const ter0 = MW.terrain(x, y);
-    if (ter0 !== 'rock' && MW.baseAt(x, y) == null) groundDeco(p, !!MW.objAt(x, y) || ter0 === 'ruins' || ter0 === 'rubble');
+    if (ter0 !== 'rock' && MW.baseAt(x, y) == null) groundDeco(p, S.objectives.some(o => o.x === x && o.y === y) || ter0 === 'ruins' || ter0 === 'rubble');
     const ov = new T.Mesh(new T.PlaneGeometry(0.92, 0.92), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
     ov.rotation.x = -Math.PI / 2; ov.position.set(p.x, 0.012, p.z); ov.userData.tile = k; ov.renderOrder = 2; g.add(ov);
     BD.ov[k] = ov; BD.tiles[k] = t;
@@ -1969,6 +1973,84 @@ R3.reset = function () {
   ST.hasBoard = false;
 };
 
+/* ---------- battlefield preview and tour, for the setup screen ----------
+   The same board the battle uses, built from the map alone, with a camera that can be walked round it. */
+function mapState(id) {
+  const M = window.MW.MAPS[id];
+  return { map: id, objectives: M.obj.map(([x, y, type]) => ({ x, y, type, owner: null })), players: M.bases.map(([x, y]) => ({ base: { x, y, hp: 1 } })), mechs: [], wrecks: [], crates: [], flat: [] };
+}
+R3.mapPreview = function (el, id) {
+  if (!BD || !window.MW.MAPS[id]) return false;
+  R3.mount(el, null);
+  BD.inputOff = true; BD.renderer.domElement.style.touchAction = 'pan-y';
+  if (BD.previewMap !== id || !ST.hasBoard) {
+    clearTour();
+    window.MW.setMap(id);
+    R3.reset();
+    buildBoard(mapState(id));
+    BD.flip = false; BD.group.rotation.y = 0;
+    BD.turretRings.forEach(g => { g.visible = false; });
+    BD.previewMap = id;
+    BD.intent = 'preview';
+    R3.mapTour(null);
+    Object.assign(BD.rig, BD.rigT);
+  }
+  return true;
+};
+function clearTour() {
+  if (!BD || !BD.tour) return;
+  const tr = BD.tour;
+  tr.lit.forEach(m => { m.material = m.userData.m0; delete m.userData.m0; });
+  tr.extra.forEach(o => BD.group.remove(o));
+  tr.tiles.forEach(k => { const ov = BD.ov[k]; if (ov) { ov.userData.kind = null; ov.material.opacity = 0; } });
+  if (BD.turretRings) BD.turretRings.forEach(g => { g.visible = false; });
+  BD.tour = null;
+}
+// spec: { focus: tiles to frame, tiles: tiles to light, col: 'gold' | 'p0' | 'p1', models: tiles whose models glow, rings: bases whose reach is outlined, crates: tiles to drop a crate on, step }
+R3.mapTour = function (spec) {
+  if (!BD || !BD.previewMap) return;
+  clearTour();
+  const G = BD.rigT;
+  BD.camRate = 2.6;
+  if (!spec) { BD.orbit = 0.12; Object.assign(G, { tx: 0, tz: 0, zoom: 1, el: EL_34, az: BD.rig.az }); return; }
+  const tr = BD.tour = { lit: [], extra: [], tiles: [] };
+  const col = spec.col === 'p0' ? TEAM[0].ring : spec.col === 'p1' ? TEAM[1].ring : 0xffc83a;
+  for (const [x, y] of spec.tiles || []) { const k = key(x, y), ov = BD.ov[k]; if (!ov) continue; ov.material.color.setHex(col); ov.userData.kind = 'tour'; tr.tiles.push(k); }
+  for (const [x, y] of spec.models || []) {
+    const k = key(x, y), pg = (BD.objs[k] && BD.objs[k].pg) || BD.props[k];
+    if (pg) pg.traverse(o => { if (o.isMesh && o.material && o.material.isMeshToonMaterial && !o.userData.m0) { o.userData.m0 = o.material; o.material = lit(o.material); tr.lit.push(o); } });
+    // a marker bobbing over each thing the tour is pointing at
+    const top = BD.objs[k] && BD.objs[k].o.type === 'uplink' ? 1.75 : BD.objs[k] && BD.objs[k].o.type === 'radar' ? 1.35 : pg && pg.userData.base ? 1.35 : 1.15;
+    const mk = new T.Group(), p = tp(x, y); mk.position.set(p.x, top, p.z);
+    mesh(cone(0.13, 0.26, 4), glow(0xffc83a), mk, [0, 0, 0], [Math.PI, 0, 0], flat);
+    BD.group.add(mk); tr.extra.push(mk);
+    const t0 = clock() + Math.random();
+    BD.anims.push(t => { if (!mk.parent) return false; mk.position.y = top + 0.08 * Math.sin((t - t0) * 4); mk.rotation.y = t * 1.5; return true; });
+  }
+  for (const pid of spec.rings || []) if (BD.turretRings[pid]) BD.turretRings[pid].visible = true;
+  (spec.crates || []).forEach(([x, y], i) => {
+    const c = buildCrate({ x, y, kind: i % 2 ? 'special' : 'supply' });
+    c.userData.dropT = clock() + 0.5 + i * 0.25; c.userData.chute.visible = true; c.userData.body.position.y = 4;
+    BD.crates['tour' + i] = c; tr.extra.push(c);
+    BD.anims.push(() => { if (c.parent) return true; delete BD.crates['tour' + i]; return false; });
+  });
+  BD.orbit = 0;
+  if (spec.focus && spec.focus.length) {
+    G.el = 0.7; G.az = (spec.step % 2 ? 0.45 : -0.45);
+    focusTiles(spec.focus, 1.1, 2.3);
+  } else Object.assign(G, { tx: 0, tz: 0, zoom: 1, el: EL_34, az: BD.rig.az });
+};
+// back to the battle: drop the preview so the next battle builds its own board and camera
+R3.mapPreviewEnd = function () {
+  if (!BD || !BD.previewMap) return;
+  clearTour();
+  BD.previewMap = null; BD.inputOff = false; BD.orbit = 0; BD.camRate = 0; BD.intent = null;
+  BD.renderer.domElement.style.touchAction = 'none';
+  R3.reset();
+  BD.viewEl = EL_TOP; BD.viewAz = 0;
+  Object.assign(BD.rigT, { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }); Object.assign(BD.rig, BD.rigT);
+};
+
 /* ---------- the frame loop ---------- */
 let last = clock();
 let looping = false;
@@ -2018,7 +2100,8 @@ function updateBoard(t, dt) {
   for (let i = BD.anims.length - 1; i >= 0; i--) { let keep = false; try { keep = BD.anims[i](t); } catch (e) { keep = false; } if (!keep) BD.anims.splice(i, 1); }
   BD.parts.update(dt);
   const pulse = 0.5 + 0.5 * Math.sin(t * 5);
-  for (const k in BD.ov) { const ov = BD.ov[k], kd = ov.userData.kind; if (kd === 'target' || kd === 'dep') ov.material.opacity = (OV_OP[kd] || 0.4) * (0.6 + 0.5 * pulse); }
+  for (const k in BD.ov) { const ov = BD.ov[k], kd = ov.userData.kind; if (kd === 'target' || kd === 'dep') ov.material.opacity = (OV_OP[kd] || 0.4) * (0.6 + 0.5 * pulse); else if (kd === 'tour') ov.material.opacity = 0.25 + 0.4 * pulse; }
+  if (BD.orbit) BD.rigT.az += dt * BD.orbit;
   for (const k in BD.objs) { const r = BD.objs[k]; if (r.dish) r.dish.rotation.y = t * 0.8; }
   {
     const tg = [];
