@@ -7,33 +7,17 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Big+Shoulders+Display:wght@700;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root {
-  --bg: #E6ECF0; --surface: #F6F8FA; --raised: #FFFFFF; --ink: #13212C; --muted: #586A78;
-  --line: #B7C4CE; --line-soft: #D3DCE3; --tile: #DCE4EA; --rock: #6F7F8B; --ruin: #B9C6CF;
-  --p0: #3F6788; --p0-soft: #D3DEE6; --p1: #9A5A3C; --p1-soft: #EBDCD2;
-  --accent: #C39A3E; --accent-ink: #231A00; --good: #4A7A5A; --warn: #A27A2E; --bad: #A54A3C;
-  --c-melee: #B8336A; --c-ballistic: #8A6D1F; --c-energy: #0B8A99; --c-missile: #7A4FBF; --c-artillery: #5F7029; --c-siege: #A0522D; --c-shield: #3D6FA5; --c-support: #2B8757; --c-incendiary: #D2551B; --c-cryo: #2A7FB8;
-  --display: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif;
-  --body: 'Barlow', 'Segoe UI', system-ui, sans-serif;
-  --mono: var(--body);
-  --code: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #0D1922; --surface: #132430; --raised: #1A2F3E; --ink: #DDE8EF; --muted: #8AA0AF;
-    --line: #2C4456; --line-soft: #213646; --tile: #172B39; --rock: #4B6577; --ruin: #2A4253;
-    --p0: #7FA3C2; --p0-soft: #22323F; --p1: #C98A68; --p1-soft: #3F2A20;
-    --accent: #D2AE5C; --accent-ink: #231A00; --good: #74A784; --warn: #C9A050; --bad: #C7705F;
-    --c-melee: #F07FAE; --c-ballistic: #D9B85A; --c-energy: #4FD3E0; --c-missile: #B79AF2; --c-artillery: #B1C56A; --c-siege: #E0966B; --c-shield: #7FB2E5; --c-support: #4CBF85; --c-incendiary: #FF8A4C; --c-cryo: #7CC8F5;
-  }
-}
-:root[data-theme="dark"] {
+  /* the game is always dark: the 3D scenes, the HUD and every menu share one palette */
   color-scheme: dark;
   --bg: #0D1922; --surface: #132430; --raised: #1A2F3E; --ink: #DDE8EF; --muted: #8AA0AF;
   --line: #2C4456; --line-soft: #213646; --tile: #172B39; --rock: #4B6577; --ruin: #2A4253;
   --p0: #7FA3C2; --p0-soft: #22323F; --p1: #C98A68; --p1-soft: #3F2A20;
   --accent: #D2AE5C; --accent-ink: #231A00; --good: #74A784; --warn: #C9A050; --bad: #C7705F;
   --c-melee: #F07FAE; --c-ballistic: #D9B85A; --c-energy: #4FD3E0; --c-missile: #B79AF2; --c-artillery: #B1C56A; --c-siege: #E0966B; --c-shield: #7FB2E5; --c-support: #4CBF85; --c-incendiary: #FF8A4C; --c-cryo: #7CC8F5;
+  --display: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif;
+  --body: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+  --mono: var(--body);
+  --code: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -440,7 +424,7 @@ fieldset.seat[data-seat] { flex: 1; min-height: 0; display: flex; flex-direction
 .pill { font-family: var(--mono); font-size: 12px; text-transform: none; letter-spacing: .01em; padding: 2px 7px; border: 1px solid currentColor; white-space: nowrap;  font-weight: 600;}
 .pill.good { color: var(--good); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
 .res { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); background: var(--raised); }
-#win-body .pin { position: sticky; top: 0; z-index: 5; flex: none; display: flex; flex-direction: column; gap: 4px; background: var(--surface); padding-bottom: 6px; box-shadow: 0 -12px 0 var(--surface), 0 6px 6px -4px color-mix(in srgb, var(--ink) 25%, transparent); }
+#win-body .pin { position: sticky; top: 0; z-index: 5; flex: none; display: flex; flex-direction: column; gap: 4px; background: var(--surface); padding-bottom: 6px; box-shadow: 0 -12px 0 var(--surface), 0 6px 6px -4px rgba(0, 0, 0, .4); }
 .res div { padding: 6px 8px; border-right: 1px solid var(--line-soft); display: flex; align-items: center; gap: 7px; }
 .btn.blocked { opacity: .75; border-style: dashed; border-color: var(--bad); color: var(--bad); cursor: not-allowed; background: transparent; }
 .res div.flash { animation: resflash 1s ease-out 1; }
@@ -582,7 +566,7 @@ button.pl { cursor: pointer; } button.pl:hover { border-color: var(--ink); }
 .wontfit .card { opacity: .7; }
 .pinfo .face { margin: 4px 0; }
 .chip { font-family: var(--mono); font-size: 14px; padding: 1px 6px; border: 1px solid var(--line); background: var(--raised); white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
-.hpb { position: absolute; left: 3px; right: 3px; bottom: 1px; height: 3px; background: color-mix(in srgb, var(--ink) 28%, transparent); }
+.hpb { position: absolute; left: 3px; right: 3px; bottom: 1px; height: 3px; background: rgba(0, 0, 0, .45); }
 .hpb i, .mdhp i { display: block; height: 100%; background: var(--good); }
 .hpb.mid i, .mdhp.mid i { background: var(--warn); } .hpb.low i, .mdhp.low i { background: var(--bad); }
 .mdhp { display: block; height: 5px; background: var(--line-soft); margin: 4px 0 2px; max-width: 220px; }
@@ -645,7 +629,7 @@ button.rost { cursor: pointer; }
 .log .hit { color: var(--muted); padding-left: 20px; }
 .log .kill { font-weight: 600; padding-left: 20px; }
 .log .sys { font-family: var(--mono); font-size: 12px; text-transform: none; letter-spacing: .01em; color: var(--muted); padding-top: 6px;  font-weight: 600;}
-#overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 55%, transparent); display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; z-index: 30; }
+#overlay { position: fixed; inset: 0; background: rgba(3, 7, 11, .66); display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; z-index: 30; }
 .sheet { background: var(--surface); border: 2px solid var(--ink); max-width: 720px; width: 100%; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
 .sheet h2 { font-size: 32px; }
 #overlay:has(.warnsheet), #overlay:has(.endsheet) { align-items: center; }
@@ -963,13 +947,6 @@ button.rost { cursor: pointer; }
 .h3d-hint { position: absolute; left: 8px; bottom: 6px; z-index: 1; font-family: var(--mono); font-size: 12px; color: #c8d2dc; text-transform: none; letter-spacing: .01em; pointer-events: none;  font-weight: 600;}
 .ab.danger { border-color: var(--bad); color: var(--bad); }
 
-/* Wide screens: map column plus a side window that stays open */
-@media (min-width: 900px) {
-  .below { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; column-gap: 20px; row-gap: 6px; }
-  .track { grid-column: 1; grid-row: 1; } .stage { grid-column: 1; grid-row: 2; } .flow { grid-column: 1; grid-row: 3; } .dock { grid-column: 1; grid-row: 4; max-height: 40vh; }
-  #win, #win.idle { position: static; display: flex; grid-column: 2; grid-row: 1 / 5; animation: none; border-width: 1px; border-color: var(--line); }
-  .side-name { font-size: 24px; }
-}
 @media (max-width: 899px) {
   #start { grid-template-columns: minmax(0, 1fr); }
   .brief { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 20px; }
@@ -1093,6 +1070,307 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 
 /* codes stay monospaced */
 .net-join input, .nrow .code { font-family: var(--code); }
+
+/* a part's 3D render on its card */
+.pshot { display: block; width: 100%; height: 76px; object-fit: contain; border-radius: 6px; background: radial-gradient(ellipse at 50% 65%, rgba(255, 255, 255, .09), transparent 70%); pointer-events: none; }
+.pshot.big { height: 112px; }
+.pinfo .pshot { height: 170px; }
+/* ---------- Base window: icons and numbers ---------- */
+#win-head .rchips { flex: 1; min-width: 0; display: flex; gap: 6px; border: 0; background: none; overflow: hidden; }
+#win-head .rchips div { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 8px; border: 1px solid var(--glass-line, var(--line)); border-radius: 999px; background: rgba(255, 255, 255, .04); cursor: help; white-space: nowrap; }
+#win-head .rchips .rico { width: 16px; height: 16px; color: var(--accent); }
+#win-head .rchips b { font: 900 18px/1 var(--display); color: var(--ink); }
+#win-head .rchips b i { font-style: normal; color: var(--muted); font-size: 14px; }
+#win-head .rchips .rinc { font: 600 12px var(--body); color: var(--good); margin: 0; }
+#game .ftab { flex-direction: row; align-items: center; gap: 6px; padding: 5px 9px; background: rgba(255, 255, 255, .04); color: var(--ink); border: 1px solid var(--glass-line, var(--line)); border-radius: 8px; }
+#game .ftab::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+#game .ftab.building::before { background: var(--warn); }
+#game .ftab.empty { border-style: dashed; color: var(--muted); }
+#game .ftab.empty::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+#game .ftab.on { outline: 0; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+#game .ftab i { display: none; }
+#game .pl { flex-direction: row; align-items: center; gap: 6px; }
+#game .pl small { display: inline-flex; align-items: center; gap: 1px; flex: none; color: var(--muted); font: 700 11px var(--body); }
+#game .pl small .ico { width: 15px; height: 15px; }
+#game .pl.none b { color: var(--muted); font-weight: 500; }
+#game .slotline .note:empty { display: none; }
+#game .slotline:has(.note:empty) { justify-content: flex-end; }
+#game .ibtn { width: 32px; height: 30px; padding: 0; display: inline-grid; place-items: center; }
+#game .ibtn .ico { width: 17px; height: 17px; }
+#game .pfil { flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+#game .pfil::-webkit-scrollbar { display: none; }
+#game .pfc { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 5px 9px; border-radius: 999px; }
+#game .pfc .ico { width: 16px; height: 16px; }
+#game .pfc i { margin: 0; }
+#game .pfc.rq { margin-left: auto; color: var(--accent); }
+#game .pfc.rq i .ico { width: 12px; height: 12px; }
+#game .h3d-bin { position: absolute; right: 8px; bottom: 8px; z-index: 3; background: rgba(11, 19, 27, .7); border-color: rgba(255, 255, 255, .14); }
+/* the base window on wide screens: the mech on the left, the parts beside it */
+.split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; }
+.split-l, .split-r { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.split-l > .h3d { flex: 1 1 0; min-height: 220px; }
+.split-l > .tabs.frames, .split-l > .plist, .split-l > .slotline { flex: none; }
+.split-r > .tabbody { flex: 1; min-height: 0; }
+/* ---------- Battle HUD ----------
+   The map fills the screen. The two sides' plates and the round sit in a slim bar on top, the actions in a sheet
+   along the bottom (a card at the side on wide screens), and windows slide over the map; the 3D camera frames the
+   board in whatever is left clear. */
+#game { position: fixed; inset: 0; padding: 0; gap: 0; background: #0b141b; color: var(--ink);
+  --glass: rgba(11, 19, 27, .82); --glass-solid: rgba(13, 23, 32, .96); --glass-line: rgba(255, 255, 255, .11); }
+#game .below { position: absolute; inset: 0; display: block; }
+#game .stage { position: absolute; inset: 0; }
+#game .stage:not(:has(.r3)) { padding: var(--pt, 0) var(--pr, 0) var(--pb, 0) var(--pl, 0); }
+#game .flow { display: none; }
+.hud { position: absolute; top: 0; left: 0; right: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: calc(8px + env(safe-area-inset-top, 0px)) 8px 0; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.glass, .hud .top > *, .hud .track, #game .dock, #game #win { background: var(--glass); border: 1px solid var(--glass-line); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 6px 18px rgba(0, 0, 0, .28); }
+.hud .top { width: 100%; max-width: 920px; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto minmax(0, 1fr) 40px; gap: 6px; align-items: stretch; }
+.hb { min-height: 40px; display: grid; place-items: center; padding: 0; color: var(--ink); border-radius: 10px; cursor: pointer; position: relative; }
+.hb:hover { border-color: rgba(255, 255, 255, .3); }
+.hb svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hb.dot::after { content: ''; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--glass-solid); }
+.hb.on { border-color: var(--accent); color: var(--accent); }
+.hud .top .side { position: relative; left: auto; top: auto; bottom: auto; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 4px; padding: 6px 10px 7px; border-radius: 10px; border-left: 3px solid var(--pc); color: var(--ink); pointer-events: auto; min-width: 0; text-align: left; }
+.hud .top .side.p1 { direction: rtl; border-left: 1px solid var(--glass-line); border-right: 3px solid var(--pc); }
+.hud .top .side.p1 > * { direction: ltr; }
+.hud .top .side.turn { box-shadow: 0 6px 18px rgba(0, 0, 0, .28), inset 0 0 0 1px color-mix(in srgb, var(--pc) 55%, transparent); }
+.hud .top .side.won { box-shadow: 0 0 0 2px #f4c431; }
+.hud .side-name { font: 900 17px/1 var(--display); letter-spacing: .03em; color: var(--pc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.hud .side.turn .side-name::before { content: '▶ '; font-size: 11px; vertical-align: 2px; color: var(--accent); }
+.hud .side-nums { display: flex; gap: 10px; align-items: center; font: 600 14px/1 var(--body); color: var(--muted); white-space: nowrap; }
+.hud .side-nums > span { display: inline-flex; align-items: center; gap: 3px; }
+.hud .side-nums .ico { width: 14px; height: 14px; }
+.hud .vpv { font-family: var(--display); font-weight: 900; font-size: 19px; color: #fff; }
+.hud .vpv .ico { color: #f4c431; }
+.hud .vpv small { font: 700 12px var(--body); color: var(--muted); }
+.hud .side-nums b { color: inherit; font-weight: inherit; }
+.hud .vpbar { grid-column: 1 / -1; display: grid; gap: 2px; }
+.hud .vpbar i { height: 6px; background: rgba(255, 255, 255, .13); border-radius: 1px; }
+.hud .vpbar i[data-new] { animation: vpseg 1.2s ease-out 1; }
+@keyframes vpseg { 0%, 40% { background: #f4c431; box-shadow: 0 0 8px #f4c431; } }
+.hud .vpbar i.on { background: var(--pc); }
+.hud .mid { justify-content: center; padding: 4px 12px; border-radius: 10px; gap: 1px; }
+.hud .round { font: 600 12px/1.1 var(--body); color: var(--muted); text-transform: none; letter-spacing: .02em; }
+.hud .phase { font: 900 18px/1 var(--display); text-transform: uppercase; letter-spacing: .04em; color: var(--ink); white-space: nowrap; }
+.hud .track { width: auto; max-width: min(100%, 720px); min-height: 0; padding: 4px 6px; border-radius: 10px; gap: 4px; }
+.hud .track.hint { padding: 7px 12px; border-left: 3px solid var(--pc, var(--line)); font-size: 14px; }
+.hud .track:empty { display: none; }
+.hud .tc { width: 30px; height: 30px; }
+.hud .tc.now { width: 36px; height: 36px; }
+.hud .track .who { font-size: 13px; }
+#game .dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; height: auto; min-height: 0; max-height: 50% !important; overflow-y: auto; border-width: 1px 0 0; border-radius: 16px 16px 0 0; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
+#game .dock:empty { display: none; }
+.mrows { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.mrows .mrow { flex: 0 0 auto; width: auto; min-width: 150px; height: auto; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; row-gap: 2px; padding: 5px 10px 5px 6px; }
+.mrows .mrow > svg { grid-row: 1 / 3; }
+.mrows .mrow .wchips { grid-column: 2; justify-content: flex-start; }
+#game #win { z-index: 20; border-radius: 0; border-width: 0; background: var(--glass-solid); }
+#game[data-win=log] #win { top: auto; height: 62%; border-radius: 16px 16px 0 0; border-top-width: 1px; }
+#camctl { right: calc(var(--pr, 0px) + 8px); top: var(--pt, 8px); bottom: auto; flex-direction: column; }
+#camctl button { width: 36px; height: 36px; border-radius: 10px; background: var(--glass); border-color: var(--glass-line); color: var(--ink); }
+#game #toast { bottom: calc(var(--pb, 0px) + 12px); }
+/* the base window's resources: one slim line instead of a block of big numbers */
+#game .pin .res { border-radius: 8px; overflow: hidden; }
+#game .pin .res div { padding: 5px 8px; justify-content: flex-start; text-align: left; }
+#game .pin .res p { display: flex; flex-direction: row; align-items: baseline; gap: 5px; white-space: nowrap; }
+#game .pin .res b { font-size: 19px; }
+#game .pin .res p > span:not(.rinc) { order: 3; font-size: 13px; }
+#game .pin .res .rinc { order: 2; font-size: 12px; margin: 0; }
+@media (max-width: 520px) {
+  #game .pin .res div { padding: 5px 6px; justify-content: center; }
+  #game .pin .res .rinc { display: none; }
+  #game .pin .res b { font-size: 17px; }
+  #game .pin .res p > span:not(.rinc) { font-size: 12px; }
+}
+@media (min-width: 641px) and (max-width: 899px) {
+  #game .dock { left: 50%; right: auto; width: min(640px, calc(100% - 24px)); transform: translateX(-50%); bottom: 12px; border-width: 1px; border-radius: 16px; }
+}
+/* aiming on a phone: the four aim points as a 2×2 grid, so the sheet leaves the target in view */
+@media (max-width: 640px) {
+  #game .pick { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  #game .pb { grid-template-columns: minmax(0, 1fr) auto; align-items: start; padding: 6px 8px; min-height: 0; }
+  #game .pb .pbi { display: none; }
+  #game .pick .pb.body { grid-column: auto; }
+  #game .pbt b { white-space: normal; line-height: 1.2; }
+  #game .pbt em { white-space: normal; font-size: 12px; line-height: 1.2; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  #game .pbn small { font-size: 12px; }
+}
+@media (max-width: 520px) {
+  .hud { padding-inline: 6px; }
+  .hud .top { gap: 4px; grid-template-columns: 36px minmax(0, 1fr) auto minmax(0, 1fr) 36px; }
+  .hud .top .side { grid-template-columns: minmax(0, 1fr); padding: 5px 8px 6px; }
+  .hud .mid { padding: 4px 6px; }
+  .hud .phase { font-size: 16px; }
+  .hud .side-name { font-size: 15px; }
+  .hud .vpv { font-size: 17px; }
+  .hud .side-nums { gap: 8px; }
+  .hud .vpv small, .hud .track .sep, .hud .track .tc.end { display: none; }
+}
+@media (min-width: 900px) {
+  .hud { padding-top: 12px; }
+  #game .dock { left: 12px; right: auto; bottom: 12px; width: 380px; max-height: calc(100% - var(--pt, 80px) - 12px) !important; border-width: 1px; border-radius: 14px; }
+  #game #win { inset: var(--pt, 80px) 12px 12px auto; width: 380px; height: auto; border-width: 1px; border-radius: 14px; }
+  #game[data-win=log] #win { top: var(--pt, 80px); height: auto; border-radius: 14px; }
+  #game:is([data-win=shop], [data-win=mech]) #win { width: min(72%, 1240px); }
+}
+@media (min-width: 900px) and (max-width: 1199px) {
+  #game:is([data-win=shop], [data-win=mech]) #win { width: 74%; }
+  .wrows { display: grid; gap: 6px; }
+  .mrows { flex-direction: column; overflow: visible; }
+  .mrows .mrow { width: 100%; }
+}
+
+/* ---------- Phones play in landscape ----------
+   Upright, a phone gets a prompt to turn it. Sideways, the battle keeps the map in the middle: a slim bar on top,
+   the actions in a panel down the left, the log down the right, and the Base window over the whole screen. */
+#rotate { display: none; }
+@media (orientation: portrait) and (max-width: 600px) {
+  #rotate { display: flex; position: fixed; inset: 0; z-index: 100; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; background: var(--bg); color: var(--ink); }
+  #rotate svg { width: 72px; height: 72px; fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; animation: turnme 2.4s ease-in-out infinite; }
+  #rotate b { font: 900 26px/1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
+  #rotate span { color: var(--muted); font-size: 16px; }
+  #app { visibility: hidden; }
+}
+@keyframes turnme { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+@media (prefers-reduced-motion: reduce) { #rotate svg { animation: none; } }
+@media (orientation: landscape) and (max-height: 520px) {
+  .hud { padding: calc(4px + env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) 0 calc(8px + env(safe-area-inset-left, 0px)); gap: 4px; }
+  .hud .top { max-width: 640px; gap: 4px; grid-template-columns: 34px minmax(0, 1fr) auto minmax(0, 1fr) 34px; }
+  .hb { min-height: 34px; border-radius: 8px; }
+  .hb svg { width: 18px; height: 18px; }
+  .hud .top .side { padding: 4px 8px 5px; row-gap: 3px; border-radius: 8px; }
+  .hud .side-name { font-size: 14px; }
+  .hud .vpbar i { height: 5px; }
+  .hud .mid { padding: 2px 10px; border-radius: 8px; }
+  .hud .round { font-size: 11px; }
+  .hud .phase { font-size: 15px; }
+  .hud .track { padding: 2px 4px; border-radius: 8px; }
+  .hud .track.hint { padding: 4px 10px; font-size: 13px; }
+  .hud .tc { width: 24px; height: 24px; }
+  .hud .tc.now { width: 28px; height: 28px; }
+  #game .dock { left: calc(8px + env(safe-area-inset-left, 0px)); right: auto; top: auto; bottom: 8px; width: 290px; max-height: calc(100% - var(--pt, 60px) - 8px) !important; transform: none; padding: 8px 10px; border-width: 1px; border-radius: 12px; gap: 6px; }
+  .mrows { flex-direction: column; overflow: visible; }
+  .mrows .mrow { width: 100%; }
+  #game .pick { grid-template-columns: minmax(0, 1fr); }
+  #game #win, #game[data-win=log] #win { inset: var(--pt, 60px) calc(8px + env(safe-area-inset-right, 0px)) 8px auto; width: 320px; height: auto; border-width: 1px; border-radius: 12px; }
+  #game:is([data-win=shop], [data-win=mech]) #win { inset: 0; width: auto; border-width: 0; border-radius: 0; padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+  #win-head { padding: 5px 10px; }
+  #win-head h2 { font-size: 20px; }
+  #win-body { padding: 6px 10px; gap: 6px; }
+  #game .pin .res div { padding: 3px 8px; }
+  #game .pin .res b { font-size: 16px; }
+  .split { gap: 10px; }
+  .split-l > .h3d { min-height: 120px; }
+  .split-l > .plist { grid-template-rows: 30px; height: 30px; grid-auto-flow: column; grid-auto-columns: max-content; grid-template-columns: none !important; overflow-x: auto; scrollbar-width: none; }
+  .split-l > .plist::-webkit-scrollbar { display: none; }
+  .split-l > .plist .pl { flex-direction: row; align-items: center; gap: 5px; padding: 0 8px; }
+  .split-l > .plist .pl small { font-size: 11px; }
+  .split-l > .plist .pl b { font-size: 13px; }
+  .h3d-top .tot span { display: none; }
+  .h3d-top .tot div { justify-content: center; }
+  .pshot { height: 52px; }
+  .split-l > .tabs.frames .ftab { padding-block: 3px; }
+  #camctl button { width: 32px; height: 32px; }
+}
+/* ---------- Base window hierarchy ----------
+   1. the header: resources and the build button, the strongest row;
+   2. the hangar: your mecha, the one on the gantry, its slots, framed as one panel;
+   3. the parts: a quieter panel of cards, each led by a picture of the part. */
+#win-head { padding: 10px 14px; gap: 12px; }
+#win-head .rchips { gap: 8px; }
+#win-head .rchips div { gap: 7px; padding: 5px 14px 5px 6px; border-radius: 12px; background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .14); }
+#win-head .rchips .rico { width: 28px; height: 28px; padding: 5px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+#win-head .rchips div[data-res=ep] .rico { background: color-mix(in srgb, var(--c-energy) 18%, transparent); color: var(--c-energy); }
+#win-head .rchips div:nth-child(3) .rico { background: color-mix(in srgb, var(--c-missile) 18%, transparent); color: var(--c-missile); }
+#win-head .rchips div:nth-child(4) .rico { background: color-mix(in srgb, var(--good) 20%, transparent); color: var(--good); }
+#win-head .rchips b { font-size: 24px; }
+#win-head .rchips b i { font-size: 16px; }
+#win-head .rchips .rinc { font-size: 13px; font-weight: 700; }
+.split-l, .split-r { padding: 8px; border-radius: 12px; }
+.split-l { background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .08); }
+.split-r { background: rgba(0, 0, 0, .18); }
+#game .split-r .wtabs { gap: 2px; padding: 2px; border-radius: 9px; background: rgba(0, 0, 0, .25); }
+#game .split-r .wtab { border: 0; border-radius: 7px; padding: 5px 4px; color: var(--muted); }
+#game .split-r .wtab.on { background: rgba(255, 255, 255, .1); color: var(--ink); }
+#game .partscroll > .lbl { font: 700 12px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: transparent; padding: 6px 2px 2px; }
+#game .split-r .partscroll > .lbl { background: rgba(9, 15, 21, .92); }
+/* a part card: the render first, the name, the basic numbers, a quiet action */
+#game :is(.cardlist, .cardgrid) .card { display: flex; flex-direction: column; gap: 4px; padding: 0 0 6px; border: 1px solid rgba(255, 255, 255, .09); border-top: 0; border-radius: 10px; background: rgba(255, 255, 255, .045); overflow: hidden; }
+#game :is(.cardlist, .cardgrid) .card > * { margin-inline: 8px; }
+#game .cpic { position: relative; margin: 0 !important; height: 96px; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--cc, var(--ink)) 26%, transparent), transparent 72%), rgba(0, 0, 0, .22); border-top: 3px solid var(--cc, var(--line)); }
+#game .cpic { overflow: hidden; }
+#game .cpic .pshot { position: absolute; inset: 4px 0 0; width: 100%; height: calc(100% - 4px); object-fit: contain; background: none; border-radius: 0; }
+#game .cpic-ico .ico { width: 40px; height: 40px; color: var(--cc, var(--ink)); opacity: .8; }
+#game .cpic .badge { position: absolute; left: 6px; top: 6px; width: 20px; height: 20px; border-radius: 6px; }
+#game .cpic .badge .ico { width: 13px; height: 13px; }
+#game .cpic .pi { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; background: rgba(0, 0, 0, .35); border-color: rgba(255, 255, 255, .18); }
+#game .card .card-top { margin-top: 2px; }
+#game .card .cname { font-size: 14px; font-weight: 700; line-height: 1.2; }
+#game .card .vs { font-size: 12px; }
+#game .card .row { margin-top: auto; }
+#game .card .btn.fit { background: transparent; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); font-weight: 600; }
+#game .card .btn.fit:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); }
+#game .card .btn:disabled { background: transparent; border-color: rgba(255, 255, 255, .08); }
+#game .pfc.cmpt { font-size: 16px; line-height: 1; }
+@media (orientation: landscape) and (max-height: 520px) {
+  #win-head { padding: 6px 10px; }
+  #win-head .rchips div { padding: 3px 10px 3px 4px; }
+  #win-head .rchips .rico { width: 24px; height: 24px; padding: 4px; }
+  #win-head .rchips b { font-size: 20px; }
+  #game .cpic { height: 72px; }
+  .split-l, .split-r { padding: 6px; }
+}
+/* ---------- Mech stats: one row each, a big number and a meter ---------- */
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.stats .st { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ic lb val" "m m m"; align-items: center; column-gap: 6px; row-gap: 4px; padding: 6px 8px; border-radius: 8px; background: rgba(9, 15, 21, .72); border: 1px solid rgba(255, 255, 255, .1); color: #eef3f6; min-width: 0; cursor: help; }
+.stats .tico { grid-area: ic; width: 16px; height: 16px; color: var(--sc, #a9b6c0); }
+.stats .st-l { grid-area: lb; font: 600 12px var(--body); color: #a9b6c0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats b { grid-area: val; font: 900 20px/1 var(--display); color: #fff; white-space: nowrap; }
+.stats b i { font-style: normal; font-size: 14px; color: #8fa0ae; }
+.stats .sm { grid-area: m; height: 5px; }
+.stats .seg { display: grid; gap: 2px; }
+.stats .seg i { background: rgba(255, 255, 255, .12); border-radius: 1px; }
+.stats .seg i.on { background: var(--sc, #cfd8df); }
+.stats .bar { background: rgba(255, 255, 255, .12); border-radius: 3px; overflow: hidden; }
+.stats .bar i { display: block; height: 100%; background: var(--sc, #cfd8df); }
+.stats .st-hp { --sc: #5fca8d; } .stats .st-hp .bar.mid i { background: #edb13a; } .stats .st-hp .bar.low i { background: #ef5a4a; }
+.stats .st-move { --sc: #7fc3ec; }
+.stats .st-armor { --sc: #b8c4cf; }
+.stats .st-heat { --sc: #f09a52; }
+.stats .st-load { --sc: #d2ae5c; }
+.stats .st.over { border-color: #ef5a4a; }
+.stats .st.over b { color: #ff8a80; }
+.stats .seg.low i.on, .stats .bar.low i { background: #ef5a4a; }
+/* on the gantry's sides (wide screens): a column of stats left of the mech, its slots on the right */
+.h3d.flank { min-height: 360px; }
+.h3d-side { position: absolute; top: 10px; bottom: 10px; z-index: 2; width: clamp(118px, 21%, 168px); display: flex; flex-direction: column; justify-content: center; gap: 6px; pointer-events: none; }
+.h3d-side > * { pointer-events: auto; }
+.h3d-side.l { left: 10px; } .h3d-side.r { right: 10px; }
+.h3d-side .stats { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.h3d-side .stats .st { padding: 8px 10px; }
+.h3d-side .stats b { font-size: 24px; }
+#game .h3d-side .plist { display: flex; flex-direction: column; height: auto; gap: 6px; overflow: visible; grid-template-columns: none !important; }
+#game .h3d-side .pl { width: 100%; min-height: 40px; padding: 6px 10px; border-radius: 8px; background: rgba(9, 15, 21, .72); border-color: rgba(255, 255, 255, .1); }
+#game .h3d-side .pl.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+#game .h3d-side .pl b { white-space: normal; line-height: 1.15; }
+.h3d.flank .h3d-bin { right: auto; left: 50%; transform: translateX(-50%); }
+/* when the stats sit across the top of the viewer, keep them to one slim row */
+.h3d-top .stats .st { grid-template-areas: "ic val" "m m"; grid-template-columns: auto minmax(0, 1fr); padding: 4px 6px; }
+.h3d-top .stats .st-l { display: none; }
+.h3d-top .stats b { font-size: 16px; justify-self: end; }
+.h3d-top .stats .sm { height: 4px; }
+/* taller part cards so the render reads */
+#game .cpic { height: 150px; }
+/* the parts list scrolls without a visible bar */
+#game .partscroll { scrollbar-width: none; }
+#game .partscroll::-webkit-scrollbar { display: none; }
+@media (orientation: landscape) and (max-height: 520px) {
+  #game .cpic { height: 110px; }
+}
+/* the Base window carries End build and the way back to the map, so the card beneath it steps aside */
+@media (min-width: 900px) {
+  #game:is([data-win=shop], [data-win=mech]) .dock { display: none; }
+}
 </style>
 
 <div id="app">
@@ -1194,9 +1472,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
   </section>
 
   <section id="game" hidden>
-    <header class="top" id="top"></header>
     <div class="below">
-      <div class="track" id="track"></div>
       <div class="stage">
         <div class="board-wrap">
           <div class="board" id="board"></div>
@@ -1205,17 +1481,17 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
           <div id="labels" aria-hidden="true"></div>
           <div id="floats" aria-hidden="true"></div>
           <div id="announce" aria-hidden="true"></div>
-          <div id="vpboard"></div>
           <div id="camctl">
             <button type="button" data-cam="rotL" title="Turn view left" aria-label="Turn view left"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 3v5h5"/></svg></button>
             <button type="button" data-cam="rotR" title="Turn view right" aria-label="Turn view right"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3v5h-5"/></svg></button>
-            <button type="button" data-cam="tilt" title="Top-down or 3/4 view" aria-label="Switch between top-down and three-quarter view"><svg viewBox="0 0 24 24"><path d="M3 17l9 4 9-4-9-4z"/><path d="M12 3v7m-3-3l3 3 3-3"/></svg></button>
-            <button type="button" data-cam="out" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-            <button type="button" data-cam="in" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
-            <button type="button" data-cam="overview" title="Top-down overview" aria-label="Top-down overview"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg></button>
+            <button type="button" data-cam="overview" title="Whole map" aria-label="Show the whole map"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg></button>
           </div>
         </div>
         <div id="toast" hidden></div>
+      </div>
+      <div class="hud" id="hud">
+        <header class="top" id="top"></header>
+        <div class="track" id="track"></div>
       </div>
       <ol class="flow" id="flow" aria-label="Round sequence"></ol>
       <div class="dock" id="dock"></div>
@@ -1226,6 +1502,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
   <div id="overlay" hidden></div>
   <div id="tip" role="status" hidden></div>
 </div>
+<div id="rotate" role="alert"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="16" y="6" width="16" height="28" rx="3"/><path d="M9 38a17 17 0 0 0 26 4"/><path d="M33 37l2 5-5 1"/></svg><b>Turn your phone sideways</b><span>Mecha Warfare plays in landscape.</span></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="engine.js"></script>
@@ -1313,6 +1590,7 @@ const ICONS = {
   stable: '<path d="M12 3v8M12 11l-7 10M12 11l7 10M12 11v10"/>',
   hover: '<path d="M4 9h16"/><path d="M3 14c3-2 15-2 18 0"/><path d="M6 19h12"/>',
   foot: '<path d="M6 21h12l1-4-6-2V3H8v14z"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
   wrench: '<path d="M15 3a5 5 0 0 0-4.6 6.9L3 17.3 6.7 21l7.4-7.4A5 5 0 0 0 21 9l-3 3-3-1-1-3z"/>',
   dmg: '<path d="M12 2l2.2 6.3L20.5 6l-3.6 5.6L22 14l-6.4.6L16 21l-4-4.6L8 21l.4-6.4L2 14l5.1-2.4L3.5 6l6.3 2.3z"/>',
   rng: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5"/>',
@@ -1513,13 +1791,19 @@ function faceHTML(d, cmp) {
   return '<div class="face">' + head.join('') + '</div>' + (kw || right.length ? '<div class="ftags">' + foot + '</div>' : '');
 }
 // the full numbers, one tap away
+// the part itself, rendered in 3D in the viewer's army colours (falls back to nothing without WebGL)
+function partPic(d, cls) {
+  const p = S && S.players ? S.players[viewer()] : null;
+  const src = R3on && p ? window.R3.partShot(d.id, p.doctrine, p.id) : null;
+  return src ? '<img class="pshot' + (cls ? ' ' + cls : '') + '" src="' + src + '" alt="">' : '';
+}
 function showPartInfo(id, uid) {
   const d = D[id]; if (!d) return;
   const sell = uid ? '<div class="row"><button type="button" class="btn sell grow" data-act="scrap" data-uid="' + uid + '"><span>Sell for +' + MW.sellValue(d) + ' ' + si('supply') + '</span></button></div>' : '';
   const o = $('#overlay');
   o.innerHTML = '<div class="sheet pinfo" role="dialog" aria-label="' + d.name + '"><div class="phead"><h2>' + d.name + '</h2><button type="button" class="btn sm" data-act="closeOverlay">Close</button></div>' +
     '<span class="lbl">' + (d.special ? '★ Special · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.cost ? ' · ' + d.cost + ' Supply' : '') + (d.pips != null && d.slot !== 'torso' ? ' · ' + d.pips + ' capacity pips' : '') + '</span>' +
-    faceHTML(d) + chips(d) + (d.modeText ? '<p class="note">' + d.modeText + '</p>' : '') + (d.trait ? '<p class="note">' + d.trait + '</p>' : '') + sell + '</div>';
+    partPic(d) + faceHTML(d) + chips(d) + (d.modeText ? '<p class="note">' + d.modeText + '</p>' : '') + (d.trait ? '<p class="note">' + d.trait + '</p>' : '') + sell + '</div>';
   o.hidden = false;
 }
 function chips(d, cmp) {
@@ -1572,17 +1856,19 @@ function blueprint(m, editable) {
 }
 function statBlock(m, field) {
   const st = MW.stats(m), t = m.slots.torso, armor = (t ? (D[t.id].armor || 0) : 0) + st.armorAll;
-  const TOT_NAME = { HP: 'HP (frame)', Load: 'Load: weight / leg capacity', Energy: 'Energy: draw / core power', Move: 'Move per action', Armor: 'Armor', Heat: 'Heat capacity', Cool: 'Cooling per round' };
-  const TOT_ICON = { HP: 'hp', Load: 'load', Energy: 'energy', Move: 'move', Armor: 'shield', Heat: 'incendiary', Cool: 'cryo' };
-  const TOT_WORD = { HP: 'HP', Move: 'Move', Armor: 'Armour', Heat: 'Heat cap' };
-  const cell = (label, val, bad) => '<div' + (bad ? ' class="over"' : '') + ' title="' + TOT_NAME[label] + '" aria-label="' + TOT_NAME[label] + ' ' + val + '">' + ico(TOT_ICON[label], 'tico') + '<p><b>' + val + '</b><span>' + (TOT_WORD[label] || label) + '</span></p></div>';
-  TOT_NAME.Cap = 'Capacity: pips used / chassis budget'; TOT_ICON.Cap = 'energy';
-  let h = '<div class="tot tot5">' +
-    cell('HP', MW.hpOf(m) + '/' + MW.maxHpOf(m), !!m.slots.torso && MW.hpOf(m) < MW.maxHpOf(m)) +
-    cell('Move', st.move) +
-    cell('Armor', armor) +
-    cell('Heat', (field ? m.heat + '/' : '') + st.heatCap, field && m.heat > st.heatCap) +
-    '<div' + (st.used > st.cap ? ' class="over"' : '') + ' title="' + TOT_NAME.Cap + '" aria-label="' + TOT_NAME.Cap + ' ' + st.used + '/' + st.cap + '">' + ico('load', 'tico') + '<p><b>' + st.used + '/' + st.cap + '</b><span>Weight</span></p></div></div>';
+  const hp = MW.hpOf(m), maxHp = MW.maxHpOf(m);
+  // seg: a row of n cells with the first k lit; bar: a continuous fill
+  const seg = (k, n, cls) => '<span class="sm seg' + (cls ? ' ' + cls : '') + '" style="grid-template-columns:repeat(' + n + ',1fr)">' + Array.from({ length: n }, (_, i) => '<i' + (i < k ? ' class="on"' : '') + '></i>').join('') + '</span>';
+  const bar = (f, cls) => '<span class="sm bar' + (cls ? ' ' + cls : '') + '"><i style="width:' + Math.round(Math.max(0, Math.min(1, f)) * 100) + '%"></i></span>';
+  const row = (key, title, icon, label, val, meter, bad) => '<div class="st st-' + key + (bad ? ' over' : '') + '" title="' + title + '" aria-label="' + title + ' ' + val.replace(/<[^>]+>/g, '') + '">' + ico(icon, 'tico') + '<span class="st-l">' + label + '</span><b>' + val + '</b>' + meter + '</div>';
+  const hpF = maxHp ? hp / maxHp : 0;
+  let h = '<div class="stats">' +
+    row('hp', 'HP (frame)', 'hp', 'HP', hp + '<i>/' + maxHp + '</i>', bar(hpF, hpF < 0.34 ? 'low' : hpF < 0.67 ? 'mid' : ''), !!t && hp < maxHp) +
+    row('move', 'Move per action', 'move', 'Move', String(st.move), seg(st.move, Math.max(6, st.move))) +
+    row('armor', 'Armor', 'shield', 'Armour', String(armor), seg(armor, Math.max(4, armor))) +
+    row('heat', 'Heat capacity', 'incendiary', 'Heat cap', (field ? m.heat + '<i>/' + st.heatCap + '</i>' : String(st.heatCap)), field ? bar(st.heatCap ? m.heat / st.heatCap : 0, m.heat > st.heatCap ? 'low' : 'heat') : seg(st.heatCap, Math.max(10, st.heatCap), 'heat'), field && m.heat > st.heatCap) +
+    row('load', 'Capacity: pips used / chassis budget', 'load', 'Weight', st.used + '<i>/' + st.cap + '</i>', seg(st.used, Math.max(st.cap, st.used), st.used > st.cap ? 'low' : ''), st.used > st.cap) +
+    '</div>';
   const sp = [];
   if (st.shield) sp.push('Shield ' + (field ? m.shield + '/' : '') + st.shield);
   if (st.selfRepair) sp.push('Self-repair ' + st.selfRepair);
@@ -1616,35 +1902,27 @@ function fieldLists() {
 /* ---------- Render: top bar, phase flow, turn track ---------- */
 function renderTop() {
   const prev = ui.prev || {}, now = {};
-  const num = (key, v) => {
-    now[key] = v;
-    const d = key in prev ? v - prev[key] : 0;
-    return '<b' + (d ? ' class="bump"' : '') + '>' + v + '</b>' + (d ? '<em class="delta ' + (d > 0 ? 'good' : 'bad') + '">' + (d > 0 ? '+' : '−') + Math.abs(d) + '</em>' : '');
-  };
+  // one plate per side: the name over the race to the win, as a bar (the numbers stay in the tooltip;
+  // Supply is in the Base window)
   const side = p => {
-    const dep = S.objectives.filter(o => o.type === 'depot' && o.owner === p.id).length;
-    return '<div class="side p' + p.id + (S.current === p.id && S.phase !== 'over' ? ' turn' : '') + '"><div class="side-name">' + p.name + (net && net.seat === p.id ? '<em class="you">You</em>' : '') + '<small>' + MW.DOCTRINES[p.doctrine].name.replace(' Doctrine', '') + (p.isAI ? ' · AI' + (p.ai && MW.PERSONAS[p.ai.persona] ? ' ' + MW.PERSONAS[p.ai.persona].name : '') : '') + '</small></div>' +
-      '<div class="side-nums"><span title="Supply">' + si('supply') + num('s' + p.id, p.supply) + '</span></div></div>';
+    const v = ui.vpShow && ui.vpShow[p.id] != null ? ui.vpShow[p.id] : (p.vp || 0);
+    now['v' + p.id] = v;
+    const segs = Array.from({ length: C.VP_WIN }, (_, i) => '<i' + (i < v ? ' class="on"' : '') + (i === v - 1 && prev['v' + p.id] != null && prev['v' + p.id] < v ? ' data-new' : '') + '></i>').join('');
+    const who = MW.DOCTRINES[p.doctrine].name.replace(' Doctrine', '') + (p.isAI ? ' · AI' + (p.ai && MW.PERSONAS[p.ai.persona] ? ' ' + MW.PERSONAS[p.ai.persona].name : '') : '');
+    return '<div class="side vpp p' + p.id + (S.current === p.id && S.phase !== 'over' ? ' turn' : '') + (S.phase === 'over' && S.winner === p.id ? ' won' : '') + '" title="' + p.name + ' · ' + who + ' · ' + v + ' of ' + C.VP_WIN + ' victory points · ' + p.supply + ' Supply">' +
+      '<span class="side-name">' + p.name + (net && net.seat === p.id ? '<em class="you">You</em>' : '') + '</span>' +
+      '<span class="vpbar" data-vp aria-label="' + v + ' of ' + C.VP_WIN + ' victory points" style="grid-template-columns:repeat(' + C.VP_WIN + ',1fr)">' + segs + '</span></div>';
   };
-  renderScore(num);
-  $('#top').innerHTML = side(S.players[0]) +
-    '<div class="mid"><div class="round">Round ' + S.round + '</div><div class="tools"><button type="button" data-act="rules">Rules</button>' + (R3on ? '<button type="button" data-act="fxToggle" title="Effects level">FX ' + (FXLEVEL === 'low' ? 'low' : 'full') + '</button>' : '') + '<button type="button" data-act="battleMenu">Menu</button></div></div>' +
-    side(S.players[1]);
+  const phase = ui.holding ? 'Resolving' : S.phase === 'over' ? 'Game over' : S.phase === 'build' && uiPhase() === 'draw' ? 'Draw' : S.phase[0].toUpperCase() + S.phase.slice(1);
+  const unread = (S.logN || 0) > (ui.logSeen || 0) && ui.win !== 'log';
+  const ib = (act, label, path, extra) => '<button type="button" class="hb' + (extra || '') + '" data-act="' + act + '" title="' + label + '" aria-label="' + label + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg></button>';
+  $('#top').innerHTML = ib('battleMenu', 'Menu', '<path d="M4 7h16M4 12h16M4 17h16"/>') + side(S.players[0]) +
+    '<div class="mid"><span class="round">Round ' + S.round + '</span><span class="phase">' + phase + '</span></div>' +
+    side(S.players[1]) + ib('openLog', 'Battle log', '<path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 14h6M9 18h4"/>', (unread ? ' dot' : '') + (ui.win === 'log' ? ' on' : ''));
   ui.prev = now;
 }
-// the scoreboard on the map: each side's victory points, next to the end of the map its base is on
-function renderScore(num) {
-  const box = document.getElementById('vpboard');
-  if (!box) return;
-  const bottom = flip() ? 1 : 0;
-  const plate = (p, pos) => {
-    const v = ui.vpShow && ui.vpShow[p.id] != null ? ui.vpShow[p.id] : (p.vp || 0);
-    const segs = Array.from({ length: C.VP_WIN }, (_, i) => '<i' + (i < v ? ' class="on"' : '') + '></i>').join('');
-    return '<div class="vpp p' + p.id + ' ' + pos + (S.phase === 'over' && S.winner === p.id ? ' won' : '') + '" title="Victory points: first to ' + C.VP_WIN + ' wins">' +
-      '<span class="vpn">' + p.name + '</span><span class="vpv" data-vp>' + si('star') + num('v' + p.id, v) + '<small>/' + C.VP_WIN + '</small></span><span class="vpbar" style="grid-template-columns:repeat(' + C.VP_WIN + ',1fr)">' + segs + '</span></div>';
-  };
-  box.innerHTML = plate(S.players[1 - bottom], 'top') + plate(S.players[bottom], 'bot');
-}
+// the victory points now live on the HUD plates
+function renderScore() {}
 function renderFlow() {
   // three phases a round; the round's resolution plays out as the end of combat
   const steps = [['Build', 'both', 'Both commanders draw and build at once'], ['Deploy', 'both', S.players[S.first].name + ' deploys first, then ' + S.players[1 - S.first].name], ['Combat', null, 'Commanders take turns activating one mech; the round resolves at the end']];
@@ -1922,7 +2200,7 @@ function vpFly(f) {
   document.body.appendChild(el);
   const w = el.offsetWidth, h = el.offsetHeight;
   const cx = stage.left + stage.width / 2 - w / 2, cy = stage.top + stage.height * 0.42 - h / 2;
-  const tgt = document.querySelector('#vpboard .vpp.p' + f.pid + ' [data-vp]');
+  const tgt = document.querySelector('#top .vpp.p' + f.pid + ' [data-vp]');
   const tr = tgt ? tgt.getBoundingClientRect() : { left: cx, top: 0, width: w, height: h };
   const tx = tr.left + tr.width / 2 - w / 2, ty = tr.top + tr.height / 2 - h / 2;
   const at = (x, y, sc) => 'translate(' + x + 'px,' + y + 'px) scale(' + sc + ')';
@@ -1930,7 +2208,7 @@ function vpFly(f) {
     el.remove();
     if (ui.vpShow) delete ui.vpShow[f.pid];
     renderTop();
-    const t2 = document.querySelector('#vpboard .vpp.p' + f.pid + ' [data-vp]');
+    const t2 = document.querySelector('#top .vpp.p' + f.pid + ' [data-vp]');
     if (t2 && t2.animate) t2.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.7)', color: 'var(--accent)' }, { transform: 'scale(1)' }], { duration: 450, easing: 'ease-out' });
   };
   if (!el.animate) { setTimeout(done, 1500); return; }
@@ -2154,7 +2432,7 @@ function mechDock(m, closable) {
 }
 function renderDock() {
   const el = $('#dock'), p = S.players[S.current], sm = selMech();
-  let h = ticker();
+  let h = '';
   if (ui.holding) h += '<div class="dock-h">' + (ui.holdPrev === 'combat' ? 'Resolving the round…' : 'Finishing the last moves…') + '</div>';
   else if (S.phase === 'over') {
     const w = S.players[S.winner];
@@ -2169,17 +2447,17 @@ function renderDock() {
     const o = S.players[1 - p.id];
     h += '<div class="dock-h p' + p.id + '"><b>Build locked in.</b> Deployment starts when ' + o.name + ' is ready; ' + S.players[S.first].name + ' deploys first.</div><div class="row"><button type="button" class="btn sm" data-act="openShop">Hangar</button></div>';
   } else if (S.phase === 'build') {
-    h += '<div class="row"><button type="button" class="btn grow" data-act="openShop">Workshop<small>' + si('supply') + p.supply + ' · ' + si('eng') + p.ep + ' · ' + si('cards') + p.workshop.length + ' cards</small></button>' +
+    h += '<div class="row"><button type="button" class="btn grow" data-act="openShop">Base<small>' + si('supply') + p.supply + ' · ' + si('eng') + p.ep + ' · ' + si('cards') + p.workshop.length + ' cards</small></button>' +
       '<button type="button" class="btn primary grow" data-act="endBuild">End build ›<small>Go to deployment</small></button></div>';
   } else if (S.phase === 'deploy') {
     h += '<div class="dchips">' + (p.hangar.filter(m => !MW.isBlank(m)).map(m => { const why = MW.canDeploy(p, m); return '<button type="button" class="dchip p' + p.id + (ui.mode === 'deploy' && ui.deployUid === m.uid ? ' on' : '') + '" data-act="pickDeploy" data-uid="' + m.uid + '"' + (why ? ' disabled title="' + why + '"' : '') + '>' + mechSVG(m) + '<span><b>' + m.name + '</b><small>' + (why ? (MW.issues(m).length ? 'Not ready' : 'Field full') : MW.role(m)) + '</small></span></button>'; }).join('') || '<p class="note">No mecha in the hangar.</p>') + '</div>' +
       '<div class="row"><button type="button" class="btn sm" data-act="openShop">Hangar</button><button type="button" class="btn sm primary grow" data-act="endDeploy">End deployment ›<small>' + (S.current === S.first ? 'Hand over to ' + S.players[1 - S.current].name : 'Start combat') + '</small></button></div>';
   } else {
     const list = MW.activatable(p.id);
-    h += list.map(m => {
+    h += '<div class="mrows">' + list.map(m => {
       const ws = MW.weaponsOf(m).map(wp => { const n = MW.usable(m, wp.key) ? MW.validTargets(m, wp.key).length : 0; return '<span class="' + (n ? 'ok' : '') + '">' + ico(wp.def.cat, 'sm k-' + wp.def.cat) + (wp.inst.hp <= 0 ? 'out' : MW.weaponLock(m, wp.key) ? 'dig in' : n ? n + ' in range' : 'none') + '</span>'; }).join('');
       return '<button type="button" class="mrow p' + m.owner + '" data-act="selField" data-uid="' + m.uid + '">' + mechSVG(m) + '<span class="mr-t"><b>' + m.name + '</b>' + pips(m.ap) + '</span><span class="wchips">' + (ws || '<span>Unarmed</span>') + '</span></button>';
-    }).join('');
+    }).join('') + '</div>';
     h += '<div class="row"><button type="button" class="btn sm" data-act="openShop">Hangar</button><button type="button" class="btn sm grow" data-act="passAll">Hold with all remaining</button></div>';
   }
   el.innerHTML = h;
@@ -2224,37 +2502,49 @@ function pager(cur, total, act) {
 function tabs(list, cur, act) {
   return '<div class="wtabs" role="tablist">' + list.map(([k, l]) => '<button type="button" role="tab" class="wtab' + (k === cur ? ' on' : '') + '" aria-selected="' + (k === cur) + '" data-act="' + act + '" data-tab="' + k + '">' + l + '</button>').join('') + '</div>';
 }
-function panelBase(p) {
-  const mine = isHuman() && S.current === p.id;
-  const build = mine && uiPhase() === 'build', deploying = mine && S.phase === 'deploy';
+const landPhone = () => !!(window.matchMedia && window.matchMedia('(orientation: landscape) and (max-height: 520px)').matches);
+// the base's resources as icon and number chips for the window header; tap one for what it means
+function baseRes(p) {
   const pr = ui.prevRes && ui.prevRes.pid === p.id ? ui.prevRes : null;
   const rb = (k, v) => '<b' + (pr && pr[k] !== v ? ' class="bump"' : '') + '>' + v + '</b>';
   ui.prevRes = { pid: p.id, supply: p.supply, ep: p.ep };
+  const chip = (title, icon, val, res, extra) => '<div title="' + title + '"' + (res ? ' data-res="' + res + '"' : '') + '>' + ico(icon, 'rico') + val + (extra || '') + '</div>';
+  return '<div class="res rchips">' + chip('Supply', 'supply', rb('supply', p.supply), 'supply', '<small class="rinc">+' + MW.incomeOf(p) + '</small>') +
+    chip('Engineering actions left', 'eng', rb('ep', p.ep), 'ep') + chip('Cards left in your Arsenal deck', 'deck', '<b>' + p.deck.length + '</b>') +
+    chip('Mecha on the field', 'torso', '<b>' + MW.fieldMechs(p.id).length + '<i>/' + MW.fieldMax(p.id) + '</i></b>') + '</div>';
+}
+function panelBase(p) {
+  const mine = isHuman() && S.current === p.id;
+  const build = mine && uiPhase() === 'build', deploying = mine && S.phase === 'deploy';
   let m = p.hangar.find(x => x.uid === ui.hangarSel) || p.hangar[0] || null;
   ui.hangarSel = m ? m.uid : null;
   if (m && ui.slotSel && !slotKeys(m).includes(ui.slotSel)) ui.slotSel = null;
   if (!m || !build) ui.slotSel = null;
   const tabList = [['frame', 'Frame']].concat(build ? [['cards', 'Parts']] : []).concat([['enemy', 'Enemy']]);
   if (!tabList.some(t => t[0] === ui.wtab)) ui.wtab = 'frame';
-  let h = '<div class="pin' + (ui.wtab === 'frame' ? ' slim' : '') + '"><div class="res"><div title="Supply" aria-label="Supply" data-res="supply">' + ico('supply', 'rico') + '<p>' + rb('supply', p.supply) + '<small class="rinc" title="Supply income per round">+' + MW.incomeOf(p) + '/round</small><span>Supply</span></p></div><div title="Engineering actions left" aria-label="Engineering" data-res="ep">' + ico('eng', 'rico') + '<p>' + rb('ep', p.ep) + '<span>Actions</span></p></div><div title="Cards left in your Arsenal deck" aria-label="Deck">' + ico('deck', 'rico') + '<p><b>' + p.deck.length + '</b><span>Deck</span></p></div><div title="Mecha on the field" aria-label="Fielded">' + ico('torso', 'rico') + '<p><b>' + MW.fieldMechs(p.id).length + '/' + MW.fieldMax(p.id) + '</b><span>Field</span></p></div></div>' +
-    (m && ui.wtab !== 'frame' ? '<span class="lbl">' + m.name + ' totals · ' + (MW.issues(m).length ? 'not ready' : MW.role(m)) + '</span>' + statBlock(m, false) : '') + '</div>';
-  h += tabs(tabList, ui.wtab, 'wtab') + '<div class="tabbody">';
+  // the window is laid out after this runs, so judge by the width it will open at: the whole screen on a phone held
+  // sideways, otherwise 72% of the screen up to 1240px
+  const split = landPhone() ? window.innerWidth >= 600 : window.innerWidth >= 900 && Math.min(window.innerWidth * 0.72, 1240) >= 760;
+  if (split && build && ui.wtab === 'frame') ui.wtab = 'cards';
+  // the selected mech's totals ride above the Parts and Enemy tabs when they replace the hangar view
+  let h = m && ui.wtab !== 'frame' && !split ? '<div class="pin"><span class="lbl">' + m.name + ' totals · ' + (MW.issues(m).length ? 'not ready' : MW.role(m)) + '</span>' + statBlock(m, false) + '</div>' : '';
+  h += split ? '<div class="tabbody">' : tabs(tabList, ui.wtab, 'wtab') + '<div class="tabbody">';
   const cardHTML = (d, inst) => {
     let act = '', cmp = null;
-    if (d.tactic || d.event) act = '<button type="button" class="btn sm primary" data-act="play" data-uid="' + inst.uid + '">Play</button>';
+    if (d.tactic || d.event) act = '<button type="button" class="btn sm fit" data-act="play" data-uid="' + inst.uid + '">Play</button>';
     else {
       const fi = fitInfo(m, d), key = fi.key, cost = inst ? (inst.paid ? 0 : d.cost) : d.cost;
       let why = fi.why;
       const cur = m && key ? MW.getSlot(m, key) : null;
-      if (cur && cur.id !== d.id) cmp = D[cur.id];
+      if (ui.cmp && cur && cur.id !== d.id) cmp = D[cur.id];
       let need = '';
       if (!why && p.ep < 1) { why = 'Needs 1' + si('eng'); need = 'ep'; }
       else if (!why && p.supply < cost) { why = 'Needs ' + cost + si('supply'); need = 'supply'; }
       const verb = cur ? (cur.id === d.id ? 'Renew ' : 'Swap ') : 'Fit ';
       const SHORT = { torso: 'chassis', core: 'reactor', legs: 'legs', armL: 'L arm', armR: 'R arm', aux0: 'aux 1', aux1: 'aux 2', aux2: 'aux 3' };
-      act = '<button type="button" class="btn sm' + (why ? (need ? ' blocked' : '') : ' primary') + '"' + (need ? ' data-need="' + need + '" aria-disabled="true"' : ' data-act="install"') + ' ' + (inst ? 'data-uid="' + inst.uid + '"' : 'data-basic="' + d.id + '"') + ' data-key="' + (key || '') + '"' + (why && !need ? ' disabled' : '') + '>' + (why || (cur && cur.id !== d.id ? 'Replace' : verb + (SHORT[key] || '')) + ' · ' + (cost ? cost + si('supply') : 'free')) + '</button>';
+      act = '<button type="button" class="btn sm' + (why ? (need ? ' blocked' : '') : ' fit') + '"' + (need ? ' data-need="' + need + '" aria-disabled="true"' : ' data-act="install"') + ' ' + (inst ? 'data-uid="' + inst.uid + '"' : 'data-basic="' + d.id + '"') + ' data-key="' + (key || '') + '"' + (why && !need ? ' disabled' : '') + '>' + (why || (cur && cur.id !== d.id ? 'Replace' : verb + (SHORT[key] || '')) + ' · ' + (cost ? cost + si('supply') : 'free')) + '</button>';
     }
-    return '<div class="card cface k-' + cardKind(d) + (d.special ? ' special' : '') + (inst && inst.hp < d.hp ? ' hurt' : '') + (inst && !ui.seen.has(inst.uid) ? ' new' : '') + '"><div class="card-top"><span class="card-name"><span class="badge">' + kindIco(d) + '</span><b>' + (d.special ? '★ ' : '') + d.name + '</b></span><button type="button" class="ib pi" data-act="partInfo" data-id="' + d.id + '"' + (inst ? ' data-uid="' + inst.uid + '"' : '') + ' aria-label="Details for ' + d.name + '">i</button></div>' + (cmp ? '<span class="vs">vs ' + cmp.name + '</span>' : '') + faceHTML(d, cmp) + '<div class="row">' + act + '</div></div>';
+    return '<div class="card cface k-' + cardKind(d) + (d.special ? ' special' : '') + (inst && inst.hp < d.hp ? ' hurt' : '') + (inst && !ui.seen.has(inst.uid) ? ' new' : '') + '"><div class="cpic">' + (partPic(d) || '<span class="cpic-ico">' + kindIco(d) + '</span>') + '<span class="badge" title="' + KIND_NAME[cardKind(d)] + '">' + kindIco(d) + '</span><button type="button" class="ib pi" data-act="partInfo" data-id="' + d.id + '"' + (inst ? ' data-uid="' + inst.uid + '"' : '') + ' aria-label="Details for ' + d.name + '">i</button></div><div class="card-top"><b class="cname">' + (d.special ? '★ ' : '') + d.name + '</b></div>' + (cmp ? '<span class="vs">vs ' + cmp.name + '</span>' : '') + faceHTML(d, cmp) + '<div class="row">' + act + '</div></div>';
   };
   const grid = (items, head) => {
     const sp = winSpace(m ? 300 : 230), cols = sp.wide ? 3 : 2, rows = Math.max(1, Math.min(4, Math.floor(sp.h / 165))), per = cols * rows;
@@ -2263,16 +2553,19 @@ function panelBase(p) {
     const slice = items.slice(ui.pg * per, ui.pg * per + per);
     return head + '<div class="cardgrid" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + (slice.join('') || '<p class="note">Nothing here.</p>') + '</div>' + pager(ui.pg, pages, 'pg');
   };
-  if (ui.wtab === 'frame') {
-    h += '<div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '"><b>' + x.name + '</b><i>' + { empty: 'Empty', building: 'Not ready', ready: 'Ready' }[stt] + '</i></button>'; }).join('') + '</div>';
+  const frameBody = () => {
+    let h = '';
+    h += '<div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '" aria-label="' + x.name + ', ' + { empty: 'empty', building: 'not ready', ready: 'ready' }[stt] + '"><b>' + x.name + '</b></button>'; }).join('') + '</div>';
     if (m) {
       const is = MW.issues(m);
       const missing = MW.isBlank(m) ? [] : ['torso', 'legs'].filter(k => !m.slots[k] || m.slots[k].hp <= 0);
       const warn = missing.length ? '<div class="h3d-warn">' + missing.map(k => (build ? '<button type="button" data-act="slot" data-key="' + k + '"' : '<span') + ' class="mwarn">⚠ ' + (m.slots[k] ? MW.slotName(k) + ' destroyed' : 'No ' + MW.slotName(k).toLowerCase()) + (build ? '</button>' : '</span>')).join('') + '<small>Can’t deploy</small></div>' : '';
       if (build && !R3on) h += buildSteps(m);
-      const top = '<div class="h3d-top">' + (MW.isBlank(m) ? '' : statBlock(m, false)) + warn + '</div>';
-      h += R3on ? '<div class="h3d" id="h3d">' + top + '</div>' : warn + blueprint(m, build);
-      if (R3on) h += partList(m, build);
+      const flank = R3on && split && !landPhone(), stats = MW.isBlank(m) ? '' : statBlock(m, false);
+      const top = '<div class="h3d-top">' + (flank ? '' : stats) + warn + '</div>';
+      const bin = build && !MW.isBlank(m) && !ui.slotSel ? '<button type="button" class="btn sm ghost ibtn h3d-bin" data-act="dismantle" title="Dismantle" aria-label="Dismantle ' + m.name + '">' + ico('trash') + '</button>' : '';
+      h += R3on ? '<div class="h3d' + (flank ? ' flank' : '') + '" id="h3d">' + top + (flank ? '<div class="h3d-side l">' + stats + '</div><div class="h3d-side r">' + partList(m, build) + '</div>' : '') + bin + '</div>' : warn + blueprint(m, build);
+      if (R3on && !flank) h += partList(m, build);
       const issue = is.length && !MW.isBlank(m) ? '<span class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</span>' : '';
       if (!build && !deploying) h += '<div class="slotline">' + (issue || '<span class="note">' + m.name + ' · ' + (MW.isBlank(m) ? 'empty frame' : MW.role(m)) + '</span>') + '</div>';
       if (build) {
@@ -2287,26 +2580,29 @@ function panelBase(p) {
             line += '<button type="button" class="btn sm" data-act="remove">Remove</button>';
           }
           h += line + '<button type="button" class="btn sm primary" data-act="findParts">Find parts ›</button><button type="button" class="btn sm ghost" data-act="slotClear" title="Deselect part" aria-label="Deselect part">✕</button></div>';
-        } else h += MW.isBlank(m) ? '<div class="slotline"><span class="note">An empty frame. Tap the + on the chassis to start building ' + m.name + '.</span></div>' : '<div class="slotline">' + (issue || '<span class="note">Tap a part to repair, remove or swap it.</span>') + '<button type="button" class="btn sm ghost" data-act="dismantle">Dismantle</button></div>';
+        } else h += MW.isBlank(m) ? '<div class="slotline"><span class="note">Tap + on the chassis to start.</span></div>' : (issue ? '<div class="slotline">' + issue + '</div>' : '') + (R3on ? '' : '<div class="slotline"><button type="button" class="btn sm ghost ibtn" data-act="dismantle" title="Dismantle" aria-label="Dismantle ' + m.name + '">' + ico('trash') + '</button></div>');
       } else if (deploying) {
         const why = MW.canDeploy(p, m);
         h += '<button type="button" class="btn primary" data-act="pickDeploy" data-uid="' + m.uid + '"' + (why ? ' disabled' : '') + '>Deploy ' + m.name + '<small>' + (why || 'Then choose a tile next to your base') + '</small></button>';
       }
     } else h += '<p class="note">The hangar is full of mecha on the field. A fresh frame appears here when one deploys or returns.</p>';
-  } else if (ui.wtab === 'cards') {
+    return h;
+  };
+  const cardsBody = cols => {
+    let h = '';
     // the list follows the selected slot (a frame with no chassis starts on chassis), unless a filter is picked by hand
     const auto = ui.slotSel ? MW.slotType(ui.slotSel) : (m && !m.slots.torso ? 'torso' : null);
     const type = ui.pf === 'all' ? null : ui.pf && ui.pf !== 'auto' ? ui.pf : auto;
     const slotType = ui.slotSel && MW.slotType(ui.slotSel) === type ? ui.slotSel : null;
     const nOf = t => p.workshop.filter(c => D[c.id].slot === t).length;
-    const chip = (f, label, n) => '<button type="button" class="pfc' + ((f === 'all' ? !type : type === f) ? ' on' : '') + '" data-act="pf" data-f="' + f + '">' + label + (n != null ? '<i>' + n + '</i>' : '') + '</button>';
-    h += '<div class="pfil" role="group" aria-label="Show parts">' + chip('all', 'All', p.workshop.length) + chip('torso', 'Chassis', nOf('torso')) + chip('legs', 'Legs', nOf('legs')) + chip('arm', 'Weapons', nOf('arm')) + chip('aux', 'Aux', nOf('aux')) + '</div>';
+    const chip = (f, label, icon, n) => '<button type="button" class="pfc' + ((f === 'all' ? !type : type === f) ? ' on' : '') + '" data-act="pf" data-f="' + f + '" aria-label="' + label + ', ' + n + '" title="' + label + '">' + (icon ? ico(icon) : label) + '<i>' + n + '</i></button>';
+    const rq = MW.canRequisition(p), rqNeed = p.supply < C.REQ_COST && !(!p.deck.length || p.workshop.length >= C.WORKSHOP_MAX);
+    const rqb = '<button type="button" class="pfc rq' + (rq ? (rqNeed ? ' blocked' : '') : '') + '"' + (rq ? (rqNeed ? ' data-need="supply" aria-disabled="true"' : ' disabled title="' + rq + '"') : ' data-act="requisition"') + ' aria-label="Draw one more card for ' + C.REQ_COST + ' Supply">' + ico('cards') + '+1<i>' + C.REQ_COST + si('supply') + '</i></button>';
+    h += '<div class="pfil" role="group" aria-label="Show parts">' + chip('all', 'All', null, p.workshop.length) + chip('torso', 'Chassis', 'torso', nOf('torso')) + chip('legs', 'Legs', 'legs', nOf('legs')) + chip('arm', 'Weapons', 'dmg', nOf('arm')) + chip('aux', 'Aux', 'aux', nOf('aux')) + '<button type="button" class="pfc cmpt' + (ui.cmp ? ' on' : '') + '" data-act="cmpToggle" aria-pressed="' + !!ui.cmp + '" title="Compare with what is fitted">⇄</button>' + rqb + '</div>';
     const ws = p.workshop.filter(c => !type || D[c.id].slot === type || D[c.id].slot === 'tactic');
     const std = MW.standardFor(p).map(id => D[id]).filter(d => !type || d.slot === type);
-    const cols = winSpace(230).wide ? 3 : 2, list = items => '<div class="cardlist" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' + items.join('') + '</div>';
-    const rq = MW.canRequisition(p), rqNeed = p.supply < C.REQ_COST && !(!p.deck.length || p.workshop.length >= C.WORKSHOP_MAX);
-    h += '<div class="slotline"><span class="note">' + (slotType ? 'Parts for the ' + MW.slotName(slotType).toLowerCase() : 'Tap i to inspect or sell a card.') + '</span>' +
-      '<button type="button" class="btn sm' + (rq ? (rqNeed ? ' blocked' : '') : '') + '"' + (rq ? (rqNeed ? ' data-need="supply" aria-disabled="true"' : ' disabled title="' + rq + '"') : ' data-act="requisition"') + '>' + (rq && rqNeed ? 'Needs ' + C.REQ_COST + si('supply') : '+1 card · ' + C.REQ_COST + si('supply')) + '</button></div>' +
+    const list = items => '<div class="cardlist" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' + items.join('') + '</div>';
+    h += (slotType ? '<div class="slotline"><span class="note">Parts for the ' + MW.slotName(slotType).toLowerCase() + '</span></div>' : '') +
       (() => {
         // sort every card into fits / won't fit for this mech, keeping the reason
         const fits = c => !fitInfo(m, D[c.id || c]).why || /Already fitted/.test(fitInfo(m, D[c.id || c]).why);
@@ -2315,16 +2611,25 @@ function panelBase(p) {
         const stepName = { torso: 'Step 1 · Chassis', legs: 'Step 2 · Legs', arm: 'Step 3 · Weapons', aux: 'Step 4 · Aux systems' }[type] || '';
         const no = wsNo.length + stdNo.length;
         return '<div class="partscroll">' + (stepName ? '<span class="stephead">' + stepName + (m && m.slots.torso && type === 'legs' ? ' · must carry ' + MW.SIZE_NAME[MW.sizeOf(m)].toLowerCase() : '') + (type === 'arm' && m && slotType ? ' · ' + MW.MOUNT_NAME[MW.armMount(m, slotType)].toLowerCase() + ' mount' : '') + '</span>' : '') +
-          '<span class="lbl">Your cards · ' + wsOk.length + '</span>' + (wsOk.length ? list(wsOk.map(c => cardHTML(D[c.id], c))) : '<p class="note">No cards that fit' + (type ? ' here' : '') + '.</p>') +
-          '<span class="lbl">Standard and ' + DOC_NAME(p.doctrine) + ' issue · never runs out</span>' + (stdOk.length ? list(stdOk.map(d => cardHTML(d, null))) : '<p class="note">No standard part fits here.</p>') +
+          '<span class="lbl">Your cards</span>' + (wsOk.length ? list(wsOk.map(c => cardHTML(D[c.id], c))) : '<p class="note">No cards that fit' + (type ? ' here' : '') + '.</p>') +
+          '<span class="lbl" title="Standard and ' + DOC_NAME(p.doctrine) + ' issue: never runs out">Standard issue · ∞</span>' + (stdOk.length ? list(stdOk.map(d => cardHTML(d, null))) : '<p class="note">No standard part fits here.</p>') +
           (no ? '<details class="wontfit"' + (!type && m && !m.slots.torso ? ' open' : '') + '><summary>' + (!type && m && !m.slots.torso ? 'Needs a chassis first' : 'Won’t fit') + ' · ' + no + '</summary>' + list(wsNo.map(c => cardHTML(D[c.id], c)).concat(stdNo.map(d => cardHTML(d, null)))) + '</details>' : '') + '</div>';
       })();
     p.workshop.forEach(c => ui.seen.add(c.uid));
-  } else {
+    return h;
+  };
+  const enemyBody = () => {
+    let h = '';
     const foe = S.players[1 - p.id];
     h += '<span class="lbl">' + foe.name + ' · ' + DOC_NAME(foe.doctrine) + ' doctrine</span>' + perkList(foe.doctrine) + '<span class="lbl">' + foe.name + ' hangar</span><div class="roster">' + (foe.hangar.map(x => rosterRow(x, false)).join('') || '<p class="note">Empty.</p>') + '</div>' +
       '<span class="lbl">' + foe.name + ' on the field</span><div class="roster">' + (MW.fieldMechs(foe.id).map(x => rosterRow(x, false)).join('') || '<p class="note">None deployed.</p>') + '</div>';
-  }
+      return h;
+  };
+  if (split) {
+    // wide screens: the mech on the left, its parts (or the enemy) beside it
+    const side = ui.wtab === 'enemy' || !build ? 'enemy' : 'cards';
+    h += '<div class="split"><div class="split-l">' + frameBody() + '</div><div class="split-r">' + tabs((build ? [['cards', 'Parts']] : []).concat([['enemy', 'Enemy']]), side, 'wtab') + '<div class="tabbody">' + (side === 'cards' ? cardsBody(2) : enemyBody()) + '</div></div></div>';
+  } else h += ui.wtab === 'frame' ? frameBody() : ui.wtab === 'cards' ? cardsBody(winSpace(230).wide ? 3 : 2) : enemyBody();
   return h + '</div>';
 }
 // the mech's parts by name under the hangar; in Build each one opens that slot
@@ -2334,8 +2639,9 @@ function partList(m, build) {
   return '<div class="plist" style="grid-template-columns:repeat(' + Math.ceil(keys.length / 2) + ',minmax(0,1fr))">' + keys.map(k => {
     const inst = MW.getSlot(m, k), d = inst && D[inst.id], lab = SHORT[k] || 'Aux ' + (+k.slice(3) + 1);
     const cls = 'pl' + (d ? '' : ' none') + (inst && inst.hp <= 0 ? ' x' : '') + (ui.slotSel === k ? ' on' : '');
-    const inner = '<small>' + lab + '</small><b>' + (d ? (k === 'torso' ? d.name.replace(' Chassis', '') : d.name) : 'Empty') + '</b>';
-    return build ? '<button type="button" class="' + cls + '" data-act="slot" data-key="' + k + '">' + inner + '</button>' : '<div class="' + cls + '">' + inner + '</div>';
+    const icon = k === 'torso' || k === 'legs' ? k : k.startsWith('arm') ? (d && d.cat ? d.cat : 'dmg') : (d ? kind(d) : 'aux');
+    const inner = '<small>' + ico(icon) + (k === 'armL' ? 'L' : k === 'armR' ? 'R' : '') + '</small><b>' + (d ? (k === 'torso' ? d.name.replace(' Chassis', '') : d.name) : '—') + '</b>';
+    return build ? '<button type="button" class="' + cls + '" data-act="slot" data-key="' + k + '" aria-label="' + lab + ': ' + (d ? d.name : 'empty') + '">' + inner + '</button>' : '<div class="' + cls + '" title="' + lab + ': ' + (d ? d.name : 'empty') + '">' + inner + '</div>';
   }).join('') + '</div>';
 }
 // four steps across the top of the hangar; each shows what it needs and whether it is done
@@ -2372,7 +2678,7 @@ function swapWarn(m, d, el) {
 }
 function revealCard(d, i) {
   if (d.event) return '<div class="rcard event k-event" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico('event') + '</span><span class="now">Event · takes effect now</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
-  return '<div class="rcard k-' + cardKind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + kindIco(d) + '</span><span class="lbl">' + (d.special ? '<span class="star">★</span> ' : '') + KIND_NAME[cardKind(d)] + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
+  return '<div class="rcard k-' + cardKind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms">' + (partPic(d, 'big') || '<span class="badge big">' + kindIco(d) + '</span>') + '<span class="lbl">' + (d.special ? '<span class="star">★</span> ' : '') + KIND_NAME[cardKind(d)] + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
 }
 function renderReveal() {
   const el = $('#reveal'), p = S.players[S.current];
@@ -2399,17 +2705,18 @@ function renderWin() {
   const el = $('#win'), sm = selMech();
   if (ui.win === 'mech' && !sm) ui.win = null;
   const k = ui.win;
-  let title, html, pc = '', extra = '';
+  let title, html, pc = '', extra = '', head = '';
   el.className = (k ? 'open' : 'idle');
   if (k === 'shop') {
     const p = S.players[viewer()];
-    title = 'Base'; pc = ' p' + p.id; html = panelBase(p);
+    title = 'Base'; pc = ' p' + p.id; html = panelBase(p); head = baseRes(p);
     if (uiPhase() === 'build' && isHuman()) extra = '<button type="button" class="btn sm primary" data-act="endBuild">End build ›</button>';
   } else if (k === 'mech') { title = sm.name; pc = ' p' + sm.owner; html = '<span class="lbl">' + S.players[sm.owner].name + ' · ' + MW.role(sm) + (sm.x != null ? ' · ' + MW.coord(sm.x, sm.y) : ' · hangar') + ' · HP ' + MW.hpOf(sm) + '/' + MW.maxHpOf(sm) + '</span>' + hpBar(sm, 'mdhp') + (R3on ? '<div class="h3d" id="h3d"><span class="h3d-hint">Drag to turn</span></div>' : blueprint(sm, false)) + statBlock(sm, sm.x != null); }
-  else if (k === 'log') { title = 'Battle log'; html = logHTML(); }
   else { title = 'Battle'; ui.itab = ui.itab || 'log'; html = tabs([['log', 'Log'], ['forces', 'Forces']], ui.itab, 'itab') + '<div class="tabbody">' + (ui.itab === 'log' ? logHTML() : fieldLists()) + '</div>'; }
   el.className = (k ? 'open' : 'idle') + pc;
-  $('#win-head').innerHTML = '<h2>' + title + '</h2>' + extra + (k ? '<button type="button" class="btn sm" data-act="closeWin">' + (k === 'shop' && uiPhase() === 'build' && isHuman() ? 'Map' : 'Close') + '</button>' : '');
+  $('#game').dataset.win = k || '';
+  if (k === 'log') ui.logSeen = S.logN || 0;
+  $('#win-head').innerHTML = (head || '<h2>' + title + '</h2>') + extra + (k ? '<button type="button" class="btn sm" data-act="closeWin">' + (k === 'shop' && uiPhase() === 'build' && isHuman() ? 'Map' : 'Close') + '</button>' : '');
   $('#win-body').innerHTML = html;
   ui.winShown = k;
 }
@@ -2423,7 +2730,7 @@ const COACH = [
   { t: 'Welcome, commander. You win by reaching <b>' + C.VP_WIN + ' victory points</b> or by destroying the enemy base. This training walks you through one round. You command <b>Azure</b>, at the bottom of the map. The strip under the map shows the phase you are in: <b>Build, Deploy, Combat</b>.', next: 'Start' },
   { t: 'Every round opens with new cards from your Arsenal. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
   { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. Tap a gold <b>+</b> on an empty part to see what fits there.', hl: '.plist', next: 'Next' },
-  { t: 'Not sure what something means? <b>Tap any stat or icon</b> for an explanation. Try the heart (HP) or the flame (heat).', hl: '.tot', next: 'Next' },
+  { t: 'Not sure what something means? <b>Tap any stat or icon</b> for an explanation. Try the heart (HP) or the flame (heat).', hl: '.stats', next: 'Next' },
   { t: 'Your mecha are ready, so tap <b>End build</b>. (You will fit new parts in later rounds.)', hl: '[data-act=endBuild]', done: () => S.phase !== 'build' || uiPhase() === 'wait' },
   { t: 'Waiting for the enemy to finish building…', wait: true, done: () => S.phase !== 'build' },
   { t: '<b>Deployment.</b> Pick a mech, then tap a lit tile next to your base to drop it in.', hl: '.dchip, [data-act=pickDeploy]', done: () => myMechs().length > 0 },
@@ -2548,7 +2855,39 @@ function render() {
   saveGameLocal(S);
   const hk = gameId(S) + ':' + S.round + ':' + (S.phase === 'over');
   if (ui.histKey !== hk) { ui.histKey = hk; saveHistory(); }
+  layoutPad();
 }
+// tell the 3D camera which edges the HUD covers, so the board is framed in the clear part of the screen
+function layoutPad() {
+  const g = $('#game'), st = document.querySelector('.stage');
+  if (g.hidden || !st) return;
+  const r = st.getBoundingClientRect();
+  if (!r.width) return;
+  const pad = { t: 0, r: 0, b: 0, l: 0 }, gap = 6;
+  // on a short screen only the top bar is kept clear; the hint and turn order float over the far edge of the board
+  const hud = (landPhone() ? $('#top') : $('#hud')).getBoundingClientRect();
+  pad.t = Math.max(0, hud.bottom - r.top) + gap;
+  const w = $('#win');
+  if (!w.classList.contains('idle')) { const q = w.getBoundingClientRect(); if (q.width < r.width * 0.9) pad.r = r.right - q.left + gap; }
+  const d = $('#dock');
+  if (d.offsetParent) {
+    const q = d.getBoundingClientRect();
+    // a narrow dock stands at the side (wide screens); a full-width one is a sheet along the bottom.
+    // Beside a big window the map is only a glance, so it keeps the room the dock would take
+    // a short card in the corner only covers the board's near corner, so the map keeps that room
+    if (q.width >= r.width * 0.6) pad.b = r.bottom - q.top + gap;
+    else if (pad.r < r.width * 0.4 && q.height > r.height * 0.45) pad.l = q.right - r.left + gap;
+  }
+  // a margin all round, a little more below so the base plate under the board's near edge stays in view
+  pad.r = Math.max(pad.r, 14); pad.l = Math.max(pad.l, 14); pad.b = Math.max(pad.b, 30);
+  for (const k in pad) g.style.setProperty('--p' + k, Math.round(pad[k]) + 'px');
+  if (R3on && window.R3.pad) window.R3.pad(pad, !ui.padOnce);
+  ui.padOnce = true;
+}
+if (window.ResizeObserver) { const ro = new ResizeObserver(() => layoutPad()); ['#hud', '#dock', '#win'].forEach(s => ro.observe(document.querySelector(s))); }
+window.addEventListener('resize', () => layoutPad());
+// turning a phone switches the Base window between tabs and side by side
+if (window.matchMedia) { const mq = window.matchMedia('(orientation: landscape) and (max-height: 520px)'); const on = () => { if (S && !$('#game').hidden) render(); }; if (mq.addEventListener) mq.addEventListener('change', on); else if (mq.addListener) mq.addListener(on); }
 function mountHangar() {
   const el = document.getElementById('h3d');
   if (!el) return;
@@ -2675,7 +3014,7 @@ function onTile(x, y) {
 }
 function onAct(el) {
   const a = el.dataset.act;
-  if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } return renderTop(); }
+  if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } if (!$('#overlay').hidden) showBattleMenu(); return renderTop(); }
   if (a === 'rules') { ui.ruleTab = 0; return showRules(); }
   if (a === 'recent') return showRecent();
   if (a === 'training') { $('#overlay').hidden = true; return startTraining(); }
@@ -2691,6 +3030,7 @@ function onAct(el) {
   if (a === 'itab') { ui.itab = el.dataset.tab; ui.lpg = 0; return render(); }
   if (a === 'pg') { ui.pg = Math.max(0, (ui.pg || 0) + (+el.dataset.d)); return render(); }
   if (a === 'lpg') { ui.lpg = Math.max(0, (ui.lpg || 0) + (+el.dataset.d)); return render(); }
+  if (a === 'cmpToggle') { ui.cmp = !ui.cmp; return render(); }
   if (a === 'findParts') { ui.wtab = 'cards'; ui.pg = 0; ui.pf = 'auto'; return render(); }
   if (a === 'pf') { ui.pf = el.dataset.f; ui.pg = 0; return render(); }
   if (a === 'closeOverlay') { $('#overlay').hidden = true; return; }
@@ -2713,7 +3053,7 @@ function onAct(el) {
     return;
   }
   if (a === 'openShop') { ui.win = 'shop'; ui.wtab = 'frame'; ui.pg = 0; return render(); }
-  if (a === 'openLog') { ui.win = ui.win === 'log' ? null : 'log'; ui.lpg = 0; return render(); }
+  if (a === 'openLog') { ui.win = ui.win === 'log' ? null : 'log'; ui.lpg = 0; ui.logSeen = S.logN || 0; return render(); }
   if (a === 'details') { ui.win = 'mech'; return render(); }
   if (a === 'closeWin') { ui.win = null; return render(); }
   if (a === 'deselect') { if (S.active == null || ui.busy) { ui.sel = null; ui.mode = 'idle'; } ui.pendingTarget = null; return render(); }
@@ -2865,7 +3205,7 @@ function showBattleMenu(confirm) {
       ? '<p>' + (hot ? S.players[viewer()].name + ' gives up and ' : 'You give up and ') + '<b>' + foe.name + '</b> wins the war. It counts as a loss.</p>' +
         '<div class="row"><button type="button" class="btn ghost" data-act="battleMenu">Back</button><button type="button" class="btn danger grow" data-act="concede">Concede the war</button></div>'
       : '<p class="note">' + (net ? 'Leave the match and come back to it from Online match.' : 'The battle is saved: pick it up again from Continue last battle or Recent games.') + '</p>' +
-        '<div class="bm-acts"><button type="button" class="btn primary" data-act="toStart">Main menu</button>' +
+        '<div class="bm-acts"><button type="button" class="btn" data-act="rules">How to play</button>' + (R3on ? '<button type="button" class="btn" data-act="fxToggle">Effects: ' + (FXLEVEL === 'low' ? 'low' : 'full') + '</button>' : '') + '<button type="button" class="btn primary" data-act="toStart">Main menu</button>' +
         (over ? '' : '<button type="button" class="btn danger" data-act="concedeAsk">Concede</button>') +
         '<button type="button" class="btn ghost" data-act="closeOverlay">Back to the battle</button></div>') + '</div>';
   o.hidden = false;
@@ -2893,7 +3233,7 @@ function showGame() {
   $('#start').hidden = true; $('#game').hidden = false;
   ui.sel = null; ui.mode = 'idle'; ui.phaseKey = ''; ui.hangarSel = null; ui.slotSel = null;
   ui.prev = null; ui.prevRes = null; ui.logN = null; ui.annKey = ''; ui.seen = new Set(); ui.win = null; ui.winShown = undefined;
-  ui.holding = false; ui.revealKey = '';
+  ui.holding = false; ui.revealKey = ''; ui.padOnce = false; ui.logSeen = (MW.S && MW.S.logN) || 0;
   $('#fx').innerHTML = ''; $('#floats').innerHTML = ''; $('#announce').innerHTML = ''; $('#toast').hidden = true;
   tick();
 }

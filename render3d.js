@@ -12,7 +12,15 @@ try { const c = document.createElement('canvas'); if (!(c.getContext('webgl') ||
 R3.ok = true;
 
 let LEVEL = 'full';
-R3.setLevel = l => { LEVEL = l === 'low' ? 'low' : 'full'; };
+// low effects also lighten the board's rendering: native pixel density and a smaller shadow map
+R3.setLevel = l => { LEVEL = l === 'low' ? 'low' : 'full'; applyLevel(); };
+function applyLevel() {
+  if (!BD) return;
+  const low = LEVEL === 'low', sz = low ? 1024 : 2048;
+  BD.renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+  if (BD.sun.shadow.mapSize.x !== sz) { BD.sun.shadow.mapSize.set(sz, sz); if (BD.sun.shadow.map) { BD.sun.shadow.map.dispose(); BD.sun.shadow.map = null; } }
+  if (BD.resize) BD.resize();
+}
 const rand = (a, b) => a + Math.random() * (b - a);
 const clock = () => performance.now() / 1000;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -35,8 +43,126 @@ const gradMap = (() => {
   t.minFilter = t.magFilter = T.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
   return t;
 })();
+/* Surfaces. Every solid is physically shaded and carries a generated texture: painted armour with grain, scuffs and
+   bare-metal scratches; brushed gunmetal; and a ground for each biome. Textures are greyscale and tinted by the
+   material's own colour, so one set serves every part. Bevelled boxes have UVs in world units, so the grain stays
+   the same size on every plate. */
+// periodic value noise, n×n, from a list of [cells, weight] octaves; tiles seamlessly
+function pnoise(n, octaves) {
+  const out = new Float32Array(n * n);
+  let tot = 0;
+  for (const [cells, a] of octaves) {
+    const lat = new Float32Array(cells * cells).map(() => Math.random());
+    for (let y = 0; y < n; y++) {
+      const fy = y / n * cells, y0 = Math.floor(fy), ty = fy - y0, sy = ty * ty * (3 - 2 * ty), y1 = (y0 + 1) % cells;
+      for (let x = 0; x < n; x++) {
+        const fx = x / n * cells, x0 = Math.floor(fx), tx = fx - x0, sx = tx * tx * (3 - 2 * tx), x1 = (x0 + 1) % cells;
+        out[y * n + x] += a * (lat[y0 * cells + x0] * (1 - sx) * (1 - sy) + lat[y0 * cells + x1] * sx * (1 - sy) + lat[y1 * cells + x0] * (1 - sx) * sy + lat[y1 * cells + x1] * sx * sy);
+      }
+    }
+    tot += a;
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= tot;
+  return out;
+}
+// a canvas from a per-pixel grey value, then optional strokes drawn over it (wrapped so the tile stays seamless)
+function greyCanvas(n, val, strokes) {
+  const c = document.createElement('canvas'); c.width = c.height = n;
+  const g = c.getContext('2d'), img = g.createImageData(n, n);
+  for (let i = 0; i < n * n; i++) { const v = Math.max(0, Math.min(255, val(i))); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; }
+  g.putImageData(img, 0, 0);
+  if (strokes) for (const ox of [-n, 0, n]) for (const oy of [-n, 0, n]) { g.save(); g.translate(ox, oy); strokes(g, n); g.restore(); }
+  return c;
+}
+function texOf(c, rep) { const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rep, rep); t.anisotropy = 4; return t; }
+// a fixed sequence, so the marks are the same on every map of a texture and between strokes passes
+const seeded = (seed => () => (seed = (seed * 16807) % 2147483647) / 2147483647)(91);
+// scratches: short bright nicks and a few longer drags; grime: soft dark blooms
+const SCR = Array.from({ length: 70 }, () => ({ x: seeded(), y: seeded(), a: seeded() * Math.PI, l: 4 + seeded() * (seeded() < 0.2 ? 40 : 12), w: seeded() < 0.8 ? 1 : 2 }));
+const GRIME = Array.from({ length: 14 }, () => ({ x: seeded(), y: seeded(), r: 6 + seeded() * 22 }));
+function marks(g, n, light, dark) {
+  for (const d of GRIME) { const gr = g.createRadialGradient(d.x * n, d.y * n, 0, d.x * n, d.y * n, d.r); gr.addColorStop(0, dark); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(d.x * n - d.r, d.y * n - d.r, d.r * 2, d.r * 2); }
+  g.strokeStyle = light; g.lineCap = 'round';
+  for (const k of SCR) { g.lineWidth = k.w; g.beginPath(); g.moveTo(k.x * n, k.y * n); g.lineTo(k.x * n + Math.cos(k.a) * k.l, k.y * n + Math.sin(k.a) * k.l); g.stroke(); }
+}
+const SURF = (() => {
+  const n = 256, N = pnoise(n, [[4, 0.45], [16, 0.35], [64, 0.2]]), F = pnoise(n, [[128, 1]]);
+  const paint = greyCanvas(n, i => 238 + (N[i] - 0.5) * 16 + (F[i] - 0.5) * 4, (g, n) => marks(g, n, 'rgba(255,255,255,0.32)', 'rgba(40,30,20,0.18)'));
+  const paintR = greyCanvas(n, i => 165 + (N[i] - 0.5) * 70, (g, n) => marks(g, n, 'rgba(70,70,70,0.9)', 'rgba(230,230,230,0.35)'));
+  const bump = greyCanvas(n, i => 128 + (F[i] - 0.5) * 14 + (N[i] - 0.5) * 22, (g, n) => marks(g, n, 'rgba(60,60,60,0.8)', 'rgba(0,0,0,0)'));
+  // brushed metal: a random value per row, smeared along the row, over fine grain
+  const rows = Array.from({ length: n }, () => Math.random());
+  const metal = greyCanvas(n, i => 214 + (rows[Math.floor(i / n)] - 0.5) * 26 + (F[i] - 0.5) * 12 + (N[i] - 0.5) * 18, (g, n) => marks(g, n, 'rgba(255,255,255,0.4)', 'rgba(20,20,20,0.22)'));
+  const metalR = greyCanvas(n, i => 105 + (rows[Math.floor(i / n)] - 0.5) * 40 + (N[i] - 0.5) * 50);
+  return { paint: texOf(paint, 3), paintR: texOf(paintR, 3), bump: texOf(bump, 3), metal: texOf(metal, 3), metalR: texOf(metalR, 3) };
+})();
+// one ground texture per biome, tinted by each tile's colour; it spans two tiles so neighbours don't repeat exactly
+const GROUND = {};
+function groundTex(kind) {
+  if (GROUND[kind]) return GROUND[kind];
+  const n = 256, N = pnoise(n, [[4, 0.5], [12, 0.3], [48, 0.2]]), F = pnoise(n, [[96, 1]]);
+  let val, strokes;
+  if (kind === 'meadow') {
+    val = i => 205 + (N[i] - 0.5) * 70 + (F[i] - 0.5) * 30;
+    strokes = (g, n) => { for (let k = 0; k < 900; k++) { const x = seeded() * n, y = seeded() * n, l = 3 + seeded() * 6, a = -Math.PI / 2 + (seeded() - 0.5) * 0.9; g.strokeStyle = seeded() < 0.5 ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); } };
+  } else if (kind === 'desert') {
+    val = i => { const y = Math.floor(i / n); return 215 + Math.sin((y + N[i] * 60) / n * Math.PI * 2 * 7) * 14 + (F[i] - 0.5) * 26 + (N[i] - 0.5) * 30; };
+  } else if (kind === 'snow') {
+    val = i => 236 + (N[i] - 0.5) * 30 + (F[i] - 0.5) * 10;
+    strokes = (g, n) => { g.fillStyle = 'rgba(255,255,255,0.7)'; for (let k = 0; k < 120; k++) g.fillRect(seeded() * n, seeded() * n, 1, 1); };
+  } else if (kind === 'yard') {
+    val = i => 200 + (N[i] - 0.5) * 60 + (F[i] - 0.5) * 50;
+    strokes = (g, n) => {
+      for (let k = 0; k < 9; k++) { const x = seeded() * n, y = seeded() * n, r = 8 + seeded() * 26, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(15,12,10,0.45)'); gr.addColorStop(1, 'rgba(15,12,10,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+      for (let k = 0; k < 500; k++) { g.fillStyle = seeded() < 0.5 ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'; const r = 1 + seeded() * 2; g.fillRect(seeded() * n, seeded() * n, r, r); }
+    };
+  } else {
+    // rock: layered strata for the island's cliffs
+    val = i => { const y = Math.floor(i / n); return 200 + Math.sin((y + N[i] * 90) / n * Math.PI * 2 * 5) * 18 + (N[i] - 0.5) * 60 + (F[i] - 0.5) * 24; };
+  }
+  const t = texOf(greyCanvas(n, val, strokes), 0.5);
+  return (GROUND[kind] = t);
+}
 const MAT = {};
-function toon(color) { return MAT['t' + color] || (MAT['t' + color] = new T.MeshToonMaterial({ color, gradientMap: gradMap })); }
+// dark, unsaturated colours are bare metal (gun barrels, frames, joints); everything else is painted plate
+const isMetal = c => { const hsl = {}; new T.Color(c).getHSL(hsl); return hsl.s < 0.16 && hsl.l < 0.36; };
+function toon(color) {
+  const k = 't' + color;
+  if (MAT[k]) return MAT[k];
+  const metal = isMetal(color);
+  const m = new T.MeshStandardMaterial({ color, map: metal ? SURF.metal : SURF.paint, roughnessMap: metal ? SURF.metalR : SURF.paintR, bumpMap: SURF.bump, bumpScale: 0.0018,
+    roughness: metal ? 0.9 : 1, metalness: metal ? 0.72 : 0.08, envMapIntensity: metal ? 1.1 : 0.55 });
+  m.userData.paint = true;
+  return (MAT[k] = m);
+}
+// the ground: rough, never metallic, with the biome's surface
+function soil(color, kind) {
+  const k = 's' + color + kind;
+  if (MAT[k]) return MAT[k];
+  const t = groundTex(kind);
+  const m = new T.MeshStandardMaterial({ color, map: t, bumpMap: t, bumpScale: 0.012, roughness: 0.96, metalness: 0, envMapIntensity: 0.35 });
+  m.userData.paint = true;
+  return (MAT[k] = m);
+}
+// image-based light: a soft sky dome with a sun and a softbox, so metal has something to reflect
+const ENVS = new WeakMap();
+function envFor(renderer) {
+  if (ENVS.has(renderer)) return ENVS.get(renderer);
+  let tex = null;
+  try {
+    const pm = new T.PMREMGenerator(renderer), sc = new T.Scene();
+    const g = new T.SphereGeometry(10, 32, 16), pos = g.attributes.position, cols = [];
+    const sky = new T.Color(0xa9c3d6), hor = new T.Color(0xe4e8e6), gnd = new T.Color(0x3c3f42), c = new T.Color();
+    for (let i = 0; i < pos.count; i++) { const y = pos.getY(i) / 10; if (y > 0) c.copy(hor).lerp(sky, Math.pow(y, 0.6)); else c.copy(hor).lerp(gnd, Math.min(1, -y * 3)); cols.push(c.r, c.g, c.b); }
+    g.setAttribute('color', new T.Float32BufferAttribute(cols, 3));
+    sc.add(new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, side: T.BackSide })));
+    const sun = new T.Mesh(new T.SphereGeometry(1.1, 12, 8), new T.MeshBasicMaterial({ color: 0xffffff })); sun.position.set(-4, 7, 5); sc.add(sun);
+    const soft = new T.Mesh(new T.PlaneGeometry(7, 3), new T.MeshBasicMaterial({ color: 0xdfe6ea, side: T.DoubleSide })); soft.position.set(6, 3, -4); soft.lookAt(0, 0, 0); sc.add(soft);
+    tex = pm.fromScene(sc, 0.03).texture; pm.dispose();
+  } catch (e) { tex = null; }
+  ENVS.set(renderer, tex);
+  return tex;
+}
 // the same paint with a warm glow, for the part picked in the hangar
 function lit(mat) { const k = 'l' + mat.uuid; if (!MAT[k]) { MAT[k] = mat.clone(); MAT[k].emissive = new T.Color(0x8a5c00); } return MAT[k]; }
 function glow(color, op) { const k = 'g' + color + ':' + (op || 1); return MAT[k] || (MAT[k] = new T.MeshBasicMaterial({ color, transparent: op != null && op < 1, opacity: op == null ? 1 : op, depthWrite: !(op < 1) })); }
@@ -136,7 +262,7 @@ function layered(mat, L) {
 const darker = c => { const col = new T.Color(c); col.multiplyScalar(0.55); return col.getHex(); };
 function panelDetail(m, g, mat) {
   const [w, h, d, tx, tz, sz] = g.userData.plate;
-  if (w < 0.13 || h < 0.11 || d < 0.04 || !mat.isMeshToonMaterial) return;
+  if (w < 0.13 || h < 0.11 || d < 0.04 || !mat.userData.paint) return;
   const ink = toon(darker(mat.color.getHex()));
   const front = t => (d / 2) * (1 + (tz - 1) * t) + sz * t + 0.003;   // the front face at height fraction t
   if (w >= h) { const t = 0.38; mesh(box(w * (1 + (tx - 1) * t) * 0.82, 0.006, 0.006), ink, m, [0, -h / 2 + h * t, front(t)], null, flat); }
@@ -1028,6 +1154,7 @@ function buildMech(m, owner, doctrine, opt) {
       else { wg.position.set(0, 0.048, -0.05); mesh(box(0.024, 0.06, 0.03), toon(KIT.body), wg, [0, -0.04, 0.072], [0.3, 0, 0]); }
     }
     R.muzzles[key] = { o: buildWeapon(wg, inst.id, tc, sx), cat: cat || 'ballistic', spin: wg.userData.spin || null };
+    wg.userData.weapon = true;
     R.arms[key] = { sh, arm, el, rest };
     tag(sh, key);
     if (isHurt(inst)) R.sparks.push(sh);
@@ -1077,7 +1204,7 @@ function signature(m) {
 function highlight(R, key) {
   for (const k in R.slots) for (const obj of R.slots[k]) obj.traverse(o => {
     if (o.isMesh) o.userData.hot = k === key;
-    if (o.isMesh && o.material.isMeshToonMaterial) { const base = o.userData.mat0 || (o.userData.mat0 = o.material); o.material = k === key ? lit(base) : base; }
+    if (o.isMesh && o.material.userData.paint) { const base = o.userData.mat0 || (o.userData.mat0 = o.material); o.material = k === key ? lit(base) : base; }
     else if (o.isMesh && (o.material === GHOST || o.material === GHOST_SEL)) o.material = k === key ? GHOST_SEL : GHOST;
   });
 }
@@ -1088,13 +1215,11 @@ let BD = null;
 function tp(x, y, h) { const W = window.MW.W, H = window.MW.H; return new T.Vector3(y - (H - 1) / 2, h || 0, (W - 1) / 2 - x); }
 const key = (x, y) => x + ',' + y;
 
-const EL_TOP = 1.3;  // close to straight down, like the 2D board, with a hint of depth
-const EL_34 = 0.62;  // isometric: mechs and animations read best from here, so every zoom onto them uses it
+// the map is always seen from the three-quarter angle: mechs, cover and animations all read best from here
+const EL_34 = 0.62;
 const ISO_AZ = Math.PI / 4;
 // swing to the isometric angle, 45 degrees off whichever way the board is turned
 function iso(G) { G.el = EL_34; G.az = BD.viewAz + ISO_AZ; }
-// straight down, for choosing tiles to move or deploy to
-function topDown(G) { G.el = EL_TOP; G.az = BD.viewAz; }
 R3.mount = function (el, onTap) {
   if (BD) {
     if (BD.el !== el) { if (BD.ro) { BD.ro.unobserve(BD.el); BD.ro.observe(el); } el.appendChild(BD.renderer.domElement); BD.el = el; BD.resize(); }
@@ -1108,22 +1233,26 @@ R3.mount = function (el, onTap) {
   const scene = new T.Scene();
   scene.fog = new T.Fog(0x8e9a9f, 26, 60);
   const cam = new T.OrthographicCamera(-5, 5, 5, -5, 0.1, 100);
-  const hemi = new T.HemisphereLight(0xdfe3e0, 0x4f5250, 0.8); scene.add(hemi);
-  const sun = new T.DirectionalLight(0xf2ead8, 0.75);
+  // sky light, a warm key sun with soft shadows, a cool fill from the far side, and the sky dome for reflections
+  scene.environment = envFor(renderer);
+  const hemi = new T.HemisphereLight(0xdfe3e0, 0x4f5250, 0.5); scene.add(hemi);
+  const sun = new T.DirectionalLight(0xf2ead8, 1.05);
   sun.position.set(-5, 11, 7); sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 3;
+  const fill = new T.DirectionalLight(0xb9cde0, 0.28); fill.position.set(6, 5, -6); scene.add(fill);
   Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 30 });
   sun.shadow.bias = -0.0015;
   scene.add(sun);
   const group = new T.Group(); scene.add(group);
   BD = { el, renderer, scene, cam, group, sun, hemi, onTap, recs: {}, tiles: {}, ov: {}, props: {}, labels: [], queue: [], anims: [], shake: 0, flip: false, crates: {}, wrecks: {}, objs: {}, sel: null, active: null,
-    rig: { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }, rigT: { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }, viewEl: EL_TOP, viewAz: 0, userT: -9, intent: null, focusTok: 0, size: { w: 1, h: 1 } };
+    rig: { az: ISO_AZ, el: EL_34, zoom: 1, tx: 0, tz: 0 }, rigT: { az: ISO_AZ, el: EL_34, zoom: 1, tx: 0, tz: 0 }, viewAz: 0, userT: -9, intent: null, focusTok: 0, size: { w: 1, h: 1 }, pad: { t: 0, r: 0, b: 0, l: 0 } };
   BD.parts = new Particles(group, 260);
   const resize = () => { const e = BD.el, w = e.clientWidth || 1, h = e.clientHeight || 1; renderer.setSize(w, h, false); BD.size = { w, h }; };
   BD.resize = resize;
   if (window.ResizeObserver) { BD.ro = new ResizeObserver(resize); BD.ro.observe(el); } else window.addEventListener('resize', resize);
   resize();
   bindCameraInput(renderer.domElement);
+  applyLevel();
   loop();
 };
 // half-size of the view that just fits the whole board at zoom 1, for the current angle
@@ -1138,7 +1267,7 @@ function baseExtent(az, el) {
     vTmp.set(sx * (H / 2 + 0.06), yy, sz * (W / 2 + 0.06)).applyQuaternion(qTmp);
     mx = Math.max(mx, Math.abs(vTmp.x)); my = Math.max(my, Math.abs(vTmp.y));
   }
-  const a = BD.size.w / BD.size.h;
+  const P = BD.pad, a = Math.max(1, BD.size.w - P.l - P.r) / Math.max(1, BD.size.h - P.t - P.b);
   let hw = mx * 1.02, hh = my * 1.02;
   if (hw / hh > a) hh = hw / a; else hw = hh * a;
   return { hw, hh };
@@ -1147,14 +1276,19 @@ function camUpdate(dt) {
   const C = BD.rig, G = BD.rigT, k = 1 - Math.exp(-dt * (BD.camRate || 6)), cam = BD.cam;
   let da = G.az - C.az; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
   C.az += da * k; C.el += (G.el - C.el) * k; C.zoom += (G.zoom - C.zoom) * k; C.tx += (G.tx - C.tx) * k; C.tz += (G.tz - C.tz) * k;
+  if (BD.padT) for (const s of ['t', 'r', 'b', 'l']) BD.pad[s] += (BD.padT[s] - BD.pad[s]) * k;
   const P = new T.Vector3(C.tx, 0, C.tz);
   const dir = new T.Vector3(Math.sin(C.az) * Math.cos(C.el), Math.sin(C.el), Math.cos(C.az) * Math.cos(C.el));
   cam.position.copy(P).addScaledVector(dir, 30);
   if (BD.shake > 0.002) { cam.position.add(new T.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(BD.shake)); BD.shake *= 0.86; }
   cam.up.set(0, 1, 0);
   cam.lookAt(P);
-  const e = baseExtent(C.az, C.el);
-  cam.left = -e.hw; cam.right = e.hw; cam.top = e.hh; cam.bottom = -e.hh; cam.zoom = C.zoom;
+  // the board is framed in the part of the canvas the HUD leaves clear; the view still runs under the HUD to the edges
+  const e = baseExtent(C.az, C.el), Z = BD.size, Q = BD.pad;
+  const iw = Math.max(1, Z.w - Q.l - Q.r), ih = Math.max(1, Z.h - Q.t - Q.b);
+  const fw = e.hw / C.zoom * Z.w / iw, fh = e.hh / C.zoom * Z.h / ih;
+  cam.left = -(Q.l + iw / 2) * 2 * fw / Z.w; cam.right = cam.left + 2 * fw;
+  cam.top = (Q.t + ih / 2) * 2 * fh / Z.h; cam.bottom = cam.top - 2 * fh; cam.zoom = 1;
   cam.updateProjectionMatrix();
 }
 // where a tile sits in the world, after the board is turned for the guest
@@ -1185,16 +1319,16 @@ function keepOnBoard(G, slack) {
   G.tx = Math.max(-lx, Math.min(lx, G.tx));
   G.tz = Math.max(-lz, Math.min(lz, G.tz));
 }
-function overview() { Object.assign(BD.rigT, { tx: 0, tz: 0, zoom: 1, el: BD.viewEl, az: BD.viewAz + (BD.viewEl < 1 ? ISO_AZ : 0) }); }
+function overview() { Object.assign(BD.rigT, { tx: 0, tz: 0, zoom: 1, el: EL_34, az: BD.viewAz + ISO_AZ }); }
 // what the camera should rest on: deployment at your base, the selected mech, or the whole map
 function applyIntent() {
   const c = BD.intentSpec || {};
   if (c.deploy != null) {
     const b = window.MW.S.players[c.deploy].base;
-    topDown(BD.rigT);
+    iso(BD.rigT);
     focusTiles([[b.x, b.y]].concat(window.MW.deployTiles(c.deploy)), 1.3, 1.9);
   } else if (c.plan && c.plan.length) {
-    topDown(BD.rigT);
+    iso(BD.rigT);
     focusTiles(c.plan, 1.1, 2.0);
   } else if (c.frame && c.frame.length) {
     // a weapon is chosen: fit every tile it can reach
@@ -1205,13 +1339,14 @@ function applyIntent() {
   } else overview();
 }
 // jump straight to where the camera is heading (used by tests)
+// the screen edges covered by the HUD, in CSS pixels: the board is fitted inside what is left
+R3.pad = (p, now) => { if (!BD) return; BD.padT = { t: p.t || 0, r: p.r || 0, b: p.b || 0, l: p.l || 0 }; if (now) BD.pad = Object.assign({}, BD.padT); };
 R3.settle = () => { if (BD) Object.assign(BD.rig, BD.rigT); };
 R3.cam = function (kind) {
   if (!BD) return;
   const G = BD.rigT;
-  if (kind === 'overview') { BD.viewEl = EL_TOP; BD.viewAz = 0; Object.assign(G, { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }); BD.userT = clock(); }
+  if (kind === 'overview') { BD.viewAz = 0; Object.assign(G, { az: ISO_AZ, el: EL_34, zoom: 1, tx: 0, tz: 0 }); BD.userT = clock(); }
   else if (kind === 'rotL' || kind === 'rotR') { const d = kind === 'rotL' ? Math.PI / 2 : -Math.PI / 2; BD.viewAz += d; G.az += d; }
-  else if (kind === 'tilt') { const toIso = G.el > 1.0; BD.viewEl = toIso ? EL_34 : EL_TOP; G.el = BD.viewEl; G.az = BD.viewAz + (toIso ? ISO_AZ : 0); }
   else if (kind === 'in') G.zoom = Math.min(3.5, G.zoom * 1.3);
   else if (kind === 'out') G.zoom = Math.max(0.8, G.zoom / 1.3);
   if (kind !== 'overview') BD.userT = clock();
@@ -1314,20 +1449,20 @@ function buildBoard(S) {
   if (BD.hemi) { BD.hemi.color.setHex(BIO.hemi[0]); BD.hemi.groundColor.setHex(BIO.hemi[1]); }
   BD.sun.color.setHex(BIO.sun);
   // the floating island under the board
-  const isl = mesh(box(H + 0.5, 1.6, W + 0.5), toon(BIO.isle[0]), g, [0, -0.95, 0], null, { t: 0.03 });
+  const isl = mesh(box(H + 0.5, 1.6, W + 0.5), soil(BIO.isle[0], 'rock'), g, [0, -0.95, 0], null, { t: 0.03 });
   isl.receiveShadow = true; isl.userData.ground = true;
-  mesh(box(H + 0.2, 0.5, W + 0.2), toon(BIO.isle[1]), g, [0, -1.9, 0], null, { t: 0.03 }).userData.ground = true;
+  mesh(box(H + 0.2, 0.5, W + 0.2), soil(BIO.isle[1], 'rock'), g, [0, -1.9, 0], null, { t: 0.03 }).userData.ground = true;
   for (let i = 0; i < 26; i++) {
     const r = rand(0.25, 0.7), side = i % 4;
     const px = side < 2 ? rand(-H / 2, H / 2) : (side === 2 ? -1 : 1) * (H / 2 + 0.1);
     const pz = side >= 2 ? rand(-W / 2, W / 2) : (side === 0 ? -1 : 1) * (W / 2 + 0.1);
-    mesh(cone(r, rand(0.8, 2.2), 5), toon(BIO.spike[i % 2]), g, [px, -2.1 - rand(0, 0.6), pz], [Math.PI, rand(0, 3), 0], { t: 0.025 });
+    mesh(cone(r, rand(0.8, 2.2), 5), soil(BIO.spike[i % 2], 'rock'), g, [px, -2.1 - rand(0, 0.6), pz], [Math.PI, rand(0, 3), 0], { t: 0.025 });
   }
   // tiles
   for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
     const k = key(x, y), p = tp(x, y);
     const shade = BIO.tile[(x + y) % 2];
-    const t = mesh(box(0.97, 0.22, 0.97), toon(shade), g, [p.x, -0.11, p.z], null, { t: 0.012, recv: true });
+    const t = mesh(box(0.97, 0.22, 0.97), soil(shade, BIO.deco), g, [p.x, -0.11, p.z], null, { t: 0.012, recv: true });
     t.castShadow = false; t.receiveShadow = true; t.userData.tile = k; t.userData.ground = true;
     const ter0 = MW.terrain(x, y);
     if (ter0 !== 'rock' && MW.baseAt(x, y) == null) groundDeco(p, S.objectives.some(o => o.x === x && o.y === y) || ter0 === 'ruins' || ter0 === 'rubble');
@@ -1982,6 +2117,7 @@ function mapState(id) {
 R3.mapPreview = function (el, id) {
   if (!BD || !window.MW.MAPS[id]) return false;
   R3.mount(el, null);
+  BD.pad = { t: 0, r: 0, b: 0, l: 0 }; BD.padT = null;
   BD.inputOff = true; BD.renderer.domElement.style.touchAction = 'pan-y';
   if (BD.previewMap !== id || !ST.hasBoard) {
     clearTour();
@@ -2018,7 +2154,7 @@ R3.mapTour = function (spec) {
   for (const [x, y] of spec.tiles || []) { const k = key(x, y), ov = BD.ov[k]; if (!ov) continue; ov.material.color.setHex(col); ov.userData.kind = 'tour'; tr.tiles.push(k); }
   for (const [x, y] of spec.models || []) {
     const k = key(x, y), pg = (BD.objs[k] && BD.objs[k].pg) || BD.props[k];
-    if (pg) pg.traverse(o => { if (o.isMesh && o.material && o.material.isMeshToonMaterial && !o.userData.m0) { o.userData.m0 = o.material; o.material = lit(o.material); tr.lit.push(o); } });
+    if (pg) pg.traverse(o => { if (o.isMesh && o.material && o.material.userData.paint && !o.userData.m0) { o.userData.m0 = o.material; o.material = lit(o.material); tr.lit.push(o); } });
     // a marker bobbing over each thing the tour is pointing at
     const top = BD.objs[k] && BD.objs[k].o.type === 'uplink' ? 1.75 : BD.objs[k] && BD.objs[k].o.type === 'radar' ? 1.35 : pg && pg.userData.base ? 1.35 : 1.15;
     const mk = new T.Group(), p = tp(x, y); mk.position.set(p.x, top, p.z);
@@ -2047,8 +2183,8 @@ R3.mapPreviewEnd = function () {
   BD.previewMap = null; BD.inputOff = false; BD.orbit = 0; BD.camRate = 0; BD.intent = null;
   BD.renderer.domElement.style.touchAction = 'none';
   R3.reset();
-  BD.viewEl = EL_TOP; BD.viewAz = 0;
-  Object.assign(BD.rigT, { az: 0, el: EL_TOP, zoom: 1, tx: 0, tz: 0 }); Object.assign(BD.rig, BD.rigT);
+  BD.viewAz = 0;
+  Object.assign(BD.rigT, { az: ISO_AZ, el: EL_34, zoom: 1, tx: 0, tz: 0 }); Object.assign(BD.rig, BD.rigT);
 };
 
 /* ---------- the frame loop ---------- */
@@ -2317,12 +2453,17 @@ function makeViewer() {
   const scene = new T.Scene();
   const cam = new T.PerspectiveCamera(34, 1, 0.1, 50);
   cam.position.set(0, 1.45, 4.3); cam.lookAt(0, 0.95, 0);
-  scene.add(new T.HemisphereLight(0xdfe8f5, 0x30363e, 0.8));
-  const key2 = new T.DirectionalLight(0xffffff, 0.75); key2.position.set(2, 4, 3); scene.add(key2);
-  const rim = new T.DirectionalLight(0xb8c8cc, 0.35); rim.position.set(-3, 2, -3); scene.add(rim);
+  // studio light: key, a cool rim to cut the silhouette from the back wall, and the dome for reflections
+  scene.environment = envFor(renderer);
+  scene.add(new T.HemisphereLight(0xdfe8f5, 0x30363e, 0.45));
+  const key2 = new T.DirectionalLight(0xfff4e2, 1.05); key2.position.set(2, 4, 3); scene.add(key2);
+  key2.castShadow = true; key2.shadow.mapSize.set(1024, 1024); key2.shadow.radius = 3; key2.shadow.bias = -0.002;
+  Object.assign(key2.shadow.camera, { left: -2, right: 2, top: 3, bottom: -1, near: 0.5, far: 12 });
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+  const rim = new T.DirectionalLight(0xa8d0ff, 0.7); rim.position.set(-3, 2.5, -3); scene.add(rim);
   // gantry: hazard-striped plate, scaffold towers, catwalk, back wall with lamps
   const env = new T.Group(); scene.add(env);
-  mesh(cyl(1.25, 1.3, 0.12, 24), toon(0x3a414a), env, [0, -0.06, 0], null, { t: 0.02 });
+  mesh(cyl(1.25, 1.3, 0.12, 24), toon(0x3a414a), env, [0, -0.06, 0], null, { t: 0.02, recv: true });
   for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; mesh(box(0.18, 0.012, 0.08), toon(i % 2 ? 0xb59a55 : INK), env, [Math.cos(a) * 1.18, 0.005, Math.sin(a) * 1.18], [0, -a, 0], flat); }
   for (const sx of [-1, 1]) {
     for (const z of [-0.45, 0.25]) mesh(box(0.06, 2.6, 0.06), toon(0x9aa2aa), env, [sx * 1.05, 1.3, z]);
@@ -2370,11 +2511,14 @@ function updateViewer(t, dt) {
   if (w && h && (HV.w !== w || HV.h !== h)) { HV.w = w; HV.h = h; HV.renderer.setSize(w, h, false); HV.cam.aspect = w / h; HV.cam.updateProjectionMatrix(); }
   const k = 1 - Math.exp(-dt * 5);
   if (HV.rotT != null) { let d = HV.rotT - HV.rot; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; HV.rot += d * k; }
-  // idle: sway gently about the front view instead of spinning round, so left and right stay where the Workshop says they are
-  else if (!HV.drag && !HV.sel && t - HV.lastInput > 2.5) HV.rot += (0.3 * Math.sin(t * 0.45) - HV.rot) * Math.min(1, dt * 1.2);
+  // no idle motion: the mech stands still, facing the way it was last left
   HV.holder.rotation.y = HV.rot;
   if (!HV.sel && HV.fit && HV.h) {
-    const f = HV.fit, tv = Math.tan(HV.cam.fov * Math.PI / 360), th = tv * HV.cam.aspect;
+    // panels standing at the viewer's sides (stats, slots) leave a narrower column for the mech
+    let side = 0; const host = HV.canvas.parentElement;
+    // the arms may tuck a little behind the panels; the body stays clear of them
+    if (host) host.querySelectorAll('.h3d-side').forEach(el => { side = Math.max(side, el.offsetWidth * 0.75); });
+    const f = HV.fit, tv = Math.tan(HV.cam.fov * Math.PI / 360), th = tv * HV.cam.aspect * Math.max(0.4, (HV.w - 2 * side) / HV.w);
     const top = HV.topEl && HV.topEl.isConnected ? HV.topEl.offsetTop + HV.topEl.offsetHeight + 6 : 8, bot = 10;
     const u = Math.max(0.45, 1 - (top + bot) / HV.h);
     const hh = (f.hi - f.lo) / 2 * 1.1, rr = f.r * 1.12;
@@ -2449,6 +2593,22 @@ R3.portrait = function (doctrine, owner) {
   return (PORTRAITS[key] = R3.snapshot(L, doctrine, owner, { w: 480, h: 600 }));
 };
 // a picture of any loadout: { torso, core, legs, armL, armR, aux: [] }, missing parts left off
+// one part on its own, for the cards: the part is fitted to a stand-in mech of the army, everything else is hidden,
+// and the camera frames what is left. Cached per part and army.
+const PART_SHOTS = {};
+R3.partShot = function (id, doctrine, owner) {
+  const D = DEFS(), d = D[id];
+  if (!d || !['torso', 'core', 'legs', 'arm', 'aux'].includes(d.slot)) return null;
+  const style = ARCHETYPE[doctrine] ? doctrine : 'assault', ck = id + ':' + style + ':' + (owner || 0);
+  if (ck in PART_SHOTS) return PART_SHOTS[ck];
+  const A = ARCHETYPE[style];
+  const auxFrame = Object.keys(D).find(k => D[k].slot === 'torso' && (D[k].auxSlots || 0) > 0) || A.torso;
+  const L = d.slot === 'torso' ? { torso: id } : d.slot === 'core' ? { torso: A.torso, core: id } : d.slot === 'legs' ? { torso: A.torso, legs: id }
+    : d.slot === 'arm' ? { torso: A.torso, armR: id } : { torso: auxFrame, aux: [id] };
+  const want = d.slot === 'arm' ? 'armR' : d.slot === 'aux' ? 'aux0' : d.slot;
+  PART_SHOTS[ck] = R3.snapshot(L, style, owner || 0, { w: 200, h: 140, only: want, rot: d.slot === 'arm' ? 1.15 : d.slot === 'legs' ? 0.7 : 0.6 });
+  return PART_SHOTS[ck];
+};
 R3.snapshot = function (L, doctrine, owner, opt) {
   opt = opt || {};
   try {
@@ -2456,9 +2616,10 @@ R3.snapshot = function (L, doctrine, owner, opt) {
       const renderer = new T.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
       renderer.setPixelRatio(1); renderer.setSize(240, 300, false); renderer.setClearColor(0x000000, 0);
       const scene = new T.Scene();
-      scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.85));
-      const key = new T.DirectionalLight(0xf2ead8, 0.8); key.position.set(2, 4, 3); scene.add(key);
-      const rim = new T.DirectionalLight(0xb8c8cc, 0.45); rim.position.set(-3, 2, -3); scene.add(rim);
+      scene.environment = envFor(renderer);
+      scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.5));
+      const key = new T.DirectionalLight(0xf2ead8, 1.05); key.position.set(2, 4, 3); scene.add(key);
+      const rim = new T.DirectionalLight(0xa8d0ff, 0.6); rim.position.set(-3, 2, -3); scene.add(rim);
       const cam = new T.PerspectiveCamera(30, 240 / 300, 0.1, 50);
       const holder = new T.Group(); scene.add(holder);
       PR = { renderer, scene, cam, holder, ink: { weight: 1.2 } };
@@ -2475,11 +2636,23 @@ R3.snapshot = function (L, doctrine, owner, opt) {
     if (R.legs[0] && R.kind === 'biped') { R.legs[0].rotation.x = -0.18; R.legs[1].rotation.x = 0.14; }
     if (R.arms.armR && R.style !== 'assault') R.arms.armR.sh.rotation.x = -0.35;
     PR.holder.add(R.root);
-    // frame the whole machine
     PR.scene.updateMatrixWorld(true);
-    const bb = new T.Box3().setFromObject(R.root), c = new T.Vector3(), sz = new T.Vector3(); bb.getCenter(c); bb.getSize(sz);
-    const dist = Math.max(sz.y, sz.x * 1.25) / (2 * Math.tan(15 * Math.PI / 180)) * 1.12;
-    PR.cam.position.set(c.x + dist * 0.18, c.y + dist * 0.16, c.z + dist); PR.cam.lookAt(c);
+    let bb;
+    if (opt.only) {
+      // a single part: hide the rest of the machine; a weapon is shown without the arm that holds it
+      bb = new T.Box3();
+      R.root.traverse(o => {
+        if (!o.isMesh) return;
+        let inWeapon = false; for (let q = o; q; q = q.parent) if (q.userData.weapon) { inWeapon = true; break; }
+        o.visible = o.userData.slot === opt.only && (opt.only.startsWith('arm') ? inWeapon : true);
+        if (o.visible) bb.expandByObject(o);
+      });
+      if (bb.isEmpty()) return null;
+    } else bb = new T.Box3().setFromObject(R.root);
+    // frame the whole machine, or the part
+    const c = new T.Vector3(), sz = new T.Vector3(); bb.getCenter(c); bb.getSize(sz);
+    const dist = (opt.only ? Math.max(sz.y, Math.max(sz.x, sz.z) / PR.cam.aspect) * 1.02 : Math.max(sz.y, sz.x * 1.25) * 1.12) / (2 * Math.tan(15 * Math.PI / 180));
+    PR.cam.position.set(c.x + dist * 0.18, c.y + dist * (opt.only ? 0.3 : 0.16), c.z + dist); PR.cam.lookAt(c);
     PR.renderer.render(PR.scene, PR.cam);
     inkPass(PR.renderer, PR.scene, PR.cam, PR.holder, PR.ink);
     return PR.renderer.domElement.toDataURL('image/png');
@@ -2559,9 +2732,10 @@ function makePreview() {
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
   const scene = new T.Scene();
-  scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.85));
-  const key2 = new T.DirectionalLight(0xf2ead8, 0.8); key2.position.set(2, 4, 3); scene.add(key2);
-  const rim = new T.DirectionalLight(0xb8c8cc, 0.45); rim.position.set(-3, 2, -3); scene.add(rim);
+  scene.environment = envFor(renderer);
+  scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.5));
+  const key2 = new T.DirectionalLight(0xf2ead8, 1.05); key2.position.set(2, 4, 3); scene.add(key2);
+  const rim = new T.DirectionalLight(0xa8d0ff, 0.6); rim.position.set(-3, 2, -3); scene.add(rim);
   const cam = new T.PerspectiveCamera(30, 1, 0.1, 50);
   const holder = new T.Group(); scene.add(holder);
   const fx = new T.Group(); scene.add(fx);
