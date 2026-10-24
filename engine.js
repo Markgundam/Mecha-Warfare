@@ -348,10 +348,13 @@ const START_CHASSIS = { assault: ['t_assault', 't_skirm', 't_light', 't_assault'
 // the old separate cores are gone from play: chassis carry their own reactor now
 for (const id of ['b_core', 'c_heavy', 'c_compact', 'c_fusion']) DEFS[id].hidden = true;
 const standardFor = p => Object.values(DEFS).filter(d => (d.basic && !d.hidden) || issuedTo(p).includes(d.id)).map(d => d.id);
-for (const [doc, add] of Object.entries({ assault: { l_boost: 1, w_blade: 1, t_skirm: 1 }, armored: { l_treads: 1, t_heavy: 1, w_missile: 1 }, experimental: { t_proto: 1, l_hover: 1 } })) {
+// the Arsenal deck holds only the parts worth drawing: standard issue (the basic parts and the army's own issue) is
+// always on hand in the Base, so it never takes up a draw
+for (const [doc, add] of Object.entries({ assault: { t_skirm: 1 }, armored: {}, experimental: {} })) {
   const dk = DOCTRINES[doc].deck;
   for (const c of ['c_heavy', 'c_compact', 'c_fusion', 'b_core']) delete dk[c];
   for (const k in add) dk[k] = (dk[k] || 0) + add[k];
+  for (const k of Object.keys(dk)) if ((DEFS[k] && DEFS[k].basic) || ISSUE[doc].includes(k)) delete dk[k];
 }
 const TRAIT_KEYS = ['control', 'fieldMax', 'hangarMax', 'startMechs', 'move', 'ep', 'draw', 'ap', 'plate', 'plateRegen', 'steady', 'turretDmg', 'heatTick'];
 function docTrait(doc, k) {
@@ -525,10 +528,10 @@ function draw(p, n) {
   }
   return got;
 }
-// Event cards take effect the moment they are collected; everything else waits in the Workshop
-function receive(p, inst) {
-  const d = DEFS[inst.id];
-  if (!d.event) { p.workshop.push(inst); return; }
+// every card collected waits in the Workshop; event cards are held there until their commander plays them
+function receive(p, inst) { p.workshop.push(inst); }
+// an event's effect, when it is played
+function applyEvent(p, d) {
   const e = d.event, out = [];
   if (e.supply) { p.supply += e.supply; out.push('+' + e.supply + ' Supply'); }
   if (e.ep) { p.ep += e.ep; out.push('+' + e.ep + ' engineering this round'); }
@@ -543,18 +546,10 @@ function receive(p, inst) {
     out.push(n ? n + ' mech' + (n > 1 ? 's' : '') + ' patched' : 'nothing needed fixing');
   }
   if (e.draw) {
-    let got = 0;
-    if (p.stage === 'draw' && p.extra) {
-      // during the Draw step the extra cards are revealed on their own before they reach the Workshop
-      for (let i = 0; i < e.draw; i++) {
-        if (!p.deck.length || p.workshop.length + p.extra.length >= C.WORKSHOP_MAX) break;
-        p.extra.push(p.deck.pop()); got++;
-      }
-      if (got) p.extraFrom = d.name;
-    } else got = draw(p, e.draw);
+    const got = draw(p, e.draw);
     out.push(got + ' extra card' + (got === 1 ? '' : 's'));
   }
-  log(d.name + ' for ' + p.name + ': ' + out.join(', ') + '.', 'p' + p.id);
+  log(p.name + ' plays ' + d.name + ': ' + out.join(', ') + '.', 'p' + p.id);
 }
 // Both commanders draw and build at the same time; each marks themselves ready when done
 function startBuildPhase() {
@@ -575,10 +570,8 @@ function acceptDraw(p) {
   p = p || S.players[S.current];
   if (S.phase !== 'build' || p.stage !== 'draw') return fail('Nothing to collect.');
   const batch = p.incoming || [];
-  p.incoming = []; p.extra = []; p.extraFrom = null;
+  p.incoming = [];
   batch.forEach(c => receive(p, c));
-  if (p.extra.length) { p.incoming = p.extra; p.extra = null; p.wave = (p.wave || 0) + 1; p.waveFrom = p.extraFrom; return OK; }
-  p.extra = null; p.extraFrom = null;
   p.stage = 'build';
   return OK;
 }
@@ -712,6 +705,7 @@ function playTactic(p, uid) {
   const t = d.tactic || d.event;
   if (!t) return fail(d.name + ' is a component, not a tactic.');
   p.workshop.splice(i, 1);
+  if (d.event) { applyEvent(p, d); return OK; }
   if (t.supply) p.supply += t.supply;
   if (t.ep) p.ep += t.ep;
   if (t.draw) draw(p, t.draw);
@@ -1976,6 +1970,20 @@ function aiDesign(p, m) {
   }
   return best && best.pick;
 }
+// the AI holds its events for the moment they pay: Supply when it is short, Overtime when out of actions with work to
+// do, extra cards when the Workshop runs thin, repairs when its mecha are hurt; anything still held when the Workshop
+// fills up is played rather than sold
+function aiEvents(p, all) {
+  const own = fieldMechs(p.id).concat(p.hangar);
+  const hurt = own.filter(m => { const pi = mostDamaged(m); return pi && pi.hp <= DEFS[pi.id].hp / 2; }).length;
+  const work = p.hangar.some(m => !isBlank(m) && (issues(m).length || partsOf(m).some(x => worn(x.inst))));
+  for (const c of p.workshop.slice()) {
+    const e = DEFS[c.id].event;
+    if (!e) continue;
+    const now = all || (e.supply && p.supply < 8) || (e.ep && p.ep <= 1 && work) || (e.draw && p.workshop.length <= C.WORKSHOP_MAX - 4) || (e.repair && hurt >= 2);
+    if (now) playTactic(p, c.uid);
+  }
+}
 function aiOutfit(p, m) {
   const pick = aiDesign(p, m);
   if (!pick) return;
@@ -1988,6 +1996,7 @@ function aiBuild(p) {
   // flush with supply and short on cards: buy one, then come back to building after the draw
   if (C.REQ_COST && p.supply >= C.REQ_COST + 14 && p.workshop.length <= C.WORKSHOP_MAX - 3 && !canRequisition(p)) { requisition(p); return; }
   for (const c of p.workshop.slice()) if (DEFS[c.id].slot === 'tactic') playTactic(p, c.uid);
+  aiEvents(p, false);
   for (const m of p.hangar) for (const { key, inst } of partsOf(m)) {
     if (inst.hp <= 0) { if (key === 'core') repair(p, m, key); else if (inst.offUntil == null) removePart(p, m, key); }
     else if (worn(inst)) repair(p, m, key);
@@ -1999,6 +2008,8 @@ function aiBuild(p) {
   ensureBlank(p);
   const spare = p.hangar.find(isBlank);
   if (spare && allReady && total < fieldMax(p.id) + (p.supply >= 15 ? 3 : 1) + Math.round(2 * (aiW(p.id).swarm - 0.5)) && p.ep >= 2 && p.supply >= 5) aiOutfit(p, spare);
+  // a full Workshop spends its held events before it sells anything
+  if (p.workshop.length > C.WORKSHOP_MAX - 2) aiEvents(p, true);
   while (p.workshop.length > C.WORKSHOP_MAX - 2) {
     const count = {};
     p.workshop.forEach(c => { const s = DEFS[c.id].slot; count[s] = (count[s] || 0) + 1; });

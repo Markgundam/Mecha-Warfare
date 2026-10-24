@@ -1131,8 +1131,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 .hb.dot::after { content: ''; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--glass-solid); }
 .hb.on { border-color: var(--accent); color: var(--accent); }
 .hud .top .side { position: relative; left: auto; top: auto; bottom: auto; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 4px; padding: 6px 10px 7px; border-radius: 10px; border-left: 3px solid var(--pc); color: var(--ink); pointer-events: auto; min-width: 0; text-align: left; }
-.hud .top .side.p1 { direction: rtl; border-left: 1px solid var(--glass-line); border-right: 3px solid var(--pc); }
-.hud .top .side.p1 > * { direction: ltr; }
+.hud .top .side.p1 { border-left: 1px solid var(--glass-line); border-right: 3px solid var(--pc); }
 .hud .top .side.turn { box-shadow: 0 6px 18px rgba(0, 0, 0, .28), inset 0 0 0 1px color-mix(in srgb, var(--pc) 55%, transparent); }
 .hud .top .side.won { box-shadow: 0 0 0 2px #f4c431; }
 .hud .side-name { font: 900 17px/1 var(--display); letter-spacing: .03em; color: var(--pc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -1220,19 +1219,9 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
   .mrows .mrow { width: 100%; }
 }
 
-/* ---------- Phones play in landscape ----------
-   Upright, a phone gets a prompt to turn it. Sideways, the battle keeps the map in the middle: a slim bar on top,
-   the actions in a panel down the left, the log down the right, and the Base window over the whole screen. */
-#rotate { display: none; }
-@media (orientation: portrait) and (max-width: 600px) {
-  #rotate { display: flex; position: fixed; inset: 0; z-index: 100; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; background: var(--bg); color: var(--ink); }
-  #rotate svg { width: 72px; height: 72px; fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; animation: turnme 2.4s ease-in-out infinite; }
-  #rotate b { font: 900 26px/1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
-  #rotate span { color: var(--muted); font-size: 16px; }
-  #app { visibility: hidden; }
-}
-@keyframes turnme { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
-@media (prefers-reduced-motion: reduce) { #rotate svg { animation: none; } }
+/* ---------- Phones held sideways ----------
+   The battle keeps the map in the middle: a slim bar on top, the actions in a panel down the left, the log down
+   the right, and the Base window over the whole screen. */
 @media (orientation: landscape) and (max-height: 520px) {
   .hud { padding: calc(4px + env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) 0 calc(8px + env(safe-area-inset-left, 0px)); gap: 4px; }
   .hud .top { max-width: 640px; gap: 4px; grid-template-columns: 34px minmax(0, 1fr) auto minmax(0, 1fr) 34px; }
@@ -1363,6 +1352,133 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 @media (min-width: 900px) {
   #game:is([data-win=shop], [data-win=mech]) .dock { display: none; }
 }
+
+/* ---------- Phones held upright ----------
+   The Base window stacks: resources and End build on top, then the hangar (mech tabs, the mech with its stats, the
+   3×2 slots), then the parts in the lower part of the screen, so building never switches tabs. */
+@media (orientation: portrait) and (max-width: 640px) {
+  #win-head { padding: calc(6px + env(safe-area-inset-top, 0px)) 8px 6px; gap: 6px; }
+  #win-head .rchips { gap: 4px; }
+  #win-head .rchips div { padding: 3px 7px 3px 3px; gap: 4px; border-radius: 10px; }
+  #game #win-head .rchips .rico { display: block; width: 22px; height: 22px; padding: 4px; border-radius: 7px; }
+  #win-head .rchips b { font-size: 17px; }
+  #win-head .rchips b i { font-size: 12px; }
+  #win-head .rchips .rinc { display: none; }
+  #win-head .btn.sm { padding: 6px 8px; }
+  #win-body { padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); gap: 6px; }
+  .split { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.05fr) minmax(0, 1fr); gap: 8px; }
+  .split-l, .split-r { padding: 6px; gap: 5px; }
+  .split-l > .h3d { min-height: 140px; }
+  #game .split-l .tabs.frames { gap: 4px; }
+  #game .ftab { padding: 4px 7px; font-size: 13px; }
+  #game .ftab b { font-size: 13px; }
+  #game .plist { grid-template-rows: repeat(2, 30px); gap: 4px; }
+  #game .pl { padding: 0 6px; gap: 4px; }
+  #game .pl b { font-size: 12px; }
+  .h3d-top .stats { gap: 3px; }
+  .h3d-top .stats .st { padding: 3px 5px; column-gap: 3px; border-radius: 6px; }
+  .h3d-top .stats .tico { width: 13px; height: 13px; }
+  .h3d-top .stats b { font-size: 14px; }
+  .h3d-top .stats b i { font-size: 11px; }
+  #game .split-r .wtab { padding: 4px; }
+  #game .pfc { padding: 4px 8px; }
+  #game .cpic { height: 92px; }
+  #game :is(.cardlist, .cardgrid) { gap: 6px; }
+}
+/* deploying: each ready mech shown as rendered, not as a diagram */
+#game .dchip { grid-template-columns: 52px minmax(0, 1fr); padding: 4px 10px 4px 4px; border-radius: 10px; background: rgba(255, 255, 255, .045); border-color: rgba(255, 255, 255, .1); }
+.dchip .mpic { width: 52px; height: 66px; object-fit: contain; display: block; }
+/* deployment: the ready mecha as cards, three to a row, the render on top and the name underneath */
+@media all {
+  #game .dchips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; }
+  #game .dchip { width: auto; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 0 0 6px; text-align: center; overflow: hidden; }
+  #game .dchip .mpic { width: 100%; height: 150px; object-fit: contain; background: radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--pc) 24%, transparent), transparent 72%), rgba(0, 0, 0, .22); border-top: 3px solid var(--pc); }
+  #game .dchip > span { padding: 0 6px; min-width: 0; }
+  #game .dchip b, #game .dchip small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #game .dchip small { font-size: 12px; }
+  #game .dchip.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+}
+/* an upright phone keeps a little more of the map in view */
+@media (orientation: portrait) and (max-width: 640px) {
+  #game .dchip .mpic { height: 124px; }
+}
+/* the ready cards pulse their border until one is picked, so they read as something to tap */
+#game .dchips:not(:has(.dchip.on)) .dchip:not(:disabled) { animation: dpulse 1.8s ease-in-out infinite; }
+#game .dchip:not(:disabled):hover { border-color: var(--accent); }
+@keyframes dpulse { 50% { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); } }
+@media (prefers-reduced-motion: reduce) { #game .dchips .dchip { animation: none !important; } }
+/* ---------- Combat: the same cards as deployment and the hangar ----------
+   The mecha still to act are render cards, three to a row; the selected mech's header leads with its render; its
+   weapons are cards led by the weapon itself; the actions are tiles with an icon for what each does. */
+#game .mrows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; }
+#game .mrows .mrow { width: auto; min-width: 0; height: auto; display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 0 0 6px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 10px; background: rgba(255, 255, 255, .045); text-align: center; overflow: hidden; animation: dpulse 1.8s ease-in-out infinite; }
+#game .mrows .mrow .mpic { width: 100%; height: 124px; object-fit: contain; background: radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--pc) 24%, transparent), transparent 72%), rgba(0, 0, 0, .22); border-top: 3px solid var(--pc); }
+#game .mrows .mrow > svg { width: 100%; height: 80px; }
+#game .mrows .mr-t { justify-content: center; padding: 0 6px; }
+#game .mrows .pips { position: static; display: inline-flex; }
+#game .mrows .mrow .wchips { justify-content: center; gap: 2px 6px; padding: 0 4px; font-size: 12px; flex-wrap: wrap; }
+#game .mrows .mrow:hover { border-color: var(--accent); }
+@media (min-width: 900px) { #game .mrows .mrow .mpic { height: 140px; } }
+#game .mh { grid-template-columns: 52px minmax(0, 1fr) auto; }
+#game .mh .mpic { width: 52px; height: 64px; object-fit: contain; border-radius: 8px; background: radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--pc) 26%, transparent), transparent 72%), rgba(0, 0, 0, .22); }
+#game .wrows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+#game .wrow { height: auto; display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 0 0 6px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 10px; background: rgba(255, 255, 255, .045); text-align: left; overflow: hidden; }
+#game .wrow .wpic { position: relative; height: 70px; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--cc, var(--ink)) 24%, transparent), transparent 72%), rgba(0, 0, 0, .22); border-top: 3px solid var(--cc, var(--line)); }
+#game .wrow .wpic .pshot { position: absolute; inset: 3px 0 0; width: 100%; height: calc(100% - 3px); object-fit: contain; background: none; }
+#game .wrow .wt, #game .wrow em { padding: 0 8px; }
+#game .wrow .wt b { font-size: 14px; }
+#game .wrow .wt small { font-size: 12px; white-space: normal; line-height: 1.25; }
+#game .wrow em { font-size: 12px; }
+#game button.wrow:not(:disabled):hover { border-color: var(--accent); }
+#game .wrow.on { border-color: var(--bad); box-shadow: inset 0 0 0 1px var(--bad); }
+#game .arow { gap: 6px; }
+#game .ab { height: 58px; gap: 4px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); font: 600 12px var(--body); }
+#game .ab .ico { width: 30px; height: 30px; padding: 5px; border-radius: 8px; background: rgba(255, 255, 255, .07); }
+#game .ab.ow .ico { color: #7fc3ec; background: rgba(127, 195, 236, .14); }
+#game .ab.br .ico { color: #b8c4cf; background: rgba(184, 196, 207, .14); }
+#game .ab[data-act=enter] .ico { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
+#game .ab.hl .ico { color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+#game .ab.danger .ico { color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, transparent); }
+#game .ab:not(:disabled):hover { border-color: rgba(255, 255, 255, .3); }
+#game .ab.end { flex: 1.25; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+#game .ab.end .ico { background: rgba(0, 0, 0, .14); color: var(--accent-ink); }
+@media (orientation: portrait) and (max-width: 640px) {
+  #game .mrows .mrow .mpic { height: 104px; }
+  #game .wrow .wpic { height: 58px; }
+  #game .ab { height: 52px; }
+  #game .ab .ico { width: 26px; height: 26px; padding: 4px; }
+}
+/* the combat card's stats: HP, Move, Armour and Heat with their meters (weight only matters in the hangar) */
+#game .mh-stats .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+#game .mh-stats .st-load { display: none; }
+#game .mh-stats .st { padding: 4px 7px; grid-template-areas: "ic lb val" "m m m"; }
+#game .mh-stats .stats b { font-size: 17px; }
+#game .mh-stats .chips { margin-top: 4px; }
+@media (max-width: 640px) {
+  #game .mh-stats .st { grid-template-areas: "ic val" "m m"; grid-template-columns: auto minmax(0, 1fr); }
+  #game .mh-stats .st-l { display: none; }
+  #game .mh-stats .stats b { justify-self: end; }
+}
+/* aiming in 3D: a tag on each part of the target, tap one (or the part) to fire there */
+#labels .aim3 > * { transform: translate(-50%, -50%); }
+.aimtag { pointer-events: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; max-width: 150px; padding: 5px 9px 6px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(9, 15, 21, .86); color: #eef3f6; text-align: left; font: 600 12px var(--body); cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.aimtag:hover { border-color: var(--accent); }
+.aimtag .at-1 { display: flex; align-items: baseline; gap: 8px; width: 100%; justify-content: space-between; }
+.aimtag .at-1 b { font: 900 14px/1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
+.aimtag .ac { font: 900 18px/1 var(--display); color: var(--accent); }
+.aimtag .at-2 { color: #ff9b8f; font-size: 12px; }
+.aimtag .at-2 .pt { margin-left: 5px; }
+.aimtag em { font-style: normal; font-weight: 500; color: #a9b6c0; font-size: 11px; line-height: 1.2; }
+.aimtag.ko { border-color: #edb13a; } .aimtag.kill { border-color: #ef5a4a; box-shadow: 0 0 0 1px #ef5a4a, 0 4px 14px rgba(0, 0, 0, .4); }
+#game .aimnote { margin: 0; font-size: 13px; color: var(--accent); }
+/* Ember's plate mirrors Azure's: name to the right, its points filling from the right */
+.hud .top .side.p1 .side-name { justify-self: end; text-align: right; }
+.hud .top .side.p1 .vpbar { direction: rtl; }
+/* the turn order: one slot per activation, coloured by side; done slots fade, the one up now stands taller */
+.ts-row { display: inline-flex; align-items: center; gap: 3px; }
+.ts { display: block; width: 12px; height: 18px; border-radius: 4px; background: var(--pc); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.ts.done { opacity: .28; height: 12px; }
+.ts.now { width: 16px; height: 26px; box-shadow: 0 0 0 2px var(--accent), 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent); }
 </style>
 
 <div id="app">
@@ -1494,7 +1610,6 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
   <div id="overlay" hidden></div>
   <div id="tip" role="status" hidden></div>
 </div>
-<div id="rotate" role="alert"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="16" y="6" width="16" height="28" rx="3"/><path d="M9 38a17 17 0 0 0 26 4"/><path d="M33 37l2 5-5 1"/></svg><b>Turn your phone sideways</b><span>Mecha Warfare plays in landscape.</span></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="engine.js"></script>
@@ -1563,7 +1678,6 @@ function mechSVG(m) {
     p('core', 'circle cx="20" cy="17" r="2.6"', ' core') +
     p('torso', 'rect x="16" y="4" width="8" height="6" rx="1"') + '</svg>';
 }
-const GONE_SVG = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M11 11l18 18M29 11L11 29" fill="none" stroke="currentColor" stroke-width="3"/></svg>';
 const OBJ_SVG = {
   depot: '<path d="M20 9l11 11-11 11L9 20z" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M20 15l5 5-5 5-5-5z" fill="currentColor"/>',
   radar: '<circle cx="20" cy="26" r="3" fill="currentColor"/><path d="M12 20a11 11 0 0 1 16 0M8 15a17 17 0 0 1 24 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>',
@@ -1605,6 +1719,10 @@ const ICONS = {
   cryo: '<path d="M12 2v20M3.5 7l17 10M20.5 7l-17 10M9 4l3 2 3-2M9 20l3-2 3 2"/>',
   anchor: '<circle cx="12" cy="5" r="2"/><path d="M12 7v14M5 13a7 7 0 0 0 14 0M8 10h8"/>',
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  overwatch: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
+  brace: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 9.5l3.5 2.5 3.5-2.5M8.5 13.5l3.5 2.5 3.5-2.5"/>',
+  tobase: '<path d="M3 11l9-7 9 7v9H3z"/><path d="M12 9v7M9 13l3 3 3-3"/>',
+  done: '<path d="M4.5 12.5l5 5L19.5 7"/>',
   eye: '<path d="M2 12c3-5 6.5-7 10-7s7 2 10 7c-3 5-6.5 7-10 7s-7-2-10-7z"/><circle cx="12" cy="12" r="3"/>',
   supply: '<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
   eng: '<path d="M15 3a5 5 0 0 0-4.6 6.9L3 17.3 6.7 21l7.4-7.4A5 5 0 0 0 21 9l-3 1-2.6-2.4L16 4.3z"/>',
@@ -1784,6 +1902,20 @@ function faceHTML(d, cmp) {
 }
 // the full numbers, one tap away
 // the part itself, rendered in 3D in the viewer's army colours (falls back to nothing without WebGL)
+// the whole mech as it stands, rendered in 3D; cached by its loadout so a list of them stays cheap
+const MECH_PICS = new Map();
+function mechPic(m, cls) {
+  if (!R3on) return mechSVG(m);
+  const id = i => i ? i.id : null, L = { torso: id(m.slots.torso), core: id(m.slots.core), legs: id(m.slots.legs), armL: id(m.slots.armL), armR: id(m.slots.armR), aux: m.slots.aux.map(id) };
+  const doc = S.players[m.owner].doctrine, k = JSON.stringify(L) + doc + m.owner;
+  if (!MECH_PICS.has(k)) MECH_PICS.set(k, window.R3.snapshot(L, doc, m.owner, { w: 120, h: 150 }));
+  const src = MECH_PICS.get(k);
+  return src ? '<img class="mpic' + (cls ? ' ' + cls : '') + '" src="' + src + '" alt="">' : mechSVG(m);
+}
+function partPicFor(d, owner, cls) {
+  const src = R3on && S ? window.R3.partShot(d.id, S.players[owner].doctrine, owner) : null;
+  return src ? '<img class="pshot' + (cls ? ' ' + cls : '') + '" src="' + src + '" alt="">' : '';
+}
 function partPic(d, cls) {
   const p = S && S.players ? S.players[viewer()] : null;
   const src = R3on && p ? window.R3.partShot(d.id, p.doctrine, p.id) : null;
@@ -1936,23 +2068,24 @@ function renderTrack() {
       const o = S.players[1 - p.id], ost = o.stage === 'done' ? o.name + ' is ready.' : o.name + (o.isAI ? ' is building.' : net ? ' is building at the same time.' : ' builds next on this screen.');
       t = uiPhase() === 'draw' ? '<b>' + p.name + ', Draw.</b> ' + ost : uiPhase() === 'build' ? '<b>' + p.name + ', Build.</b> ' + ost : '<b>' + p.name + ' is ready.</b> Waiting for ' + o.name + ' to finish building…';
     }
-    else t = ui.mode === 'deploy' ? '<b>' + p.name + ', Deploy.</b> Tap a highlighted tile next to your base.' : '<b>' + p.name + ', Deploy.</b> Pick a ready mech below, or end deployment.';
+    else t = ui.mode === 'deploy' ? '<b>' + p.name + ', Deploy.</b> Tap a highlighted tile next to your base.' : '<b>' + p.name + ', Deploy.</b> Tap a mech below to send it out, or end deployment.';
     el.className = 'track hint p' + p.id;
     el.innerHTML = '<span>' + t + '</span>';
     return;
   }
-  const lookup = uid => MW.fieldMech(uid) || S.players.flatMap(x => x.hangar).find(m => m.uid === uid) || null;
   const a = MW.activatable(S.current).slice(), b = MW.activatable(1 - S.current);
   if (S.active != null) a.sort((x, y) => (y.uid === S.active) - (x.uid === S.active));
   const up = [];
   for (let i = 0; i < Math.max(a.length, b.length); i++) { if (i < a.length) up.push(a[i]); if (i < b.length) up.push(b[i]); }
-  let h = '<span class="who p' + p.id + '">' + p.name + (isHuman() ? ', go' : '') + '</span>';
-  h += (S.order || []).map(r => { const m = lookup(r.uid); return '<span class="tc done p' + r.owner + '" title="' + (r.name || 'Destroyed') + ' has acted">' + (m ? mechSVG(m) : GONE_SVG) + '</span>'; }).join('');
-  h += up.map((m, i) => '<button type="button" class="tc p' + m.owner + (i === 0 ? ' now' : '') + '" data-act="selField" data-uid="' + m.uid + '" title="' + m.name + '" aria-label="' + S.players[m.owner].name + ' mech ' + m.name + (i === 0 ? ', acting now' : ', still to act') + '">' + mechSVG(m) + '</button>').join('');
-  h += '<span class="sep">▸</span><span class="tc end">Resolve</span>';
+  // the turn order as slots in each side's colour: any of a side's mecha can take its slot, so no mech is named
+  const done = S.order || [], owners = up.map(m => m.owner);
+  let h = '<span class="who p' + p.id + '">' + p.name + (isHuman() ? ', go' : '') + '</span><span class="ts-row" role="img" aria-label="Turn order: ' + done.length + ' done, then ' + owners.map(o => S.players[o].name).join(', ') + '">';
+  h += done.map(r => '<i class="ts done p' + r.owner + '"></i>').join('');
+  h += owners.map((o, i) => '<i class="ts p' + o + (i === 0 ? ' now' : '') + '"></i>').join('');
+  h += '</span><span class="sep">▸</span><span class="tc end">Resolve</span>';
   el.className = 'track';
   el.innerHTML = h;
-  const now = el.querySelector('.tc.now');
+  const now = el.querySelector('.ts.now');
   if (now && el.scrollWidth > el.clientWidth) el.scrollLeft = Math.max(0, now.offsetLeft - 80);
 }
 
@@ -2050,9 +2183,14 @@ function sync3d(overlay, zoneMap, olabs, oddsMap, turret) {
   // what a capture point gives only shows when it is tapped
   for (const o of olabs) if (ui.peek === o.x + ',' + o.y) add('<div class="ol3 peek">' + o.html + '</div>', { x: o.x, y: o.y, h: 0.9 });
   for (const c of S.crates || []) if (!MW.mechAt(c.x, c.y)) add('<div class="ol3"><span class="olab">' + (c.kind === 'supply' ? '+' + c.amount + ico('supply') : '★') + '</span></div>', { x: c.x, y: c.y, h: 0.55 });
-  const next = { html: parts.join(''), anchors };
-  const hits = (S.fx || []).some(f => f.k === 'shot' || f.k === 'boom' || f.k === 'nuke' || f.k === 'float');
-  if (hits && ui.curLabels) ui.nextLabels = next; else applyLabels(next, true);
+  const smA = ui.sel != null ? MW.fieldMech(ui.sel) : null, tmA = ui.pendingTarget != null ? MW.fieldMech(ui.pendingTarget) : null;
+  const aiming = isHuman() && S.phase === 'combat' && ui.mode === 'fire' && smA && tmA && smA.owner === S.current && !MW.actGuard(smA);
+  if (aiming) applyLabels({ html: aimOptions(smA).map(o => '<div class="lbl3 aim3">' + aimTag(o) + '</div>').join(''), anchors: aimOptions(smA).map(o => ({ uid: tmA.uid, part: o.part })) }, true);
+  else {
+    const next = { html: parts.join(''), anchors };
+    const hits = (S.fx || []).some(f => f.k === 'shot' || f.k === 'boom' || f.k === 'nuke' || f.k === 'float');
+    if (hits && ui.curLabels) ui.nextLabels = next; else applyLabels(next, true);
+  }
   // the camera settles on your base while you deploy, on the chosen mech while one is selected, and on the whole map otherwise
   const human = isHuman();
   const sm = ui.sel != null ? S.mechs.find(m => m.uid === ui.sel && m.x != null) : null;
@@ -2060,8 +2198,8 @@ function sync3d(overlay, zoneMap, olabs, oddsMap, turret) {
   // picking a tile to move to: frame the mech and everywhere it can reach, seen from above
   const reach = sm && human && S.phase === 'combat' && ui.mode === 'move' && sm.owner === S.current && !MW.actGuard(sm) ? MW.reachable(sm) : null;
   const plan = reach ? [[sm.x, sm.y]].concat(Object.keys(reach).filter(k => reach[k] > 0).map(k => k.split(',').map(Number))) : null;
-  const cam = human && S.phase === 'deploy' && ui.mode === 'deploy' ? { deploy: S.current } : frame ? { frame, key: sm.uid + ':' + ui.weaponKey + ':' + sm.x + ',' + sm.y } : plan && plan.length > 1 ? { plan, key: sm.uid + ':' + sm.x + ',' + sm.y } : sm ? { sel: sm.uid } : {};
-  window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, turret: turret || {}, sel: ui.sel, active: S.active, cam, labels: ui.curLabels });
+  const cam = aiming ? { aim: tmA.uid, x: tmA.x, y: tmA.y } : human && S.phase === 'deploy' && ui.mode === 'deploy' ? { deploy: S.current } : frame ? { frame, key: sm.uid + ':' + ui.weaponKey + ':' + sm.x + ',' + sm.y } : plan && plan.length > 1 ? { plan, key: sm.uid + ':' + sm.x + ',' + sm.y } : sm ? { sel: sm.uid } : {};
+  window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, turret: turret || {}, sel: ui.sel, active: S.active, cam, labels: ui.curLabels, aim: aiming ? tmA.uid : null, onAim: part => onAct({ dataset: { act: 'shoot', part } }) });
 }
 function applyLabels(n, quiet) {
   const box = $('#labels');
@@ -2316,7 +2454,8 @@ function weaponRows(m, live) {
     const inst = m.slots[key];
     if (!inst) continue;
     const d = D[inst.id], w = d.weapon, cat = kind(d);
-    if (!w) { h += '<div class="wrow ro k-' + cat + '"><span class="badge">' + ico(cat) + '</span><span class="wt"><b>' + d.name + '</b><small>' + (d.armorAll ? '+' + d.armorAll + ' armor on all parts' : 'Passive') + '</small></span><em class="' + (inst.hp > 0 ? 'ok' : 'no') + '">' + (inst.hp > 0 ? 'Active' : 'Out') + '</em></div>'; continue; }
+    const pic = '<span class="wpic">' + (partPicFor(d, m.owner) || '<span class="badge">' + ico(cat) + '</span>') + '</span>';
+    if (!w) { h += '<div class="wrow ro k-' + cat + '">' + pic + '<span class="wt"><b>' + d.name + '</b><small>' + (d.armorAll ? '+' + d.armorAll + ' armor on all parts' : 'Passive') + '</small></span><em class="' + (inst.hp > 0 ? 'ok' : 'no') + '">' + (inst.hp > 0 ? 'Active' : 'Out') + '</em></div>'; continue; }
     const n = m.x != null ? MW.validTargets(m, key).length : 0;
     const spec = w.repair ? 'repairs ' + w.repair + ' HP · rng ' + w.range : (w.dmg + st.dmgBonus) + (w.shots > 1 ? '×' + w.shots : '') + ' dmg · rng ' + (w.min ? w.min + '–' : '') + MW.effRange(w, st) + ' · ' + w.acc + '% · +' + (w.heat + st.shotHeat) + ' heat' + (inst.ammo != null ? ' · ' + inst.ammo + ' rds' : '') + (w.ap ? ' · pierces' : '');
     let why = '';
@@ -2327,7 +2466,7 @@ function weaponRows(m, live) {
     else if (!n) why = w.repair ? 'No ally' : 'No target';
     const hot = !why && m.heat + w.heat + st.shotHeat > st.heatCap;
     const status = why ? '<em class="no">' + why + '</em>' : '<em class="' + (hot ? 'hot' : 'ok') + '">' + n + ' in range' + (hot ? ' · hot' : '') + '</em>';
-    const inner = '<span class="badge">' + ico(cat) + '</span><span class="wt"><b>' + d.name + '</b><small>' + spec + '</small></span>' + status;
+    const inner = pic + '<span class="wt"><b>' + d.name + '</b><small>' + spec + '</small></span>' + status;
     h += live ? '<button type="button" class="wrow k-' + cat + (ui.mode === 'fire' && ui.weaponKey === key ? ' on' : '') + '" data-act="weapon" data-key="' + key + '"' + (why ? ' disabled' : '') + '>' + inner + '</button>' : '<div class="wrow ro k-' + cat + '">' + inner + '</div>';
   }
   return h ? '<div class="wrows">' + h + '</div>' : '<p class="note">No weapons fitted.</p>';
@@ -2371,49 +2510,64 @@ function targetChips(m) {
   }).join('') + '</div>';
 }
 // the aim picker: every choice says what it does, how likely it is and what it would knock out
-function picker(m) {
+// what each aim point does: its chance, the hull damage, and what it knocks out
+function aimOptions(m) {
   const tm = MW.fieldMech(ui.pendingTarget);
-  if (!tm) return '';
-  const inst = MW.getSlot(m, ui.weaponKey), wd = D[inst.id], ts = MW.stats(tm);
-  const opt = part => {
+  if (!tm) return [];
+  return ['torso', 'armL', 'armR', 'legs'].map(part => {
     const pi = MW.getSlot(tm, part);
-    if (!pi || pi.hp <= 0) return '';
+    if (!pi || pi.hp <= 0) return null;
     const pv = MW.aimPreview(m, ui.weaponKey, tm, part), pd = D[pi.id], n = pv.shots > 1 ? ' ×' + pv.shots : '';
     let title, effect, icon;
     if (part === 'torso') { title = 'Body'; icon = 'torso'; effect = 'Full damage to the hull'; }
     else if (part === 'legs') { title = 'Legs'; icon = 'legs'; effect = pv.ko ? 'Cripples it: 1 move' : pi.hp - pv.dmg * pv.shots <= pd.hp / 2 ? 'Slows it: −1 move' : 'Wears the legs down'; }
     else { title = (part === 'armL' ? 'Left arm' : 'Right arm'); icon = pd.weapon ? 'dmg' : 'shield'; effect = pd.weapon ? (pv.ko ? 'Offline next round: ' : 'Damages ') + pd.name : (pv.ko ? 'Knocks out ' : 'Damages ') + pd.name; }
     const tag = pv.kill ? '<i class="pt kill">Destroys</i>' : pv.ko ? '<i class="pt ko">KO</i>' : '';
-    return '<button type="button" class="pb' + (part === 'torso' ? ' body' : '') + (pv.kill ? ' kill' : '') + '" data-act="shoot" data-part="' + part + '" aria-label="Aim at ' + title + ', ' + pv.chance + ' percent, ' + effect + '">' +
-      ico(icon, 'pbi') + '<span class="pbt"><b>' + title + (part !== 'torso' ? ' <small>' + pi.hp + '/' + pd.hp + '</small>' : '') + tag + '</b><em>' + effect + '</em></span>' +
-      '<span class="pbn"><b>' + pv.chance + '%</b><small>−' + pv.hull + n + ' hull</small></span></button>';
-  };
-  let h = '<div class="pk-h">' + kindIco(wd, 'sm k-' + cardKind(wd)) + '<span>Aim ' + wd.name + ' at ' + tm.name + ' · hull ' + MW.hpOf(tm) + '/' + MW.maxHpOf(tm) + (tm.shield > 0 ? ' · shield ' + tm.shield : '') + '</span><button type="button" class="ib" data-act="cancelFire" aria-label="Cancel aiming">✕</button></div><div class="pick">';
-  for (const key of ['torso', 'armL', 'armR', 'legs']) h += opt(key);
+    return { part, title, effect, icon, tag, pv, pi, pd, n };
+  }).filter(Boolean);
+}
+// a tag standing on one part of the target in the 3D view: tap it (or the part) to fire there
+function aimTag(o) {
+  return '<button type="button" class="aimtag' + (o.pv.kill ? ' kill' : o.pv.ko ? ' ko' : '') + '" data-act="shoot" data-part="' + o.part + '" aria-label="Aim at ' + o.title + ', ' + o.pv.chance + ' percent, ' + o.effect + '">' +
+    '<span class="at-1"><b>' + o.title + '</b><span class="ac">' + o.pv.chance + '%</span></span>' +
+    '<span class="at-2">−' + o.pv.hull + o.n + ' hull' + (o.part !== 'torso' ? ' · ' + o.pi.hp + '/' + o.pd.hp : '') + o.tag + '</span><em>' + o.effect + '</em></button>';
+}
+function picker(m) {
+  const tm = MW.fieldMech(ui.pendingTarget);
+  if (!tm) return '';
+  const wd = D[MW.getSlot(m, ui.weaponKey).id];
+  let h = '<div class="pk-h">' + kindIco(wd, 'sm k-' + cardKind(wd)) + '<span>Aim ' + wd.name + ' at ' + tm.name + ' · hull ' + MW.hpOf(tm) + '/' + MW.maxHpOf(tm) + (tm.shield > 0 ? ' · shield ' + tm.shield : '') + '</span><button type="button" class="ib" data-act="cancelFire" aria-label="Cancel aiming">✕</button></div>';
+  // in 3D the choices stand on the mech itself
+  if (R3on) return h + '<p class="note aimnote">Tap a part of ' + tm.name + ' to fire at it.</p>';
+  h += '<div class="pick">';
+  for (const o of aimOptions(m)) h += '<button type="button" class="pb' + (o.part === 'torso' ? ' body' : '') + (o.pv.kill ? ' kill' : '') + '" data-act="shoot" data-part="' + o.part + '" aria-label="Aim at ' + o.title + ', ' + o.pv.chance + ' percent, ' + o.effect + '">' +
+    ico(o.icon, 'pbi') + '<span class="pbt"><b>' + o.title + (o.part !== 'torso' ? ' <small>' + o.pi.hp + '/' + o.pd.hp + '</small>' : '') + o.tag + '</b><em>' + o.effect + '</em></span>' +
+    '<span class="pbn"><b>' + o.pv.chance + '%</b><small>−' + o.pv.hull + o.n + ' hull</small></span></button>';
   return h + '</div>';
 }
 function actionsRow(m) {
   const b = (act, icon, label, dis, cls) => '<button type="button" class="ab' + (cls || '') + '" data-act="' + act + '"' + (dis ? ' disabled' : '') + '>' + ico(icon) + '<span>' + label + '</span></button>';
   let h = '<div class="arow">';
   if (MW.canEntrench(m)) h += m.entrenched ? b('unentrench', 'anchor', 'Pack up') : b('entrench', 'anchor', 'Dig in', false, ' hl');
-  h += b('overwatch', 'eye', 'Overwatch', m.overwatch) + b('brace', 'shield', 'Brace', m.braced);
+  h += b('overwatch', 'overwatch', 'Overwatch', m.overwatch, ' ow') + b('brace', 'brace', 'Brace', m.braced, ' br');
   if (MW.wreckAt(m.x, m.y)) h += b('salvage', 'supply', 'Salvage', false, ' hl');
-  if (MW.inDeployZone(m)) h += b('enter', 'base', 'To base', S.players[m.owner].hangar.filter(x => !MW.isBlank(x)).length >= MW.hangarMax(S.players[m.owner]));
+  if (MW.inDeployZone(m)) h += b('enter', 'tobase', 'To base', S.players[m.owner].hangar.filter(x => !MW.isBlank(x)).length >= MW.hangarMax(S.players[m.owner]));
   if (!MW.hasWeapon(m)) {
     const armed = ui.confirmNuke === m.uid;
     h += b(armed ? 'nuke' : 'nukeArm', 'incendiary', armed ? 'Sure?' : 'Detonate', !MW.coreBlast(m), ' danger');
     h += b('strip', 'supply', 'Strip');
   }
-  return h + b('endAct', 'move', 'End', false, ' end') + '</div>';
+  return h + b('endAct', 'done', 'End', false, ' end') + '</div>';
 }
 function mechDock(m, closable) {
   const own = isHuman() && m.owner === S.current && S.phase === 'combat';
   const guard = own ? MW.actGuard(m) : 'x', live = own && !guard;
   const st = MW.stats(m);
   const flags = [m.heat > st.heatCap ? '<b class="bad">overheating</b>' : '', st.underpowered ? '<b class="bad">low power</b>' : '', m.braced ? 'braced' : '', m.shield > 0 ? 'shield ' + m.shield : '', m.entrenched ? 'dug in' : '', m.burn > 0 ? 'burning' : '', m.slow > 0 ? 'slowed' : '', m.shock ? 'shocked' : '', m.overwatch ? 'on overwatch' : ''].filter(Boolean);
-  let h = '<div class="mh p' + m.owner + '">' + mechSVG(m) + '<div class="mh-t"><div class="mh-1"><b>' + m.name + '</b>' + (S.phase === 'combat' && !m.activated ? pips(m.ap) : '') +
-    '<span class="mh-s"><span title="HP">' + si('hp') + '</span>' + MW.hpOf(m) + '/' + MW.maxHpOf(m) + ' · ' + MW.role(m) + ' · ' + MW.coord(m.x, m.y) + ' · <span title="Heat">' + si('incendiary') + '</span>' + m.heat + '/' + st.heatCap + ' · <span title="Move">' + si('move') + '</span>' + st.move + (flags.length ? ' · ' + flags.join(' · ') : '') + '</span></div>' + hpBar(m, 'mdhp') + '</div>' +
-    '<div class="mh-b"><button type="button" class="ib" data-act="details" aria-label="Details">i</button>' + (closable ? '<button type="button" class="ib" data-act="deselect" aria-label="Close">✕</button>' : '') + '</div></div>';
+  let h = '<div class="mh p' + m.owner + '">' + mechPic(m) + '<div class="mh-t"><div class="mh-1"><b>' + m.name + '</b>' + (S.phase === 'combat' && !m.activated ? pips(m.ap) : '') +
+    '<span class="mh-s">' + MW.role(m) + ' · ' + MW.coord(m.x, m.y) + (flags.length ? ' · ' + flags.join(' · ') : '') + '</span></div></div>' +
+    '<div class="mh-b"><button type="button" class="ib" data-act="details" aria-label="Details">i</button>' + (closable ? '<button type="button" class="ib" data-act="deselect" aria-label="Close">✕</button>' : '') + '</div></div>' +
+    '<div class="mh-stats">' + statBlock(m, true) + '</div>';
   if (S.phase === 'combat' && m.owner !== viewer()) return h + oddsAgainst(m) + enemyWeaponsLine(m);
   if (live && ui.mode === 'fire' && ui.pendingTarget != null) return h + picker(m);
   h += weaponRows(m, live);
@@ -2442,13 +2596,13 @@ function renderDock() {
     h += '<div class="row"><button type="button" class="btn grow" data-act="openShop">Base<small>' + si('supply') + p.supply + ' · ' + si('eng') + p.ep + ' · ' + si('cards') + p.workshop.length + ' cards</small></button>' +
       '<button type="button" class="btn primary grow" data-act="endBuild">End build ›<small>Go to deployment</small></button></div>';
   } else if (S.phase === 'deploy') {
-    h += '<div class="dchips">' + (p.hangar.filter(m => !MW.isBlank(m)).map(m => { const why = MW.canDeploy(p, m); return '<button type="button" class="dchip p' + p.id + (ui.mode === 'deploy' && ui.deployUid === m.uid ? ' on' : '') + '" data-act="pickDeploy" data-uid="' + m.uid + '"' + (why ? ' disabled title="' + why + '"' : '') + '>' + mechSVG(m) + '<span><b>' + m.name + '</b><small>' + (why ? (MW.issues(m).length ? 'Not ready' : 'Field full') : MW.role(m)) + '</small></span></button>'; }).join('') || '<p class="note">No mecha in the hangar.</p>') + '</div>' +
+    h += '<div class="dchips">' + (p.hangar.filter(m => !MW.isBlank(m)).map(m => { const why = MW.canDeploy(p, m); return '<button type="button" class="dchip p' + p.id + (ui.mode === 'deploy' && ui.deployUid === m.uid ? ' on' : '') + '" data-act="pickDeploy" data-uid="' + m.uid + '"' + (why ? ' disabled title="' + why + '"' : '') + '>' + mechPic(m) + '<span><b>' + m.name + '</b><small>' + (why ? (MW.issues(m).length ? 'Not ready' : 'Field full') : MW.role(m)) + '</small></span></button>'; }).join('') || '<p class="note">No mecha in the hangar.</p>') + '</div>' +
       '<div class="row"><button type="button" class="btn sm" data-act="openShop">Hangar</button><button type="button" class="btn sm primary grow" data-act="endDeploy">End deployment ›<small>' + (S.current === S.first ? 'Hand over to ' + S.players[1 - S.current].name : 'Start combat') + '</small></button></div>';
   } else {
     const list = MW.activatable(p.id);
     h += '<div class="mrows">' + list.map(m => {
       const ws = MW.weaponsOf(m).map(wp => { const n = MW.usable(m, wp.key) ? MW.validTargets(m, wp.key).length : 0; return '<span class="' + (n ? 'ok' : '') + '">' + ico(wp.def.cat, 'sm k-' + wp.def.cat) + (wp.inst.hp <= 0 ? 'out' : MW.weaponLock(m, wp.key) ? 'dig in' : n ? n + ' in range' : 'none') + '</span>'; }).join('');
-      return '<button type="button" class="mrow p' + m.owner + '" data-act="selField" data-uid="' + m.uid + '">' + mechSVG(m) + '<span class="mr-t"><b>' + m.name + '</b>' + pips(m.ap) + '</span><span class="wchips">' + (ws || '<span>Unarmed</span>') + '</span></button>';
+      return '<button type="button" class="mrow p' + m.owner + '" data-act="selField" data-uid="' + m.uid + '">' + mechPic(m) + '<span class="mr-t"><b>' + m.name + '</b>' + pips(m.ap) + '</span><span class="wchips">' + (ws || '<span>Unarmed</span>') + '</span></button>';
     }).join('') + '</div>';
     h += '<div class="row"><button type="button" class="btn sm" data-act="openShop">Hangar</button><button type="button" class="btn sm grow" data-act="passAll">Hold with all remaining</button></div>';
   }
@@ -2495,6 +2649,8 @@ function tabs(list, cur, act) {
   return '<div class="wtabs" role="tablist">' + list.map(([k, l]) => '<button type="button" role="tab" class="wtab' + (k === cur ? ' on' : '') + '" aria-selected="' + (k === cur) + '" data-act="' + act + '" data-tab="' + k + '">' + l + '</button>').join('') + '</div>';
 }
 const landPhone = () => !!(window.matchMedia && window.matchMedia('(orientation: landscape) and (max-height: 520px)').matches);
+const PORTRAIT_PHONE = '(orientation: portrait) and (max-width: 640px)';
+const portraitPhone = () => !!(window.matchMedia && window.matchMedia(PORTRAIT_PHONE).matches);
 // the base's resources as icon and number chips for the window header; tap one for what it means
 function baseRes(p) {
   const pr = ui.prevRes && ui.prevRes.pid === p.id ? ui.prevRes : null;
@@ -2514,9 +2670,9 @@ function panelBase(p) {
   if (!m || !build) ui.slotSel = null;
   const tabList = [['frame', 'Frame']].concat(build ? [['cards', 'Parts']] : []).concat([['enemy', 'Enemy']]);
   if (!tabList.some(t => t[0] === ui.wtab)) ui.wtab = 'frame';
-  // the window is laid out after this runs, so judge by the width it will open at: the whole screen on a phone held
-  // sideways, otherwise 72% of the screen up to 1240px
-  const split = landPhone() ? window.innerWidth >= 600 : window.innerWidth >= 900 && Math.min(window.innerWidth * 0.72, 1240) >= 760;
+  // the window is laid out after this runs, so judge by the width it will open at: the whole screen on a phone (the
+  // hangar above the parts when upright, beside them when sideways), otherwise 72% of the screen up to 1240px
+  const split = portraitPhone() || (landPhone() ? window.innerWidth >= 600 : window.innerWidth >= 900 && Math.min(window.innerWidth * 0.72, 1240) >= 760);
   if (split && build && ui.wtab === 'frame') ui.wtab = 'cards';
   // the selected mech's totals ride above the Parts and Enemy tabs when they replace the hangar view
   let h = m && ui.wtab !== 'frame' && !split ? '<div class="pin"><span class="lbl">' + m.name + ' totals · ' + (MW.issues(m).length ? 'not ready' : MW.role(m)) + '</span>' + statBlock(m, false) + '</div>' : '';
@@ -2590,7 +2746,7 @@ function panelBase(p) {
     const rq = MW.canRequisition(p), rqNeed = p.supply < C.REQ_COST && !(!p.deck.length || p.workshop.length >= C.WORKSHOP_MAX);
     const rqb = '<button type="button" class="pfc rq' + (rq ? (rqNeed ? ' blocked' : '') : '') + '"' + (rq ? (rqNeed ? ' data-need="supply" aria-disabled="true"' : ' disabled title="' + rq + '"') : ' data-act="requisition"') + ' aria-label="Draw one more card for ' + C.REQ_COST + ' Supply">' + ico('cards') + '+1<i>' + C.REQ_COST + si('supply') + '</i></button>';
     h += '<div class="pfil" role="group" aria-label="Show parts">' + chip('all', 'All', null, p.workshop.length) + chip('torso', 'Chassis', 'torso', nOf('torso')) + chip('legs', 'Legs', 'legs', nOf('legs')) + chip('arm', 'Weapons', 'dmg', nOf('arm')) + chip('aux', 'Aux', 'aux', nOf('aux')) + '<button type="button" class="pfc cmpt' + (ui.cmp ? ' on' : '') + '" data-act="cmpToggle" aria-pressed="' + !!ui.cmp + '" title="Compare with what is fitted">⇄</button>' + rqb + '</div>';
-    const ws = p.workshop.filter(c => !type || D[c.id].slot === type || D[c.id].slot === 'tactic');
+    const ws = p.workshop.filter(c => !type || D[c.id].slot === type || D[c.id].slot === 'tactic' || D[c.id].slot === 'event');
     const std = MW.standardFor(p).map(id => D[id]).filter(d => !type || d.slot === type);
     const list = items => '<div class="cardlist" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' + items.join('') + '</div>';
     h += (slotType ? '<div class="slotline"><span class="note">Parts for the ' + MW.slotName(slotType).toLowerCase() + '</span></div>' : '') +
@@ -2668,7 +2824,7 @@ function swapWarn(m, d, el) {
   return true;
 }
 function revealCard(d, i) {
-  if (d.event) return '<div class="rcard event k-event" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico('event') + '</span><span class="now">Event · takes effect now</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
+  if (d.event) return '<div class="rcard event k-event" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico('event') + '</span><span class="now">Event · keep it and play it when it counts</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
   return '<div class="rcard k-' + cardKind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms">' + (partPic(d, 'big') || '<span class="badge big">' + kindIco(d) + '</span>') + '<span class="lbl">' + (d.special ? '<span class="star">★</span> ' : '') + KIND_NAME[cardKind(d)] + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
 }
 function renderReveal() {
@@ -2683,7 +2839,7 @@ function renderReveal() {
   el.className = 'p' + p.id;
   el.innerHTML = '<div class="rv-head"><span class="lbl">' + p.name + ' · Round ' + S.round + ' · ' + (p.wave ? 'Extra draw' : 'Arsenal draw') + '</span><h2>' + (p.wave ? (p.waveFrom || 'Extra draw') + ': ' + n + ' more' : n + ' new card' + (n > 1 ? 's' : '')) + '</h2></div>' +
     '<div class="rv-cards">' + p.incoming.map((c, i) => revealCard(D[c.id], i)).join('') + '</div>' +
-    '<div class="rv-foot"><span class="note">' + p.deck.length + ' cards left in your Arsenal · Workshop ' + p.workshop.length + '/' + C.WORKSHOP_MAX + '</span><button type="button" class="btn primary" data-act="acceptDraw">' + (p.incoming.some(c => D[c.id].event) ? 'Collect ›<small>Events resolve, parts go to the Workshop</small>' : 'Add to Workshop ›<small>Then build</small>') + '</button></div>';
+    '<div class="rv-foot"><span class="note">' + p.deck.length + ' cards left in your Arsenal · Workshop ' + p.workshop.length + '/' + C.WORKSHOP_MAX + '</span><button type="button" class="btn primary" data-act="acceptDraw">' + 'Add to Workshop ›<small>Then build</small>' + '</button></div>';
 }
 function logHTML() {
   const sp = winSpace(160), per = Math.max(6, Math.floor(sp.h / 21));
@@ -2877,8 +3033,8 @@ function layoutPad() {
 }
 if (window.ResizeObserver) { const ro = new ResizeObserver(() => layoutPad()); ['#hud', '#dock', '#win'].forEach(s => ro.observe(document.querySelector(s))); }
 window.addEventListener('resize', () => layoutPad());
-// turning a phone switches the Base window between tabs and side by side
-if (window.matchMedia) { const mq = window.matchMedia('(orientation: landscape) and (max-height: 520px)'); const on = () => { if (S && !$('#game').hidden) render(); }; if (mq.addEventListener) mq.addEventListener('change', on); else if (mq.addListener) mq.addListener(on); }
+// turning a phone changes how the Base window is laid out
+if (window.matchMedia) for (const q of ['(orientation: landscape) and (max-height: 520px)', PORTRAIT_PHONE]) { const mq = window.matchMedia(q); const on = () => { if (S && !$('#game').hidden) render(); }; if (mq.addEventListener) mq.addEventListener('change', on); else if (mq.addListener) mq.addListener(on); }
 function mountHangar() {
   const el = document.getElementById('h3d');
   if (!el) return;
@@ -3080,7 +3236,7 @@ function onAct(el) {
     case 'repair': if (hm && ui.slotSel) { const r = MW.repair(p, hm, el.dataset.key || ui.slotSel); if (r.ok) ui.flash = { m: hm.uid, key: ui.slotSel, cls: 'fx-fix' }; return after(r, 'Repaired.'); } return;
     case 'dismantle': if (hm) { ui.slotSel = null; return after(MW.dismantle(p, hm)); } return;
     case 'scrap': { $('#overlay').hidden = true; const c = p.workshop.find(x => x.uid === +el.dataset.uid), v = c ? MW.sellValue(D[c.id]) : 1; return after(MW.scrapCard(p, +el.dataset.uid), 'Sold for ' + v + ' Supply.'); }
-    case 'play': return after(MW.playTactic(p, +el.dataset.uid), 'Tactic played.');
+    case 'play': { const c = p.workshop.find(x => x.uid === +el.dataset.uid); return after(MW.playTactic(p, +el.dataset.uid), (c ? D[c.id].name : 'Card') + ' played.'); }
     case 'acceptDraw': return after(MW.acceptDraw(), 'Added to the Workshop.');
     case 'requisition': return after(MW.requisition(p));
     case 'endBuild': {

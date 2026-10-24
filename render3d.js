@@ -269,6 +269,16 @@ function panelDetail(m, g, mat) {
   else { const t = 0.5; mesh(box(0.006, h * 0.7, 0.006), ink, m, [w * 0.18, 0, front(t)], [Math.atan2((d / 2) * (1 - tz) - sz, h), 0, 0], flat); }
   if (w >= 0.2 && h >= 0.15) for (const sx of [-1, 1]) { const t = 0.82; mesh(cyl(0.008, 0.008, 0.008, 6), ink, m, [sx * (w / 2) * (1 + (tx - 1) * t) * 0.78, -h / 2 + h * t, front(t)], [Math.PI / 2, 0, 0], flat); }
 }
+// every part is built a hair larger than drawn: its faces move out by a tiny distance unique to it (0.5 to 4
+// thousandths of a unit, spread by the golden ratio), so two parts that meet flush or overlap never share a face
+// plane and no pair of faces can z-fight. The distance is fixed rather than a percentage so small parts separate too.
+let JIT = 0;
+function jitter(g) {
+  if (!g.boundingSphere) g.computeBoundingSphere();
+  const d = 0.0005 + 0.0035 * ((++JIT * 0.6180339887) % 1), x = d / (0.08 * Math.max(0.003, g.boundingSphere.radius));
+  // growth stays under 15% on the smallest bolts, and never flattens out, so every part's offset stays its own
+  return 1 + 0.15 * x / (1 + x);
+}
 function mesh(g, mat, parent, pos, rot, opt) {
   // decals and trim laid flat on a surface get a small, constant depth bias so they win over the surface
   // underneath; solid parts get none, so nothing behind a part can ever poke through it as the view turns
@@ -276,6 +286,7 @@ function mesh(g, mat, parent, pos, rot, opt) {
   const m = new T.Mesh(g, mat);
   if (pos) m.position.set(pos[0], pos[1], pos[2]);
   if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
+  if (mat !== GHOST && mat !== GHOST_SEL) m.scale.setScalar(jitter(g));
   m.castShadow = !(opt && opt.noShadow) && mat !== GHOST;
   m.receiveShadow = !!(opt && opt.recv);
   if (!(opt && opt.noOutline) && mat.type !== 'MeshBasicMaterial') outline(m);
@@ -834,7 +845,8 @@ function shoulderArmor(sh, sx, tc, style, k) {
     for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mesh(cyl(0.007, 0.007, 0.008, 6), toon(tc.metal), sh, [sx * (0.03 + 0.083 * k), 0.01 + Math.cos(a) * 0.038 * k, Math.sin(a) * 0.038 * k], [0, 0, Math.PI / 2], flat); }
     const R0 = 0.11 * k;
     for (const [i, a] of [[0, 0.15], [1, 0.75], [2, 1.35]]) {
-      const plate = mesh(box(0.11 * k, 0.06 * k, 0.24 * k), toon(i === 1 ? tc.second : tc.main), sh, [sx * (0.03 + (R0 + 0.012 * k) * Math.sin(a)), 0.01 + (R0 + 0.012 * k) * Math.cos(a), 0], [0, 0, -sx * a]);
+      // each plate a little shorter than the one beneath it, so where they overlap their end faces never share a plane
+      const plate = mesh(box(0.11 * k, 0.06 * k, (0.24 - i * 0.016) * k), toon(i === 1 ? tc.second : tc.main), sh, [sx * (0.03 + (R0 + 0.012 * k) * Math.sin(a)), 0.01 + (R0 + 0.012 * k) * Math.cos(a), 0], [0, 0, -sx * a]);
       rivets(plate, toon(tc.dark), [[-0.03 * k, 0.017 * k, 0.07 * k], [0.03 * k, 0.017 * k, -0.07 * k]].map(q => [q[0], q[1], q[2]]));
     }
     mesh(box(0.1 * k, 0.012, 0.02), toon(tc.accent), sh, [sx * (0.03 + R0 * Math.sin(0.15)), 0.01 + R0 + 0.02 * k, 0.09 * k], [0, 0, -sx * 0.15], flat);
@@ -1219,7 +1231,12 @@ const key = (x, y) => x + ',' + y;
 const EL_34 = 0.62;
 const ISO_AZ = Math.PI / 4;
 // swing to the isometric angle, 45 degrees off whichever way the board is turned
-function iso(G) { G.el = EL_34; G.az = BD.viewAz + ISO_AZ; }
+// on a tall screen (a phone held upright) the board is seen from behind your own base instead, still at a
+// three-quarter angle, so its long side runs up the screen and it fills the width
+const EL_TALL = 0.8, AZ_TALL = 0.14;
+// judged on the whole canvas, so a panel opening over the map never swings the camera round
+function tall() { return !!BD && BD.size.w / Math.max(1, BD.size.h) < 0.85; }
+function iso(G) { const t = tall(); G.el = t ? EL_TALL : EL_34; G.az = BD.viewAz + (t ? AZ_TALL : ISO_AZ); }
 R3.mount = function (el, onTap) {
   if (BD) {
     if (BD.el !== el) { if (BD.ro) { BD.ro.unobserve(BD.el); BD.ro.observe(el); } el.appendChild(BD.renderer.domElement); BD.el = el; BD.resize(); }
@@ -1272,11 +1289,23 @@ function baseExtent(az, el) {
   if (hw / hh > a) hh = hw / a; else hw = hh * a;
   return { hw, hh };
 }
+// the camera rides along with a mech that is walking or jumping, then eases into the view the game asked for
+function follow() {
+  const F = BD.follow, rec = BD.recs[F.uid];
+  if (rec && rec.walk) {
+    F.seen = true;
+    if (clock() >= rec.walk.t0) { const w = BD.group.localToWorld(rec.R.root.position.clone()); BD.rigT.tx = w.x; BD.rigT.tz = w.z; }
+  } else if (F.seen || !rec || clock() - F.t0 > 4) { BD.follow = null; applyIntent(); }
+}
 function camUpdate(dt) {
+  if (BD.follow) follow();
   const C = BD.rig, G = BD.rigT, k = 1 - Math.exp(-dt * (BD.camRate || 6)), cam = BD.cam;
   let da = G.az - C.az; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
   C.az += da * k; C.el += (G.el - C.el) * k; C.zoom += (G.zoom - C.zoom) * k; C.tx += (G.tx - C.tx) * k; C.tz += (G.tz - C.tz) * k;
   if (BD.padT) for (const s of ['t', 'r', 'b', 'l']) BD.pad[s] += (BD.padT[s] - BD.pad[s]) * k;
+  // turning the screen between tall and wide swaps the battle camera's angle
+  const tl = tall();
+  if (BD.tall !== tl) { if (BD.tall !== undefined && !BD.previewMap) { iso(G); keepOnBoard(G); } BD.tall = tl; }
   const P = new T.Vector3(C.tx, 0, C.tz);
   const dir = new T.Vector3(Math.sin(C.az) * Math.cos(C.el), Math.sin(C.el), Math.cos(C.az) * Math.cos(C.el));
   cam.position.copy(P).addScaledVector(dir, 30);
@@ -1294,7 +1323,7 @@ function camUpdate(dt) {
 // where a tile sits in the world, after the board is turned for the guest
 function worldTile(x, y) { BD.group.updateMatrixWorld(); return tp(x, y).applyMatrix4(BD.group.matrixWorld); }
 // frame a set of tiles: centre on them and zoom until they fit, within limits
-function focusTiles(list, zMin, zMax) {
+function focusTiles(list, zMin, zMax, hop) {
   if (!list.length) return;
   const G = BD.rigT, pts = list.map(([x, y]) => worldTile(x, y));
   // measure the tiles along the screen's axes for the angle the camera is heading to
@@ -1304,7 +1333,8 @@ function focusTiles(list, zMin, zMax) {
   const cr = (r0 + r1) / 2, cf = (f0 + f1) / 2;
   G.tx = right.x * cr + fwd.x * cf; G.tz = right.z * cr + fwd.z * cf;
   const e = baseExtent(G.az, G.el), sinE = Math.max(0.5, Math.sin(G.el));
-  const needW = (r1 - r0) / 2 + 0.75, needH = ((f1 - f0) / 2 + 0.75) * sinE + 0.35;
+  // a jump rises above the tiles: the view must be tall enough to keep its top in frame
+  const needW = (r1 - r0) / 2 + 0.75, needH = ((f1 - f0) / 2 + 0.75) * sinE + 0.35 + (hop || 0) * Math.cos(G.el);
   G.zoom = Math.max(zMin, Math.min(zMax, e.hw / needW, e.hh / needH));
   keepOnBoard(G);
 }
@@ -1319,11 +1349,24 @@ function keepOnBoard(G, slack) {
   G.tx = Math.max(-lx, Math.min(lx, G.tx));
   G.tz = Math.max(-lz, Math.min(lz, G.tz));
 }
-function overview() { Object.assign(BD.rigT, { tx: 0, tz: 0, zoom: 1, el: EL_34, az: BD.viewAz + ISO_AZ }); }
+function overview() { Object.assign(BD.rigT, { tx: 0, tz: 0, zoom: 1 }); iso(BD.rigT); }
 // what the camera should rest on: deployment at your base, the selected mech, or the whole map
 function applyIntent() {
   const c = BD.intentSpec || {};
-  if (c.deploy != null) {
+  if (c.aim != null) {
+    // aiming at a mech: close in on it, at the three-quarter angle, so its parts can be picked one by one, with the
+    // middle of its body (not the tile it stands on) in the centre of the clear part of the screen
+    const G = BD.rigT;
+    iso(G);
+    focusTiles([[c.x, c.y]], 2.9, 3.4);
+    const rec = BD.recs[c.aim];
+    if (rec) {
+      const bb = new T.Box3().setFromObject(rec.R.root), mid = new T.Vector3(); bb.getCenter(mid);
+      // a point h above the ground sits where the ground h / tan(elevation) further away would be
+      const back = Math.max(0, mid.y) / Math.tan(G.el);
+      G.tx = mid.x - Math.sin(G.az) * back; G.tz = mid.z - Math.cos(G.az) * back;
+    }
+  } else if (c.deploy != null) {
     const b = window.MW.S.players[c.deploy].base;
     iso(BD.rigT);
     focusTiles([[b.x, b.y]].concat(window.MW.deployTiles(c.deploy)), 1.3, 1.9);
@@ -1345,7 +1388,7 @@ R3.settle = () => { if (BD) Object.assign(BD.rig, BD.rigT); };
 R3.cam = function (kind) {
   if (!BD) return;
   const G = BD.rigT;
-  if (kind === 'overview') { BD.viewAz = 0; Object.assign(G, { az: ISO_AZ, el: EL_34, zoom: 1, tx: 0, tz: 0 }); BD.userT = clock(); }
+  if (kind === 'overview') { BD.viewAz = 0; Object.assign(G, { zoom: 1, tx: 0, tz: 0 }); iso(G); BD.userT = clock(); }
   else if (kind === 'rotL' || kind === 'rotR') { const d = kind === 'rotL' ? Math.PI / 2 : -Math.PI / 2; BD.viewAz += d; G.az += d; }
   else if (kind === 'in') G.zoom = Math.min(3.5, G.zoom * 1.3);
   else if (kind === 'out') G.zoom = Math.max(0.8, G.zoom / 1.3);
@@ -1395,6 +1438,18 @@ function bindCameraInput(cv) {
     ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     BD.scene.updateMatrixWorld(true); BD.cam.updateMatrixWorld();
     ray.setFromCamera(ndc, BD.cam);
+    // aiming: the part of the target under the finger, or nothing
+    if (BD.aimUid != null) {
+      const rec = BD.recs[BD.aimUid];
+      if (!rec || !BD.onAim) return;
+      for (const h of ray.intersectObject(rec.R.root, true)) {
+        const sl = h.object.userData.slot;
+        if (!sl) continue;
+        const part = Object.keys(PART_SLOTS).find(k => PART_SLOTS[k].includes(sl));
+        if (part) { BD.onAim(part); return; }
+      }
+      return;
+    }
     const hits = ray.intersectObjects(BD.group.children, true), cands = [];
     for (const h of hits) {
       let o = h.object;
@@ -1755,9 +1810,10 @@ R3.sync = function (v) {
   if (BD.turretRings) BD.turretRings.forEach((g, i) => { g.visible = v.S.players[i].base.hp > 0; });
   BD.labels = v.labels || [];
   BD.baseHp = v.baseHp;
+  BD.aimUid = v.aim != null ? v.aim : null; BD.onAim = v.onAim || null;
   const c = v.cam || {};
-  const intent = c.deploy != null ? 'd' + c.deploy : c.frame ? 'f' + c.key : c.plan ? 'p' + c.key : c.sel != null ? 's' + c.sel : 'o';
-  if (intent !== BD.intent) { BD.intent = intent; BD.intentSpec = c; BD.focusTok++; applyIntent(); }
+  const intent = c.aim != null ? 'a' + c.aim : c.deploy != null ? 'd' + c.deploy : c.frame ? 'f' + c.key : c.plan ? 'p' + c.key : c.sel != null ? 's' + c.sel : 'o';
+  if (intent !== BD.intent) { BD.intent = intent; BD.intentSpec = c; BD.focusTok++; if (!BD.follow) applyIntent(); }
 };
 const OV_COL = { reach: 0xf2c230, dep: 0xf2c230, owd: 0xff7a3a, target: 0xef4a3a, threat: 0xef4a3a, 'ez-now': 0xef4a3a, 'ez-later': 0xef4a3a };
 const OV_OP = { reach: 0.36, dep: 0.45, owd: 0.5, target: 0.5, threat: 0.2, 'ez-now': 0.42, 'ez-later': 0.18 };
@@ -1978,10 +2034,14 @@ R3.fx = function (list) {
   // the player moving the camera by hand in the last moment wins over the automatic framing
   // the camera gets there first; the action only starts once it has (nearly) arrived
   let lead = 0, tok = null;
+  const mv = list.find(f => f.k === 'move' && f.path && f.path.length > 1);
+  const hop = mv && mv.jump ? 1.1 + 0.1 * (mv.path.length - 1) : 0;
   if (spots.length && clock() - BD.userT > 1.2) {
     const was = Object.assign({}, BD.rig);
     iso(BD.rigT);
-    focusTiles(spots, 1.6, 2.5);
+    focusTiles(spots, hop ? 1 : 1.6, 2.5, hop);
+    // a move is followed all the way: the camera travels with the mech and only settles once it has landed
+    if (mv) BD.follow = { uid: mv.uid, t0: clock(), seen: false };
     const G = BD.rigT;
     let da = G.az - was.az; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
     const travel = Math.hypot(G.tx - was.tx, G.tz - was.tz) + Math.abs(G.zoom - was.zoom) * 1.5 + Math.abs(da) * 2 + Math.abs(G.el - was.el) * 2;
@@ -2201,7 +2261,38 @@ function loop() {
   };
   requestAnimationFrame(step);
 }
+// while aiming, everything but the target mech and the ground is hidden; it all comes back when aiming ends
+function aimView() {
+  if (BD.aimFor === BD.aimUid) return;
+  for (const o of BD.aimHid || []) o.visible = true;
+  BD.aimHid = []; BD.aimFor = BD.aimUid;
+  const rec = BD.aimUid != null ? BD.recs[BD.aimUid] : null;
+  if (!rec) return;
+  // the ground and the tile highlights stay; scenery, other mecha and effects go
+  const keep = new Set([rec.R.root, rec.blob, rec.selRing].concat(Object.values(BD.ov)));
+  for (const o of BD.group.children) if (o.visible && !keep.has(o) && !o.userData.ground) { o.visible = false; BD.aimHid.push(o); }
+}
+// the screen centre of one part of a mech, in board space, for the aiming tags
+const PART_SLOTS = { torso: ['torso', 'core', 'aux0', 'aux1', 'aux2'], armL: ['armL'], armR: ['armR'], legs: ['legs'] };
+function partCentre(rec, part) {
+  const bb = new T.Box3(), want = PART_SLOTS[part] || [part];
+  rec.R.root.updateMatrixWorld(true);
+  rec.R.root.traverse(o => { if (o.isMesh && o.visible && want.includes(o.userData.slot)) bb.expandByObject(o); });
+  if (bb.isEmpty()) return null;
+  const c = new T.Vector3(); bb.getCenter(c);
+  return BD.group.worldToLocal(c);
+}
+// the target's outline on screen, so the aiming tags can stand clear of it
+function screenBox(rec) {
+  const bb = new T.Box3().setFromObject(rec.R.root), b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+  for (const x of [bb.min.x, bb.max.x]) for (const y of [bb.min.y, bb.max.y]) for (const z of [bb.min.z, bb.max.z]) {
+    const s = project(BD.group.worldToLocal(new T.Vector3(x, y, z)));
+    b.x0 = Math.min(b.x0, s.x); b.x1 = Math.max(b.x1, s.x); b.y0 = Math.min(b.y0, s.y); b.y1 = Math.max(b.y1, s.y);
+  }
+  return b;
+}
 function renderBoardFrame(dt) {
+  aimView();
   camUpdate(dt);
   BD.renderer.render(BD.scene, BD.cam);
   inkPass(BD.renderer, BD.scene, BD.cam, BD.group, BD.ink || (BD.ink = { weight: 0.55, alpha: 0.7 }));
@@ -2217,9 +2308,25 @@ function positionLabels() {
   // zoomed out to the overview, labels shrink to just the HP bar; zoomed in they show everything
   const box0 = BD.labels.length && BD.labels[0].el && BD.labels[0].el.parentNode;
   if (box0) box0.classList.toggle('compact', BD.rig.zoom < 1.3 && window.MW.W > 9);
+  let aimBox = null;
   for (const L of BD.labels) {
     let p;
-    if (L.uid != null) { const rec = BD.recs[L.uid]; if (!rec) { L.el.style.display = 'none'; continue; } p = rec.R.root.position.clone(); p.y += L.h; }
+    if (L.uid != null && L.part) {
+      // an aiming tag: the body's above the mech, the legs' below it, each arm's out to the side it is on
+      const rec = BD.recs[L.uid]; p = rec ? partCentre(rec, L.part) : null;
+      if (!p) { L.el.style.display = 'none'; continue; }
+      const s = project(p), b = aimBox || (aimBox = screenBox(rec)), cx = (b.x0 + b.x1) / 2, w = L.el.offsetWidth || 120, h = L.el.offsetHeight || 50;
+      if (L.part === 'torso') { s.x = cx; s.y = b.y0 - h / 2 - 6; }
+      else if (L.part === 'legs') { s.x = cx; s.y = b.y1 + h / 2 + 6; }
+      else { const side = Math.sign(s.x - cx) || (L.part === 'armL' ? -1 : 1); s.x = side < 0 ? b.x0 - w / 2 - 6 : b.x1 + w / 2 + 6; }
+      // kept inside the part of the screen the HUD leaves clear
+      const P = BD.pad;
+      s.x = Math.max(P.l + w / 2 + 4, Math.min(BD.size.w - P.r - w / 2 - 4, s.x)); s.y = Math.max(P.t + h / 2 + 4, Math.min(BD.size.h - P.b - h / 2 - 4, s.y));
+      L.el.style.display = '';
+      L.el.style.transform = 'translate(' + s.x.toFixed(1) + 'px,' + s.y.toFixed(1) + 'px)';
+      continue;
+    }
+    else if (L.uid != null) { const rec = BD.recs[L.uid]; if (!rec) { L.el.style.display = 'none'; continue; } p = rec.R.root.position.clone(); p.y += L.h; }
     else p = tp(L.x, L.y, L.h || 0);
     const s = project(p);
     // tags just past the edge are nudged inside the stage; ones far off screen are hidden rather than pinned to the edge
@@ -2451,7 +2558,7 @@ function makeViewer() {
   renderer.setClearColor(0x1b232c);
   const canvas = renderer.domElement; canvas.className = 'h3d-canvas';
   const scene = new T.Scene();
-  const cam = new T.PerspectiveCamera(34, 1, 0.1, 50);
+  const cam = new T.PerspectiveCamera(34, 1, 0.25, 50);
   cam.position.set(0, 1.45, 4.3); cam.lookAt(0, 0.95, 0);
   // studio light: key, a cool rim to cut the silhouette from the back wall, and the dome for reflections
   scene.environment = envFor(renderer);
@@ -2616,7 +2723,7 @@ R3.snapshot = function (L, doctrine, owner, opt) {
       scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.5));
       const key = new T.DirectionalLight(0xf2ead8, 1.05); key.position.set(2, 4, 3); scene.add(key);
       const rim = new T.DirectionalLight(0xa8d0ff, 0.6); rim.position.set(-3, 2, -3); scene.add(rim);
-      const cam = new T.PerspectiveCamera(30, 240 / 300, 0.1, 50);
+      const cam = new T.PerspectiveCamera(30, 240 / 300, 0.25, 50);
       const holder = new T.Group(); scene.add(holder);
       PR = { renderer, scene, cam, holder, ink: { weight: 1.2 } };
     }
@@ -2732,7 +2839,7 @@ function makePreview() {
   scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.5));
   const key2 = new T.DirectionalLight(0xf2ead8, 1.05); key2.position.set(2, 4, 3); scene.add(key2);
   const rim = new T.DirectionalLight(0xa8d0ff, 0.6); rim.position.set(-3, 2, -3); scene.add(rim);
-  const cam = new T.PerspectiveCamera(30, 1, 0.1, 50);
+  const cam = new T.PerspectiveCamera(30, 1, 0.25, 50);
   const holder = new T.Group(); scene.add(holder);
   const fx = new T.Group(); scene.add(fx);
   const ground = new T.Mesh(new T.CircleGeometry(0.6, 40), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false }));
