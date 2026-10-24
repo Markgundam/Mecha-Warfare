@@ -1261,10 +1261,8 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
   #game .pin .res b { font-size: 16px; }
   .split { gap: 10px; }
   .split-l > .h3d { min-height: 120px; }
-  .split-l > .plist { grid-template-rows: 30px; height: 30px; grid-auto-flow: column; grid-auto-columns: max-content; grid-template-columns: none !important; overflow-x: auto; scrollbar-width: none; }
-  .split-l > .plist::-webkit-scrollbar { display: none; }
-  .split-l > .plist .pl { flex-direction: row; align-items: center; gap: 5px; padding: 0 8px; }
-  .split-l > .plist .pl small { font-size: 11px; }
+  .split-l > .plist { grid-template-rows: repeat(2, 30px); height: 64px; gap: 4px; }
+  .split-l > .plist .pl { padding: 0 8px; }
   .split-l > .plist .pl b { font-size: 13px; }
   .h3d-top .tot span { display: none; }
   .h3d-top .tot div { justify-content: center; }
@@ -1341,24 +1339,18 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 .stats .st.over { border-color: #ef5a4a; }
 .stats .st.over b { color: #ff8a80; }
 .stats .seg.low i.on, .stats .bar.low i { background: #ef5a4a; }
-/* on the gantry's sides (wide screens): a column of stats left of the mech, its slots on the right */
-.h3d.flank { min-height: 360px; }
-.h3d-side { position: absolute; top: 10px; bottom: 10px; z-index: 2; width: clamp(118px, 21%, 168px); display: flex; flex-direction: column; justify-content: center; gap: 6px; pointer-events: none; }
-.h3d-side > * { pointer-events: auto; }
-.h3d-side.l { left: 10px; } .h3d-side.r { right: 10px; }
-.h3d-side .stats { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-.h3d-side .stats .st { padding: 8px 10px; }
-.h3d-side .stats b { font-size: 24px; }
-#game .h3d-side .plist { display: flex; flex-direction: column; height: auto; gap: 6px; overflow: visible; grid-template-columns: none !important; }
-#game .h3d-side .pl { width: 100%; min-height: 40px; padding: 6px 10px; border-radius: 8px; background: rgba(9, 15, 21, .72); border-color: rgba(255, 255, 255, .1); }
-#game .h3d-side .pl.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-#game .h3d-side .pl b { white-space: normal; line-height: 1.15; }
-.h3d.flank .h3d-bin { right: auto; left: 50%; transform: translateX(-50%); }
-/* when the stats sit across the top of the viewer, keep them to one slim row */
-.h3d-top .stats .st { grid-template-areas: "ic val" "m m"; grid-template-columns: auto minmax(0, 1fr); padding: 4px 6px; }
-.h3d-top .stats .st-l { display: none; }
-.h3d-top .stats b { font-size: 16px; justify-self: end; }
+/* the stats run across the top of the viewer in one row: label and number over a meter, the label dropped
+   where the row is narrow */
+.h3d-top .stats { width: 100%; }
+.h3d-top .stats .st { padding: 5px 8px; }
+.h3d-top .stats b { font-size: 18px; justify-self: end; }
 .h3d-top .stats .sm { height: 4px; }
+#game .plist { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; grid-template-rows: repeat(2, minmax(34px, auto)); height: auto; }
+@media (max-width: 1199px), (orientation: landscape) and (max-height: 520px) {
+  .h3d-top .stats .st { grid-template-areas: "ic val" "m m"; grid-template-columns: auto minmax(0, 1fr); padding: 4px 6px; }
+  .h3d-top .stats .st-l { display: none; }
+  .h3d-top .stats b { font-size: 16px; }
+}
 /* taller part cards so the render reads */
 #game .cpic { height: 150px; }
 /* the parts list scrolls without a visible bar */
@@ -2561,11 +2553,10 @@ function panelBase(p) {
       const missing = MW.isBlank(m) ? [] : ['torso', 'legs'].filter(k => !m.slots[k] || m.slots[k].hp <= 0);
       const warn = missing.length ? '<div class="h3d-warn">' + missing.map(k => (build ? '<button type="button" data-act="slot" data-key="' + k + '"' : '<span') + ' class="mwarn">⚠ ' + (m.slots[k] ? MW.slotName(k) + ' destroyed' : 'No ' + MW.slotName(k).toLowerCase()) + (build ? '</button>' : '</span>')).join('') + '<small>Can’t deploy</small></div>' : '';
       if (build && !R3on) h += buildSteps(m);
-      const flank = R3on && split && !landPhone(), stats = MW.isBlank(m) ? '' : statBlock(m, false);
-      const top = '<div class="h3d-top">' + (flank ? '' : stats) + warn + '</div>';
+      const top = '<div class="h3d-top">' + (MW.isBlank(m) ? '' : statBlock(m, false)) + warn + '</div>';
       const bin = build && !MW.isBlank(m) && !ui.slotSel ? '<button type="button" class="btn sm ghost ibtn h3d-bin" data-act="dismantle" title="Dismantle" aria-label="Dismantle ' + m.name + '">' + ico('trash') + '</button>' : '';
-      h += R3on ? '<div class="h3d' + (flank ? ' flank' : '') + '" id="h3d">' + top + (flank ? '<div class="h3d-side l">' + stats + '</div><div class="h3d-side r">' + partList(m, build) + '</div>' : '') + bin + '</div>' : warn + blueprint(m, build);
-      if (R3on && !flank) h += partList(m, build);
+      h += R3on ? '<div class="h3d" id="h3d">' + top + bin + '</div>' : warn + blueprint(m, build);
+      if (R3on) h += partList(m, build);
       const issue = is.length && !MW.isBlank(m) ? '<span class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</span>' : '';
       if (!build && !deploying) h += '<div class="slotline">' + (issue || '<span class="note">' + m.name + ' · ' + (MW.isBlank(m) ? 'empty frame' : MW.role(m)) + '</span>') + '</div>';
       if (build) {

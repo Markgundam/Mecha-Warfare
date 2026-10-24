@@ -2514,11 +2514,7 @@ function updateViewer(t, dt) {
   // no idle motion: the mech stands still, facing the way it was last left
   HV.holder.rotation.y = HV.rot;
   if (!HV.sel && HV.fit && HV.h) {
-    // panels standing at the viewer's sides (stats, slots) leave a narrower column for the mech
-    let side = 0; const host = HV.canvas.parentElement;
-    // the arms may tuck a little behind the panels; the body stays clear of them
-    if (host) host.querySelectorAll('.h3d-side').forEach(el => { side = Math.max(side, el.offsetWidth * 0.75); });
-    const f = HV.fit, tv = Math.tan(HV.cam.fov * Math.PI / 360), th = tv * HV.cam.aspect * Math.max(0.4, (HV.w - 2 * side) / HV.w);
+    const f = HV.fit, tv = Math.tan(HV.cam.fov * Math.PI / 360), th = tv * HV.cam.aspect;
     const top = HV.topEl && HV.topEl.isConnected ? HV.topEl.offsetTop + HV.topEl.offsetHeight + 6 : 8, bot = 10;
     const u = Math.max(0.45, 1 - (top + bot) / HV.h);
     const hh = (f.hi - f.lo) / 2 * 1.1, rr = f.r * 1.12;
