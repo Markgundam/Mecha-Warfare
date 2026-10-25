@@ -26,7 +26,7 @@ for (const { r, t: s } of log) {
   let m;
   if ((m = s.match(/^(\w+) is led by a (\w+) commander/))) { const i = side(m[1]); if (i >= 0) persona[i] = m[2].toLowerCase(); }
   else if ((m = s.match(/^(\w+) deploys (\w+) \(([^)]*)\)/))) { const i = side(m[1]); if (i >= 0) { owner[m[2]] = i; t[i].deployed.push('R' + r + ' ' + m[2] + ' (' + m[3] + ')'); onField[i].add(m[2]); } }
-  else if ((m = s.match(/^(\w+) sells (.+) for/))) { const i = side(m[1]); if (i >= 0) t[i].sold.push('R' + r + ' ' + m[2]); }
+  else if ((m = s.match(/^(\w+) (?:sells|scraps) (.+) for/))) { const i = side(m[1]); if (i >= 0) t[i].sold.push('R' + r + ' ' + m[2]); }
   else if ((m = s.match(/^(\w+) fits /))) { const i = side(m[1]); if (i >= 0) t[i].fits++; }
   else if ((m = s.match(/^(\w+) \((\w+)\) (.+)\.$/))) { const i = side(m[1]); if (i >= 0) t[i].stance.push('R' + r + ' ' + m[3]); }
   else if ((m = s.match(/^(\w+) fires (.+) at (\w+) \((\d+)%\) and (hits|misses)/))) {
@@ -42,7 +42,7 @@ for (const { r, t: s } of log) {
   else if ((m = s.match(/^(\w+) is destroyed/))) { const v = owner[m[1]]; if (v != null) { t[v].lost.push('R' + r + ' ' + m[1] + ' ← ' + (lastHit[m[1]] || 'unknown')); bump(t[1 - v].kills, lastHit[m[1]] || 'unknown'); onField[v].delete(m[1]); } }
   else if ((m = s.match(/^(\w+) returns to base/))) { const i = owner[m[1]]; if (i != null) { onField[i].delete(m[1]); bump(t[i].actions, 'return to base'); } }
   else if ((m = s.match(/^(\w+) moves /))) { const i = owner[m[1]]; if (i != null) bump(t[i].actions, 'move'); }
-  else if ((m = s.match(/^(\w+) (braces|digs in|goes on overwatch)/))) { const i = owner[m[1]]; if (i != null) bump(t[i].actions, m[2]); }
+  else if ((m = s.match(/^(\w+) (braces|emplaces|goes on overwatch)/))) { const i = owner[m[1]]; if (i != null) bump(t[i].actions, m[2]); }
   else if ((m = s.match(/^(\w+) earns (\d+) victory points? for (.+?)\.?$/))) { const i = side(m[1]); if (i >= 0) bump(t[i].vp, m[3], +m[2]); }
   else if ((m = s.match(/^(\w+) captures the (\w+)/))) { const i = side(m[1]); if (i >= 0) bump(t[i].vp, 'captures (count)'); }
   else if (s === 'Combat begins.') [0, 1].forEach(i => { t[i].fieldByRound[r] = onField[i].size; });

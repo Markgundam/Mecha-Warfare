@@ -32,7 +32,7 @@ for (let g = 0; g < +N; g++) {
         t[i].fieldRounds++; t[i].fielded += f;
         if (!f && S.round > 1) t[i].emptyRounds++;
         if (p.hangar.some(m => !MW.isBlank(m) && (MW.issues(m).length || !m.slots.armL && !m.slots.armR))) t[i].unbuiltRounds++;
-        t[i].supplyIdle += p.supply;
+        t[i].supplyIdle += p.ep;
       });
     }
     MW.fieldMechs(0).concat(MW.fieldMechs(1)).forEach(m => { mechOwner[m.name] = m.owner; if (born[m.uid] == null) { born[m.uid] = S.round; t[m.owner].deployed++; } });
@@ -42,7 +42,7 @@ for (let g = 0; g < +N; g++) {
     for (; logAt < L.length; logAt++) {
       const s = L[logAt].t, k = L[logAt].k, pid = k === 'p0' ? 0 : k === 'p1' ? 1 : -1;
       let m;
-      if ((m = s.match(/^(\w+) sells (.+) for/))) { const o = owner(m[1]); const def = Object.values(D).find(x => x.name === m[2]); if (o >= 0 && def) bump(t[o].sold, def.slot === 'arm' ? 'weapon' : def.slot); }
+      if ((m = s.match(/^(\w+) (?:sells|scraps) (.+) for/))) { const o = owner(m[1]); const def = Object.values(D).find(x => x.name === m[2]); if (o >= 0 && def) bump(t[o].sold, def.slot === 'arm' ? 'weapon' : def.slot); }
       else if ((m = s.match(/^(\w+) fires (.+) at (\w+) \((\d+)%\) and (hits|misses)/))) {
         const w = weapon[m[2]] = weapon[m[2]] || { shots: 0, hits: 0, exp: 0, dmg: 0, kills: 0 };
         w.shots++; w.exp += +m[4] / 100; if (m[5] === 'hits') { w.hits++; lastHit[m[3]] = { src: m[2], w }; }
@@ -59,14 +59,14 @@ for (let g = 0; g < +N; g++) {
         const o = mechOwner[m[1]]; if (o != null) { t[o].lost++; t[1 - o].kills++; }
       }
       else if ((m = s.match(/^(\w+) moves /))) { if (mechOwner[m[1]] != null) bump(t[mechOwner[m[1]]].acts, 'move'); }
-      else if ((m = s.match(/^(\w+) (digs in|braces|goes on overwatch|returns to base|hits \w+'s base)/))) { if (mechOwner[m[1]] != null) bump(t[mechOwner[m[1]]].acts, m[2].replace(/ \w+'s base/, ' base')); }
+      else if ((m = s.match(/^(\w+) (emplaces|braces|goes on overwatch|returns to base|hits \w+'s base)/))) { if (mechOwner[m[1]] != null) bump(t[mechOwner[m[1]]].acts, m[2].replace(/ \w+'s base/, ' base')); }
       else if ((m = s.match(/^(\w+) earns (\d+) victory points? for (.+?)\.?$/))) { const o = owner(m[1]); if (o >= 0) bump(t[o].vp, m[3], +m[2]); }
       else if ((m = s.match(/^(\w+) captures/))) { const o = owner(m[1]); if (o >= 0) bump(t[o].vp, 'captures (count)'); }
     }
   }
   const S = MW.S;
   if (S.phase !== 'over') { stalled++; continue; }
-  S.players.forEach((p, i) => { t[i].games++; t[i].rounds += S.round; t[i].supplyEnd += p.supply; });
+  S.players.forEach((p, i) => { t[i].games++; t[i].rounds += S.round; t[i].supplyEnd += p.ep; });
   const w = S.winner; t[w].wins++; if (S.winReason === 'points') t[w].winPoints++; else t[w].winBase++;
   first.games++; if (w === S0.first) first.wins++;
   { const pk = S.players[0].doctrine + ' v ' + S.players[1].doctrine; const pp = pair[pk] = pair[pk] || { g: 0, w0: 0 }; pp.g++; if (w === 0) pp.w0++; }
@@ -78,7 +78,7 @@ const pct = (a, b) => (b ? (100 * a / b).toFixed(0) + '%' : '-');
 const f1 = x => (Math.round(x * 10) / 10).toFixed(1);
 console.log('\n=== ' + N + ' wars · map ' + mapArg + ' · ' + d0 + ' vs ' + d1 + ' · personas ' + per0 + ' vs ' + per1 + ' · stalled ' + stalled + ' ===');
 console.log('Opening side wins: ' + pct(first.wins, first.games));
-console.log('\nSIDE                    games  win%  byPts/byBase  rounds  emptyField%  unbuilt%  fielded/rd  deployed  lost  supplyIdle  sold(w/chassis/legs/aux)');
+console.log('\nSIDE                    games  win%  byPts/byBase  rounds  emptyField%  unbuilt%  fielded/rd  deployed  lost  actsIdle  sold(w/chassis/legs/aux)');
 for (const k of Object.keys(by).sort()) {
   const x = by[k]; if (!x.games) continue;
   console.log(k.padEnd(22), String(x.games).padStart(5), pct(x.wins, x.games).padStart(5), (x.winPoints + '/' + x.winBase).padStart(12), f1(x.rounds / x.games).padStart(7),

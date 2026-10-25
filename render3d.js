@@ -144,6 +144,23 @@ function soil(color, kind) {
   m.userData.paint = true;
   return (MAT[k] = m);
 }
+// three-point lighting for every close-up render (hangar, previews, portraits, part pictures): a warm key high on
+// the right, a soft cool fill low on the left to lift the shadows, and a bright rim from behind that traces the
+// silhouette, over a dim sky light and the reflection dome
+function threePoint(scene, renderer, shadows) {
+  scene.environment = envFor(renderer);
+  scene.add(new T.HemisphereLight(0xdfe8f5, 0x30363e, 0.32));
+  const key = new T.DirectionalLight(0xfff2de, 1.1); key.position.set(2.2, 4, 3); scene.add(key);
+  const fill = new T.DirectionalLight(0xbcd4ee, 0.38); fill.position.set(-3, 1.2, 2.4); scene.add(fill);
+  const rim = new T.DirectionalLight(0xd6e8ff, 1.05); rim.position.set(-1.5, 2.6, -3.5); scene.add(rim);
+  const rim2 = new T.DirectionalLight(0xd6e8ff, 0.5); rim2.position.set(2.5, 1.8, -3); scene.add(rim2);
+  if (shadows) {
+    key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.radius = 3; key.shadow.bias = -0.002;
+    Object.assign(key.shadow.camera, { left: -2, right: 2, top: 3, bottom: -1, near: 0.5, far: 12 });
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+  }
+  return { key, fill, rim };
+}
 // image-based light: a soft sky dome with a sun and a softbox, so metal has something to reflect
 const ENVS = new WeakMap();
 function envFor(renderer) {
@@ -493,7 +510,7 @@ function buildLegs(R, g, id, tc, style, ghost) {
   const heavy = style === 'armored', exp = style === 'experimental';
   // the leg rig: thigh and shin lengths, ankle-to-sole height, stride and step height (leg units)
   R.rig = { L1: 0.2, L2: 0.2, sole: heavy ? 0.04 : 0.03, hipH: 0.42, stride: heavy ? 0.22 : style === 'assault' ? 0.28 : 0.25, lift: heavy ? 0.05 : 0.07 };
-  const k = (id === 'l_biped' ? 1.18 : id === 's_anchor' ? 1.42 : id === 'l_boost' ? 0.95 : 1) * (heavy ? 1.12 : exp ? 0.92 : 1.05);
+  const k = (id === 'l_biped' ? 1.18 : id === 's_anchor' || id === 'l_quad' ? 1.12 : id === 'l_boost' ? 0.95 : 1) * (heavy ? 1.12 : exp ? 0.92 : 1.05);
   for (const sx of [-1, 1]) {
     const hip = new T.Group(); hip.position.set(sx * (style === 'assault' ? 0.105 : 0.09) * Math.max(1, k * 0.95), 0.42, 0); g.add(hip); R.legs.push(hip);
     if (style === 'assault') hip.rotation.z = sx * 0.07;   // a planted, slightly wide stance
@@ -1165,7 +1182,7 @@ function buildMech(m, owner, doctrine, opt) {
       if (cat === 'melee') { wg.position.set(0, 0.0, -0.005); wg.rotation.x = -0.55; }
       else { wg.position.set(0, 0.048, -0.05); mesh(box(0.024, 0.06, 0.03), toon(KIT.body), wg, [0, -0.04, 0.072], [0.3, 0, 0]); }
     }
-    R.muzzles[key] = { o: buildWeapon(wg, inst.id, tc, sx), cat: cat || 'ballistic', spin: wg.userData.spin || null };
+    R.muzzles[key] = { o: buildWeapon(wg, inst.id, tc, sx), id: inst.id, cat: cat || 'ballistic', spin: wg.userData.spin || null };
     wg.userData.weapon = true;
     R.arms[key] = { sh, arm, el, rest };
     tag(sh, key);
@@ -1257,6 +1274,8 @@ R3.mount = function (el, onTap) {
   sun.position.set(-5, 11, 7); sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 3;
   const fill = new T.DirectionalLight(0xb9cde0, 0.28); fill.position.set(6, 5, -6); scene.add(fill);
+  // a rim from low behind the board, so mecha and scenery keep a bright edge against the ground
+  const rim = new T.DirectionalLight(0xdfeaff, 0.45); rim.position.set(4, 3.5, -9); scene.add(rim);
   Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 30 });
   sun.shadow.bias = -0.0015;
   scene.add(sun);
@@ -1734,6 +1753,9 @@ function newRec(m, S) {
   rec.selRing = mk(0.34, 0.42, 0xffc83a, 0.95);
   rec.actRing = mk(0.3, 0.34, TEAM[m.owner].ring, 0.9);
   rec.owRing = mk(0.44, 0.47, 0xef4a3a, 0.9);
+  // an emplaced mech stands in a hazard-striped ring, so a turret reads as one at a glance
+  rec.empRing = new T.Mesh(new T.RingGeometry(0.36, 0.5, 48, 1), new T.MeshBasicMaterial({ map: hazardTex(), transparent: true, opacity: 0.95, depthWrite: false }));
+  rec.empRing.rotation.x = -Math.PI / 2; rec.empRing.position.y = 0.015; rec.empRing.visible = false; rec.empRing.renderOrder = 3; BD.group.add(rec.empRing);
   // the disc under each mech marks whose it is
   const sh = new T.Mesh(new T.CircleGeometry(0.3, 24), new T.MeshBasicMaterial({ color: TEAM[m.owner] ? TEAM[m.owner].ring : 0x000000, transparent: true, opacity: 0.45, depthWrite: false }));
   sh.rotation.x = -Math.PI / 2; sh.position.y = 0.006; BD.group.add(sh); rec.blob = sh;
@@ -1741,8 +1763,20 @@ function newRec(m, S) {
   BD.group.add(rec.bubble);
   return rec;
 }
+// yellow and black hazard stripes, wrapped round a ring
+let HAZ = null;
+function hazardTex() {
+  if (HAZ) return HAZ;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 16;
+  const g = c.getContext('2d');
+  g.fillStyle = '#1a1a1a'; g.fillRect(0, 0, 256, 16);
+  g.fillStyle = '#f4c431';
+  for (let x = -16; x < 272; x += 16) { g.beginPath(); g.moveTo(x, 16); g.lineTo(x + 8, 16); g.lineTo(x + 16, 0); g.lineTo(x + 8, 0); g.closePath(); g.fill(); }
+  HAZ = new T.CanvasTexture(c); HAZ.wrapS = T.RepeatWrapping;
+  return HAZ;
+}
 function dropRec(rec) {
-  BD.group.remove(rec.R.root); BD.group.remove(rec.selRing); BD.group.remove(rec.actRing); BD.group.remove(rec.owRing); BD.group.remove(rec.blob); BD.group.remove(rec.bubble);
+  BD.group.remove(rec.R.root); BD.group.remove(rec.selRing); BD.group.remove(rec.actRing); BD.group.remove(rec.owRing); BD.group.remove(rec.empRing); BD.group.remove(rec.blob); BD.group.remove(rec.bubble);
   delete BD.recs[rec.uid];
 }
 function rebuildRec(rec, m, S) {
@@ -1775,14 +1809,22 @@ R3.sync = function (v) {
     rec.m = m;
     rec.hot = m.heat > window.MW.stats(m).heatCap;
     rec.selRing.visible = v.sel === m.uid; rec.actRing.visible = v.active === m.uid; rec.owRing.visible = !!m.overwatch;
+    rec.empRing.visible = !!m.entrenched;
   }
   // mecha that left the field: kept briefly so a death, detonation, strip or return to base can play out
   for (const id in BD.recs) {
     const rec = BD.recs[id];
-    if (!seen[id] && !rec.gone) { rec.gone = true; rec.goneAt = t; rec.selRing.visible = rec.actRing.visible = rec.owRing.visible = false; }
+    if (!seen[id] && !rec.gone) { rec.gone = true; rec.goneAt = t; rec.selRing.visible = rec.actRing.visible = rec.owRing.visible = rec.empRing.visible = false; }
   }
   // objectives change hands
-  for (const o of S.objectives) { const r = BD.objs[key(o.x, o.y)]; if (r && o.type !== 'repair' && r.owner !== o.owner) { r.owner = o.owner; const c = ownerColor(o); r.ring.material.color.setHex(c); if (r.light) r.light.material = glow(c); } }
+  for (const o of S.objectives) {
+    const r = BD.objs[key(o.x, o.y)];
+    if (!r || o.type === 'repair') continue;
+    if (r.owner !== o.owner) { r.owner = o.owner; const c = ownerColor(o); r.ring.material.color.setHex(c); if (r.light) r.light.material = glow(c); }
+    // a held objective stands in a column of its holder's colour
+    if (o.owner != null && !r.column) r.column = holdColumn(r.pg.position);
+    if (r.column) { r.column.visible = o.owner != null; if (o.owner != null) { r.column.userData.mats.forEach(mm => mm.color.setHex(TEAM[o.owner].ring)); } }
+  }
   // ruins flattened by a blast
   for (const k of S.flat || []) { const pg = BD.props[k]; if (pg && !pg.userData.rubble) { const [x, y] = k.split(',').map(Number); buildRuin(tp(x, y), k, true); } }
   // wrecks and crates
@@ -1920,27 +1962,136 @@ function slash(at, col, delay, flipArc) {
   BD.anims.push(t => { if (t < t0) return true; m.visible = true; const k = (t - t0) / 0.25; if (k >= 1) { BD.group.remove(m); return false; } m.scale.setScalar(0.6 + k * 0.6); m.material.opacity = 1 - k; m.rotation.z += 0.25; return true; });
 }
 
-// fire one weapon: returns the time (s) from now until it lands
-const ANTICIPATION = 0.42;  // wind-up before any weapon goes off
-// wind-up glow gathering at the weapon that is about to fire, with sparks drawn in toward it
-function charge(att, cat, dur, slotKey) {
-  if (!att) return;
-  att.aimT = clock(); att.aimKey = slotKey || null;
-  const col = FX_COL[cat] || 0xffffff;
-  const m = new T.Mesh(sph(0.05, 10), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
+// fire one weapon. Every weapon has a profile: how long it winds up and how (the arm pulled back, raised,
+// a barrel spinning up, coils charging), what leaves the muzzle, how long it takes to land, and how hard it hits.
+// Returns { fire, land }: seconds from `start` until it goes off and until it lands.
+const ANTICIPATION = 0.42;  // the wind-up of anything without a profile of its own
+// effects: the whole battle can run faster (AI vs AI on fast); the wind-ups shrink with it
+R3.setPace = function (k) { if (BD) BD.pace = k; PACE = k; };
+let PACE = 1;
+const paced = s => s * PACE;
+
+// small helpers for the effects below
+function casing(from, dir) {
+  if (LEVEL === 'low') return;
+  const side = new T.Vector3(-dir.z, 0, dir.x).normalize().multiplyScalar(rand(0.6, 1.1));
+  BD.parts.spawn({ pos: from.clone(), vel: side.add(new T.Vector3(0, rand(1, 1.6), 0)), add: false, life: 0.5, size: 0.03, size1: 0.025, color: 0xd9a441, color1: 0x8a6a2a, op: 1, op1: 0.6, grav: 6 });
+}
+function shockRing(pos, col, r, life, vertical, dir) {
+  const m = new T.Mesh(new T.RingGeometry(0.06, 0.1, 32), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }));
+  m.position.copy(pos);
+  if (vertical && dir) m.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), dir.clone().normalize()); else m.rotation.x = -Math.PI / 2;
   BD.group.add(m);
   const t0 = clock();
+  BD.anims.push(t => { const k = (t - t0) / life; if (k >= 1) { BD.group.remove(m); m.geometry.dispose(); m.material.dispose(); return false; } m.scale.setScalar(1 + k * r * 10); m.material.opacity = 0.95 * (1 - k); return true; });
+}
+function screenFlash(op) {
+  if (LEVEL === 'low' || typeof document === 'undefined') return;
+  const host = BD.el; if (!host) return;
+  const d = document.createElement('div');
+  d.style.cssText = 'position:absolute;inset:0;pointer-events:none;background:#fff;opacity:' + op + ';transition:opacity .35s ease-out;z-index:5';
+  host.appendChild(d); requestAnimationFrame(() => { d.style.opacity = '0'; }); setTimeout(() => d.remove(), 420);
+}
+// crackling arcs round a point, while something charges
+function arcsAround(getP, col, dur, n) {
+  const t0 = clock();
+  BD.anims.push(t => {
+    const k = (t - t0) / dur; if (k >= 1) return false;
+    if (Math.random() < 0.35 + k * 0.5) { const p = getP(); const q = p.clone().add(new T.Vector3(rand(-0.25, 0.25), rand(-0.2, 0.25), rand(-0.25, 0.25)).multiplyScalar(0.6 + k)); lightning(p, q, col, 0.08); }
+    return true;
+  });
+}
+// what a hit does, by weight: sparks for light rounds, fire, frost, a shock pulse, or a real explosion
+function impactFx(to, kind, col, hit) {
+  if (!hit) { smoke(to.clone(), 3, false); BD.parts.burst(to, 8, { spd: 1.2, life: 0.45, size: 0.05, color: 0xc8c0a8, grav: 3, upMin: 0.3 }); return; }
+  if (kind === 'light') { sparks(to, col, 10); flash(to.clone(), col, 0.28, 0.1); }
+  else if (kind === 'medium') { sparks(to, col, 18); flash(to.clone(), 0xffffff, 0.45, 0.12); smoke(to.clone(), 2, false); shake(0.03); }
+  else if (kind === 'heavy') { explosion(to, 0.6); sparks(to, 0xffe2a0, 16); shake(0.07); }
+  else if (kind === 'blast') { explosion(to, 1); shockRing(to.clone().setY(0.04), 0xffc46b, 0.5, 0.55); shake(0.12); }
+  else if (kind === 'pierce') { flash(to.clone(), 0xffffff, 0.8, 0.14); sparks(to, 0xffffff, 26); sparks(to, col, 14); shockRing(to.clone(), col, 0.35, 0.4); shake(0.1); }
+  else if (kind === 'rail') { flash(to.clone(), 0xffffff, 1.2, 0.18); sparks(to, 0xffffff, 34); sparks(to, col, 20); shockRing(to.clone(), col, 0.55, 0.5); shockRing(to.clone().setY(0.04), 0xffffff, 0.45, 0.5); smoke(to.clone(), 5, true); shake(0.16); screenFlash(0.35); }
+  else if (kind === 'fire') { BD.parts.burst(to, 22, { spd: 1, life: 0.7, size: 0.14, size1: 0.36, color: 0xffd27a, color1: 0xff3a1a, grav: -1.5 }); smoke(to.clone(), 3, false); shake(0.03); }
+  else if (kind === 'frost') { BD.parts.burst(to, 22, { spd: 1.4, life: 0.7, size: 0.08, size1: 0.01, color: 0xffffff, color1: 0x8fdcff, grav: 1 }); flash(to.clone(), 0xbfefff, 0.6, 0.18); shockRing(to.clone(), 0xbfefff, 0.3, 0.45); }
+  else if (kind === 'shock') { flash(to.clone(), 0x9fe8ff, 0.7, 0.2); shockRing(to.clone(), 0x9fe8ff, 0.5, 0.5); for (let i = 0; i < 4; i++) lightning(to, to.clone().add(new T.Vector3(rand(-0.5, 0.5), rand(-0.1, 0.5), rand(-0.5, 0.5))), 0x9fe8ff, 0.25, i * 0.05); shake(0.05); }
+  else if (kind === 'slash') { sparks(to, col, 22); flash(to.clone(), 0xffffff, 0.5, 0.1); shake(0.06); }
+  else if (kind === 'crush') { sparks(to, 0xffe2a0, 24); smoke(to.clone(), 4, false); BD.parts.chunks(to.clone(), 4, 0x3a3f46); shockRing(to.clone().setY(0.04), 0xffd08a, 0.4, 0.4); shake(0.12); }
+  else { sparks(to, col, 12); flash(to.clone(), col, 0.3, 0.1); }
+}
+
+/* The profiles. wind: seconds of anticipation. pose: what the arm does while winding up
+   ('aim' raise and steady, 'pull' cock back, 'raise' lift high like a mortar, 'brace' lean back and plant).
+   charge: the glow gathering at the muzzle (colour and how big it gets). spin: barrels spin up first.
+   fire(ctx): what leaves the muzzle; returns seconds until it lands. impact: impactFx kind. */
+const FIRE = {
+  b_gun: { wind: 0.55, pose: 'aim', charge: { col: 0xffd890, size: 1 }, impact: 'light',
+    fire: c => { for (let i = 0; i < 3; i++) schedule(i * 0.07, () => { flash(c.from.clone(), 0xffe9a8, 0.3, 0.07); projectile(c.from, c.to, { color: c.col, dur: 0.14 }); casing(c.from, c.dir); c.kick(0.6); }); return 0.3; } },
+  w_smg: { wind: 0.45, pose: 'aim', charge: { col: 0xffd890, size: 0.7 }, impact: 'light',
+    fire: c => { for (let i = 0; i < 6; i++) schedule(i * 0.045, () => { flash(c.from.clone(), 0xffe9a8, 0.2, 0.05); projectile(c.from, c.jitter(0.12), { color: c.col, dur: 0.12 }); if (i % 2) casing(c.from, c.dir); c.kick(0.3); }); return 0.38; } },
+  w_gatling: { wind: 0.95, pose: 'brace', spin: true, charge: { col: 0xffb060, size: 0.8, heat: true }, impact: 'medium',
+    fire: c => { for (let i = 0; i < 12; i++) schedule(i * 0.045, () => { flash(c.from.clone(), 0xffe9a8, 0.26, 0.05); projectile(c.from, c.jitter(0.15), { color: 0xffe6a0, dur: 0.12 }); casing(c.from, c.dir); c.kick(0.35); if (i % 3 === 0) sparks(c.jitter(0.2), 0xffe2a0, 4); }); schedule(0.55, () => smoke(c.from.clone(), 3, false)); return 0.62; } },
+  w_scatter: { wind: 0.6, pose: 'pull', charge: { col: 0xffd890, size: 0.9 }, impact: 'medium',
+    fire: c => { flash(c.from.clone(), 0xfff2c0, 0.6, 0.12); smoke(c.from.clone(), 4, false); c.kick(1.6); shake(0.04); for (let i = 0; i < 9; i++) projectile(c.from, c.jitter(0.3), { color: 0xffe6a0, dur: 0.13, geo: box(0.02, 0.02, 0.08) }); casing(c.from, c.dir); return 0.16; } },
+  w_rail: { wind: 1.1, pose: 'brace', charge: { col: 0x9fd8ff, size: 2.2, coil: true }, impact: 'pierce',
+    fire: c => { flash(c.from.clone(), 0xffffff, 0.8, 0.15); beam(c.from, c.to, 0x9fd8ff, 0.07, 0.5); beam(c.from, c.to, 0xffffff, 0.03, 0.25); shockRing(c.from.clone(), 0x9fd8ff, 0.35, 0.35, true, c.dir); smoke(c.from.clone(), 4, false); c.kick(2); shake(0.07); return 0.06; } },
+  s_railgun: { wind: 1.4, pose: 'brace', charge: { col: 0xbfe8ff, size: 3.2, coil: true, ground: true }, impact: 'rail',
+    fire: c => { flash(c.from.clone(), 0xffffff, 1.4, 0.2); beam(c.from, c.to, 0xbfe8ff, 0.12, 0.7); beam(c.from, c.to, 0xffffff, 0.05, 0.35); shockRing(c.from.clone(), 0xbfe8ff, 0.6, 0.5, true, c.dir); shockRing(c.att.R.root.position.clone().setY(0.04), 0xffffff, 0.6, 0.5); smoke(c.from.clone(), 8, true); c.kick(3); shake(0.14); screenFlash(0.25); return 0.06; } },
+  w_missile: { wind: 0.7, pose: 'raise', charge: { col: 0xffb070, size: 0.9 }, impact: 'heavy',
+    fire: c => { for (let i = 0; i < 4; i++) schedule(i * 0.1, () => { flash(c.from.clone(), 0xffd8a0, 0.3, 0.08); smoke(c.from.clone(), 1, false); projectile(c.from.clone().add(new T.Vector3(rand(-0.06, 0.06), 0, rand(-0.06, 0.06))), c.jitter(0.12), { geo: cyl(0.018, 0.018, 0.11, 6), color: 0xffe2b0, dur: 0.6, arc: rand(0.5, 0.8), trail: 'smoke' }); c.kick(0.5); }); return 0.95; } },
+  w_howitzer: { wind: 0.85, pose: 'raise', charge: { col: 0xffd08a, size: 1.2 }, impact: 'blast',
+    fire: c => { flash(c.from.clone(), 0xfff2c0, 0.8, 0.16); smoke(c.from.clone(), 8, true); shockRing(c.from.clone(), 0xffe0a0, 0.35, 0.4, true, c.dir); c.kick(2.4); shake(0.08); projectile(c.from, c.to, { geo: sph(0.045, 8), color: 0xffd27a, dur: 0.85, arc: 1.8, trail: 'fire' }); return 0.88; } },
+  w_laser: { wind: 0.7, pose: 'aim', charge: { col: 0x9cf0ff, size: 1.6 }, impact: 'medium',
+    fire: c => { flash(c.from.clone(), 0x9cf0ff, 0.45, 0.18); beam(c.from, c.to, 0x7fe8ff, 0.05, 0.5); beam(c.from, c.to, 0xffffff, 0.02, 0.4); c.kick(0.6); return 0.06; } },
+  w_lance: { wind: 1.05, pose: 'brace', charge: { col: 0xc8a0ff, size: 2.6, coil: true }, impact: 'pierce',
+    fire: c => { flash(c.from.clone(), 0xe8d0ff, 0.8, 0.2); beam(c.from, c.to, 0xb08cff, 0.09, 0.6); beam(c.from, c.to, 0xffffff, 0.035, 0.45); for (let i = 0; i < 14; i++) BD.parts.spawn({ pos: c.from.clone().lerp(c.to, Math.random()), vel: new T.Vector3(rand(-0.4, 0.4), rand(-0.2, 0.5), rand(-0.4, 0.4)), life: 0.5, size: 0.05, size1: 0.01, color: 0xe0c8ff, op: 1, op1: 0 }); c.kick(1.4); shake(0.06); return 0.06; } },
+  w_arc: { wind: 0.75, pose: 'aim', charge: { col: 0x9fe8ff, size: 1.4, coil: true }, impact: 'shock',
+    fire: c => { for (let i = 0; i < 4; i++) lightning(c.from, c.jitter(0.1), 0x9fe8ff, 0.32, i * 0.06); flash(c.from.clone(), 0x9fe8ff, 0.5, 0.2); c.kick(0.7); return 0.12; } },
+  s_emp: { wind: 0.95, pose: 'aim', charge: { col: 0x7fd4ff, size: 2.4, coil: true, ring: true }, impact: 'shock',
+    fire: c => { flash(c.from.clone(), 0xcff4ff, 0.7, 0.2); projectile(c.from, c.to, { geo: sph(0.09, 12), color: 0x8fe0ff, dur: 0.3 }); shockRing(c.from.clone(), 0x7fd4ff, 0.3, 0.35, true, c.dir); c.kick(1); return 0.32; } },
+  s_inferno: { wind: 0.8, pose: 'brace', charge: { col: 0xff8a3a, size: 1.4, flame: true }, impact: 'fire',
+    fire: c => { const d = c.to.clone().sub(c.from), sp = d.length() / 0.32; for (let i = 0; i < (LEVEL === 'low' ? 16 : 40); i++) schedule(i * 0.012, () => BD.parts.spawn({ pos: c.from.clone(), vel: d.clone().normalize().multiplyScalar(sp * rand(0.85, 1.1)).add(new T.Vector3(rand(-0.35, 0.35), rand(-0.1, 0.35), rand(-0.35, 0.35))), life: 0.38, size: 0.08, size1: 0.3, color: 0xfff0a0, color1: 0xff4a1a, op: 1, op1: 0 })); c.kick(0.8); shake(0.03); return 0.5; } },
+  s_cryo: { wind: 0.9, pose: 'aim', charge: { col: 0xcff4ff, size: 2, mist: true }, impact: 'frost',
+    fire: c => { flash(c.from.clone(), 0xffffff, 0.5, 0.2); beam(c.from, c.to, 0xbfefff, 0.06, 0.55); for (let i = 0; i < 16; i++) BD.parts.spawn({ pos: c.from.clone().lerp(c.to, Math.random()), vel: new T.Vector3(rand(-0.3, 0.3), rand(0, 0.4), rand(-0.3, 0.3)), life: 0.7, size: 0.07, size1: 0.01, color: 0xffffff, color1: 0x8fdcff, op: 0.95 }); c.kick(0.9); return 0.08; } },
+  w_blade: { wind: 0.6, pose: 'pull', charge: { col: 0xff9adf, size: 1.2 }, impact: 'slash', melee: true,
+    fire: c => { slash(c.to, 0xff9adf, 0.02, false); slash(c.to, 0xffffff, 0.1, true); slash(c.to, 0xff9adf, 0.18, false); return 0.2; } },
+  w_ram: { wind: 0.7, pose: 'pull', charge: { col: 0xffc080, size: 1 }, spin: true, impact: 'crush', melee: true,
+    fire: c => { slash(c.to, 0xffd08a, 0.05, false); return 0.22; } },
+  w_repair: { wind: 0.5, pose: 'aim', charge: { col: 0x9fd8b4, size: 1 }, impact: 'light',
+    fire: c => { beam(c.from, c.to, 0x9fd8b4, 0.03, 0.5); return 0.08; } }
+};
+// fallbacks by weapon class, for anything without its own profile
+const FIRE_CAT = { ballistic: 'b_gun', energy: 'w_laser', missile: 'w_missile', artillery: 'w_howitzer', melee: 'w_blade', siege: 'w_ram', support: 'w_repair', incendiary: 's_inferno', cryo: 's_cryo' };
+
+// the wind-up: a glow gathering at the muzzle (bigger for bigger guns), coils crackling round railguns and lances,
+// frost mist, a pilot flame, a ring tightening, or dust kicked up as a big gun plants itself
+function charge(att, cat, dur, slotKey, P) {
+  if (!att) return;
+  att.aimT = clock(); att.aimKey = slotKey || null;
+  P = P || {};
+  const ch = P.charge || {}, col = ch.col || FX_COL[cat] || 0xffffff, big = ch.size || 1;
+  att.wind = { t0: clock(), dur, pose: P.pose || 'aim', key: slotKey, spin: !!P.spin };
+  const m = new T.Mesh(sph(0.05, 12), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
+  const core = new T.Mesh(sph(0.025, 8), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
+  BD.group.add(m); BD.group.add(core);
+  const t0 = clock();
+  if (ch.coil) arcsAround(() => muzzleWorld(att, cat, slotKey), col, dur);
+  if (ch.ground) schedule(dur * 0.4, () => { const p = att.R.root.position.clone().setY(0.05); smoke(p, 6, true); shockRing(p, 0xcbbf9e, 0.4, 0.6); shake(0.04); });
   BD.anims.push(t => {
     const k = (t - t0) / dur;
-    if (k >= 1 || att.gone) { BD.group.remove(m); m.material.dispose(); return false; }
-    const p = muzzleWorld(att, cat, slotKey);
-    m.position.copy(p); m.scale.setScalar(0.5 + k * 1.8 + Math.sin(t * 45) * 0.18); m.material.opacity = 0.2 + 0.75 * k;
-    if (LEVEL !== 'low' && Math.random() < 0.6) {
-      const o = new T.Vector3(rand(-0.3, 0.3), rand(-0.2, 0.3), rand(-0.3, 0.3));
-      BD.parts.spawn({ pos: p.clone().add(o), vel: o.clone().multiplyScalar(-3.2), life: 0.28, size: 0.035, size1: 0.01, color: col, op: 0.95, op1: 0 });
+    if (k >= 1 || att.gone) { BD.group.remove(m); BD.group.remove(core); m.material.dispose(); core.material.dispose(); return false; }
+    const p = muzzleWorld(att, cat, slotKey), e = k * k;
+    m.position.copy(p); core.position.copy(p);
+    m.scale.setScalar((0.5 + e * 2.2 * big) * (1 + Math.sin(t * (30 + 40 * k)) * 0.15)); m.material.opacity = 0.15 + 0.8 * k;
+    core.scale.setScalar(0.5 + e * 1.6 * big); core.material.opacity = k > 0.3 ? (k - 0.3) / 0.7 : 0;
+    if (LEVEL !== 'low' && Math.random() < 0.5 + k * 0.4) {
+      if (ch.mist) BD.parts.spawn({ pos: p.clone(), vel: new T.Vector3(rand(-0.3, 0.3), rand(-0.1, 0.2), rand(-0.3, 0.3)), add: false, life: 0.7, size: 0.06, size1: 0.22, color: 0xeaf8ff, op: 0.6, op1: 0 });
+      else if (ch.flame) BD.parts.spawn({ pos: p.clone(), vel: new T.Vector3(rand(-0.1, 0.1), rand(0.2, 0.5), rand(-0.1, 0.1)), life: 0.3, size: 0.05, size1: 0.12, color: 0xffd27a, color1: 0xff3a1a, op: 1, op1: 0 });
+      else if (ch.heat) BD.parts.spawn({ pos: p.clone(), vel: new T.Vector3(rand(-0.2, 0.2), rand(0.2, 0.6), rand(-0.2, 0.2)), life: 0.3, size: 0.025, size1: 0.005, color: 0xffd27a, color1: 0xff5a1a, op: 1, op1: 0 });
+      const o = new T.Vector3(rand(-0.35, 0.35), rand(-0.2, 0.35), rand(-0.35, 0.35)).multiplyScalar(0.7 + big * 0.3);
+      BD.parts.spawn({ pos: p.clone().add(o), vel: o.clone().multiplyScalar(-3.4), life: 0.28, size: 0.035 * (0.8 + big * 0.3), size1: 0.01, color: col, op: 0.95, op1: 0 });
     }
     return true;
   });
+  if (ch.ring) shockRing(muzzleWorld(att, cat, slotKey), col, -0.06, dur);
 }
 // a lock-on ring tightening round the target while the attacker winds up
 function reticle(p, dur) {
@@ -1955,7 +2106,8 @@ function reticle(p, dur) {
     return true;
   });
 }
-function shoot(f, start) {
+// follow: the second and later rounds of a multi-shot weapon fire straight away, without winding up again
+function shoot(f, start, follow) {
   const att = (f.uid && BD.recs[f.uid]) || recAt(f.x0, f.y0, false) || recAt(f.x0, f.y0, true);
   const tgtRec = recAt(f.x1, f.y1, false);
   let to = tp(f.x1, f.y1, 0.45);
@@ -1964,63 +2116,44 @@ function shoot(f, start) {
   if (window.MW.baseAt(f.x1, f.y1) != null) to = tp(f.x1, f.y1, 0.35);
   if (!f.hit) to.add(new T.Vector3(rand(-0.45, 0.45), -0.25, rand(-0.45, 0.45)));
   const cat = f.cat || 'ballistic', col = FX_COL[cat] || 0xffffff;
+  const mz = att && f.key && att.R.muzzles[f.key];
+  const wid = (mz && mz.id) || FIRE_CAT[cat];
+  const P = cat === 'turret' ? null : FIRE[wid] || FIRE[FIRE_CAT[cat]];
+  const wind = follow ? 0.05 : paced(P ? P.wind : ANTICIPATION);
   let from;
   if (cat === 'turret') {
     const b = BD['base' + window.MW.baseAt(f.x0, f.y0)];
     if (b) { const bp = b.pg.position; const d = to.clone().sub(bp); b.tur.rotation.y = Math.atan2(d.x, d.z) - b.pg.rotation.y; b.pg.updateMatrixWorld(true); from = new T.Vector3(); b.mu.getWorldPosition(from); BD.group.worldToLocal(from); }
     else from = tp(f.x0, f.y0, 0.7);
-  } else if (att) {
-    from = null;
-  } else from = tp(f.x0, f.y0, 0.5);
-  schedule(start, () => {
-    if (att) { faceTo(att, to); charge(att, cat, ANTICIPATION, f.key); }
-    else if (cat === 'turret') flash(from.clone(), 0xff7050, 0.25, ANTICIPATION);
-    reticle(tp(f.x1, f.y1), ANTICIPATION + 0.25);
+  } else if (att) from = null;
+  else from = tp(f.x0, f.y0, 0.5);
+  if (!follow) schedule(start, () => {
+    if (att) { faceTo(att, to); charge(att, cat, wind, f.key, P); }
+    else if (cat === 'turret') { flash(from.clone(), 0xff7050, 0.35, wind); arcsAround(() => from, 0xff7050, wind); }
+    reticle(tp(f.x1, f.y1), wind + 0.3);
   });
+  if (P && P.melee && att) att.lunge = { t0: clock() + start + wind - 0.12, to };
   let travel = 0.2;
-  const go = () => {
+  // the flight time is known up front for each profile, so impacts and damage numbers line up
+  const est = { b_gun: 0.3, w_smg: 0.38, w_gatling: 0.62, w_scatter: 0.16, w_rail: 0.06, s_railgun: 0.06, w_missile: 0.95, w_howitzer: 0.88, w_laser: 0.06, w_lance: 0.06, w_arc: 0.12, s_emp: 0.32, s_inferno: 0.5, s_cryo: 0.08, w_blade: 0.2, w_ram: 0.22, w_repair: 0.08 };
+  if (P) travel = follow ? Math.min(0.2, est[wid] || 0.2) : est[wid] || 0.2;
+  schedule(start + wind, () => {
     if (!from) from = muzzleWorld(att, cat, f.key);
-    if (att) { att.recoil = clock(); const mz = att.R.muzzles[att.lastArm]; if (mz && mz.spin) att.spin = clock(); }
-    if (cat === 'ballistic' || cat === 'turret') {
-      flash(from.clone(), 0xffe9a8, 0.22, 0.08);
-      for (let i = 0; i < 3; i++) projectile(from, to, { color: col, dur: 0.16, delay: i * 0.05 });
-    } else if (cat === 'energy' || cat === 'support') {
-      flash(from.clone(), col, 0.3, 0.15);
-      if (Math.random() < 0.5 && cat === 'energy' && f.arc) lightning(from, to, col, 0.3); else beam(from, to, col, cat === 'support' ? 0.025 : 0.045, 0.4);
-    } else if (cat === 'cryo') {
-      beam(from, to, col, 0.04, 0.45);
-      for (let i = 0; i < 8; i++) BD.parts.spawn({ pos: from.clone().lerp(to, Math.random()), vel: new T.Vector3(rand(-0.3, 0.3), rand(0, 0.4), rand(-0.3, 0.3)), life: 0.6, size: 0.06, size1: 0.01, color: 0xe8fbff, op: 0.9 });
-    } else if (cat === 'incendiary') {
-      for (let i = 0; i < (LEVEL === 'low' ? 10 : 22); i++) {
-        const d = to.clone().sub(from); const sp = d.length() / 0.32;
-        BD.parts.spawn({ pos: from.clone(), vel: d.normalize().multiplyScalar(sp * rand(0.85, 1.1)).add(new T.Vector3(rand(-0.3, 0.3), rand(-0.1, 0.3), rand(-0.3, 0.3))), life: 0.36, size: 0.06, size1: 0.22, color: 0xfff0a0, color1: 0xff4a1a, op: 1, op1: 0 });
-      }
-    } else if (cat === 'missile') {
-      for (let i = 0; i < 2; i++) projectile(from.clone().add(new T.Vector3(rand(-0.05, 0.05), 0, 0)), to, { geo: cyl(0.015, 0.015, 0.09, 6), color: 0xffe2b0, dur: 0.55, arc: 0.6, delay: i * 0.08, trail: 'smoke' });
-    } else if (cat === 'artillery') {
-      flash(from.clone(), 0xffe9a8, 0.35, 0.12); smoke(from.clone(), 4, false);
-      projectile(from, to, { geo: sph(0.035, 6), color: 0xffd27a, dur: 0.75, arc: 1.6, trail: 'smoke' });
-    } else if (cat === 'melee' || cat === 'siege') {
-      slash(to, col, 0.12, false); if (cat === 'melee') slash(to, col, 0.2, true);
-    }
-  };
-  if (cat === 'missile') travel = 0.62; else if (cat === 'artillery') travel = 0.8; else if (cat === 'incendiary') travel = 0.34; else if (cat === 'melee' || cat === 'siege') travel = 0.18; else if (cat === 'energy' || cat === 'support' || cat === 'cryo') travel = 0.08;
-  if ((cat === 'melee' || cat === 'siege') && att) att.lunge = { t0: clock() + start + ANTICIPATION - 0.12, to };
-  schedule(start + ANTICIPATION, go);
-  schedule(start + ANTICIPATION + travel, () => {
-    if (f.hit) {
-      if (cat === 'artillery' || cat === 'missile') explosion(to, cat === 'artillery' ? 0.8 : 0.5);
-      else if (cat === 'incendiary') { BD.parts.burst(to, 12, { spd: 0.8, life: 0.6, size: 0.12, size1: 0.3, color: 0xffd27a, color1: 0xff3a1a, grav: -1.5 }); }
-      else if (cat === 'cryo') { BD.parts.burst(to, 12, { spd: 1.2, life: 0.6, size: 0.07, size1: 0.01, color: 0xe8fbff, color1: 0x8fdcff, grav: 1 }); }
-      else { sparks(to, col, 12); flash(to.clone(), col, 0.3, 0.1); }
-      if (tgtRec) { tgtRec.hitT = clock(); }
-      shake(cat === 'artillery' || cat === 'siege' ? 0.06 : 0.025);
-      const bpid = window.MW.baseAt(f.x1, f.y1); if (bpid != null) smoke(to.clone(), 4, false);
-    } else {
-      smoke(to.clone(), 3, false); BD.parts.burst(to, 6, { spd: 1, life: 0.4, size: 0.05, color: 0xc8c0a8, grav: 3, upMin: 0.3 });
-    }
+    const dir = to.clone().sub(from).setY(0);
+    if (att) { att.recoil = clock(); att.recoilAmp = 1; att.wind = null; const m2 = att.R.muzzles[att.lastArm]; if (m2 && m2.spin) att.spin = clock(); }
+    if (cat === 'turret') { flash(from.clone(), 0xffe9a8, 0.4, 0.1); for (let i = 0; i < 3; i++) projectile(from, to, { color: col, dur: 0.16, delay: i * 0.05 }); smoke(from.clone(), 2, false); return; }
+    const ctx = { att, from, to, col, dir, f,
+      jitter: s => to.clone().add(new T.Vector3(rand(-s, s), rand(-s, s) * 0.6, rand(-s, s))),
+      kick: a => { if (att) { att.recoil = clock(); att.recoilAmp = a; } } };
+    if (follow) { flash(from.clone(), 0xffe9a8, 0.25, 0.06); projectile(from, to, { color: col, dur: 0.14 }); if (att) att.recoil = clock(); return; }
+    P.fire(ctx);
   });
-  return ANTICIPATION + travel;
+  schedule(start + wind + travel, () => {
+    impactFx(to, P ? (follow ? 'light' : P.impact) : 'medium', col, f.hit);
+    if (f.hit && tgtRec) tgtRec.hitT = clock();
+    const bpid = window.MW.baseAt(f.x1, f.y1); if (f.hit && bpid != null) smoke(to.clone(), 4, false);
+  });
+  return { fire: wind, land: wind + travel };
 }
 
 R3.fx = function (list) {
@@ -2077,15 +2210,18 @@ R3.fx = function (list) {
       if (rec) rec.claimed = true;
     }
   });
-  const pairN = {};
+  const pairN = {}, fired = {};
   sub.forEach(f => {
     if (f.k !== 'shot') return;
-    const pk = [f.x0, f.y0, f.x1, f.y1].join();
-    const n = pairN[pk] = (pairN[pk] || 0) + 1;
-    const start = tShot + (n - 1) * 0.3;
-    const travel = shoot(f, start);
+    const pk = [f.x0, f.y0, f.x1, f.y1, f.key || ''].join();
+    const n = pairN[pk] = (pairN[pk] || 0) + 1, prev = fired[pk];
+    // the same weapon firing again at the same target: straight on from the last round; anything else waits its turn
+    const follow = n > 1 && prev != null;
+    const start = follow ? prev + 0.18 : Math.max(tShot, ...Object.values(fired).map(v => v + 0.35));
+    const r = shoot(f, follow ? start - 0.05 : start, follow);
+    fired[pk] = start + r.fire;
     const k = key(f.x1, f.y1);
-    impact[k] = Math.max(impact[k] || 0, start + travel);
+    impact[k] = Math.max(impact[k] || 0, start + r.land);
   });
   endP = Math.max(endP, tShot, ...Object.values(impact));
   sub.forEach((f, j) => {
@@ -2134,6 +2270,29 @@ R3.fx = function (list) {
   return delays;
 };
 R3.setLabels = arr => { if (BD) BD.labels = arr || []; };
+// the column over a held objective: a faint see-through shaft that fades upward, with a band of light rising up it
+// every few seconds
+let COLTEX = null;
+function columnTex() {
+  if (COLTEX) return COLTEX;
+  const c = document.createElement('canvas'); c.width = 4; c.height = 64;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 64, 0, 0);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 64);
+  COLTEX = new T.CanvasTexture(c);
+  return COLTEX;
+}
+function holdColumn(pos) {
+  const H = 2.2, grp = new T.Group();
+  const mk = (r, op) => new T.MeshBasicMaterial({ color: 0xffffff, map: columnTex(), transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide });
+  const shaft = new T.Mesh(new T.CylinderGeometry(0.4, 0.42, H, 24, 1, true), mk(0.42, 0.22)); shaft.position.y = H / 2;
+  const band = new T.Mesh(new T.CylinderGeometry(0.43, 0.43, 0.22, 24, 1, true), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }));
+  grp.add(shaft); grp.add(band);
+  grp.position.set(pos.x, 0, pos.z); grp.renderOrder = 4;
+  grp.userData = { shaft, band, mats: [shaft.material, band.material], H, phase: Math.random() * 3 };
+  BD.group.add(grp);
+  return grp;
+}
 function pillar(p, col) {
   const m = new T.Mesh(new T.CylinderGeometry(0.32, 0.32, 3, 16, 1, true), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }));
   m.position.set(p.x, 1.5, p.z); BD.group.add(m);
@@ -2244,7 +2403,7 @@ R3.mapPreviewEnd = function () {
   BD.renderer.domElement.style.touchAction = 'none';
   R3.reset();
   BD.viewAz = 0;
-  Object.assign(BD.rigT, { az: ISO_AZ, el: EL_34, zoom: 1, tx: 0, tz: 0 }); Object.assign(BD.rig, BD.rigT);
+  Object.assign(BD.rigT, { zoom: 1, tx: 0, tz: 0 }); iso(BD.rigT); Object.assign(BD.rig, BD.rigT);
 };
 
 /* ---------- the frame loop ---------- */
@@ -2345,7 +2504,16 @@ function updateBoard(t, dt) {
   const pulse = 0.5 + 0.5 * Math.sin(t * 5);
   for (const k in BD.ov) { const ov = BD.ov[k], kd = ov.userData.kind; if (kd === 'target' || kd === 'dep') ov.material.opacity = (OV_OP[kd] || 0.4) * (0.6 + 0.5 * pulse); else if (kd === 'tour') ov.material.opacity = 0.25 + 0.4 * pulse; }
   if (BD.orbit) BD.rigT.az += dt * BD.orbit;
-  for (const k in BD.objs) { const r = BD.objs[k]; if (r.dish) r.dish.rotation.y = t * 0.8; }
+  for (const k in BD.objs) {
+    const r = BD.objs[k]; if (r.dish) r.dish.rotation.y = t * 0.8;
+    // the held column breathes, and every 2.6s a band of light climbs it
+    const c = r.column;
+    if (c && c.visible) {
+      const u = c.userData, q = ((t + u.phase) % 2.6) / 2.6;
+      u.shaft.material.opacity = 0.16 + 0.08 * Math.sin(t * 2 + u.phase) + (q < 0.25 ? 0.18 * (1 - q / 0.25) : 0);
+      u.band.position.y = 0.1 + q * u.H; u.band.material.opacity = q < 0.85 ? 0.55 * (1 - q / 0.85) : 0;
+    }
+  }
   {
     const tg = [];
     for (const k in BD.ov) if (BD.ov[k].userData.kind === 'target') tg.push(k);
@@ -2436,8 +2604,16 @@ function updateRec(rec, t, dt) {
     root.position.x += Math.sin(rec.face) * kb + Math.sin(q * 40) * 0.025 * Math.max(0, 1 - q * 2); root.position.z += Math.cos(rec.face) * kb;
     root.rotation.z = Math.sin(q * 30) * 0.06 * Math.max(0, 1 - q * 2); lean += kf(q, [[0, 0], [0.12, -0.35, 'out'], [0.45, -0.08], [0.7, -0.12], [1, 0]]);
   } else root.rotation.z = 0;
-  // a shot kicks the whole body back a little
-  if (rec.recoil && t - rec.recoil < 0.45) lean += kf((t - rec.recoil) / 0.45, [[0, 0], [0.1, -0.14, 'out'], [0.5, 0.03], [1, 0]]);
+  // a shot kicks the whole body back, harder for heavier guns
+  const amp = Math.min(2.4, rec.recoilAmp || 1);
+  if (rec.recoil && t - rec.recoil < 0.45 + 0.1 * amp) lean += amp * kf((t - rec.recoil) / (0.45 + 0.1 * amp), [[0, 0], [0.1, -0.14, 'out'], [0.5, 0.03], [1, 0]]);
+  // winding up: heavy guns plant and lean back, melee draws back, mortars rock back to lift the barrel
+  if (rec.wind) {
+    const wk = Math.min(1, (t - rec.wind.t0) / rec.wind.dur), e = wk * wk * (3 - 2 * wk);
+    const ps = rec.wind.pose;
+    lean += ps === 'brace' ? -0.12 * e + Math.sin(t * 55) * 0.012 * wk : ps === 'pull' ? -0.16 * e : ps === 'raise' ? -0.08 * e : -0.04 * e;
+    if (wk >= 1 && t - rec.wind.t0 > rec.wind.dur + 0.6) rec.wind = null;
+  }
   // stripping in the field: parts lift away
   if (rec.strip) {
     const q = (t - rec.strip.t0) / 0.9;
@@ -2514,7 +2690,12 @@ function updateRec(rec, t, dt) {
   for (const k in R.arms) {
     const a = R.arms[k];
     let rx = 0;
-    if (rec.recoil && rec.lastArm === k) { const q = (t - rec.recoil) / 0.25; if (q < 1) rx = Math.sin(q * Math.PI) * 0.35; }
+    if (rec.recoil && rec.lastArm === k) { const q = (t - rec.recoil) / (0.22 + 0.06 * amp); if (q < 1) rx = Math.sin(q * Math.PI) * 0.3 * (0.7 + 0.5 * amp); }
+    // the wind-up on the arm that is about to fire: cocked back, lifted, or trembling as it charges
+    if (rec.wind && (!rec.wind.key || rec.wind.key === k)) {
+      const wk = Math.min(1, (t - rec.wind.t0) / rec.wind.dur), e = wk * wk * (3 - 2 * wk), ps = rec.wind.pose;
+      rx += ps === 'pull' ? 0.75 * e : ps === 'raise' ? 0.45 * e : ps === 'brace' ? 0.08 * e + Math.sin(t * 70) * 0.03 * wk : 0.1 * e;
+    }
     const swing = R.armSwing && !(rec.aimT && t - rec.aimT < 1.5) ? (k === 'armL' ? -R.armSwing[1] : -R.armSwing[0]) * (R.style === 'armored' ? 0.5 : 0.75) : 0;
     a.arm.rotation.x = -rx - (moving ? 0 : Math.sin(t * 1.3 + rec.phase) * 0.03) + swing;
     // raise to aim while attacking, then drop back to the rest pose
@@ -2522,7 +2703,14 @@ function updateRec(rec, t, dt) {
     const want = aiming ? -Math.PI / 2 : (a.rest != null ? a.rest : -Math.PI / 2);
     a.el.rotation.x += (want - a.el.rotation.x) * Math.min(1, dt * 10);
   }
-  for (const k in R.muzzles) { const sp = R.muzzles[k].spin; if (sp) sp.rotation.z += dt * (rec.spin && t - rec.spin < 0.8 ? 40 : 0.8); }
+  // spinning barrels (Gatling, drill): spin up through the wind-up, scream while firing, then wind down
+  for (const k in R.muzzles) {
+    const sp = R.muzzles[k].spin; if (!sp) continue;
+    let v = 0.8;
+    if (rec.wind && rec.wind.spin && (!rec.wind.key || rec.wind.key === k)) { const wk = Math.min(1, (t - rec.wind.t0) / rec.wind.dur); v = 0.8 + 60 * wk * wk; }
+    else if (rec.spin && rec.lastArm === k && t - rec.spin < 1.4) { const q = (t - rec.spin) / 1.4; v = q < 0.45 ? 60 : 60 * (1 - (q - 0.45) / 0.55) + 0.8; }
+    sp.rotation.z += dt * v;
+  }
   // core pulse
   if (R.core && R.coreLive && !rec.charging) R.core.scale.setScalar(1 + 0.15 * Math.sin(t * 4 + rec.phase));
   root.position.y = y;
@@ -2532,7 +2720,9 @@ function updateRec(rec, t, dt) {
   else rec.bubble.material.opacity = rec.m && rec.m.braced ? 0.12 : 0;
   rec.bubble.position.copy(root.position).setY(root.position.y + 0.4);
   // rings and shadow follow
-  for (const r of [rec.selRing, rec.actRing, rec.owRing, rec.blob]) { r.position.x = root.position.x; r.position.z = root.position.z; }
+  for (const r of [rec.selRing, rec.actRing, rec.owRing, rec.empRing, rec.blob]) { r.position.x = root.position.x; r.position.z = root.position.z; }
+  // the emplacement ring grows in as the mech digs in, then breathes slowly
+  if (rec.empRing.visible) { const g = rec.digT != null ? Math.min(1, (t - rec.digT) / 0.6) : 1; rec.empRing.scale.setScalar(0.6 + 0.4 * g); rec.empRing.material.opacity = (0.75 + 0.2 * Math.sin(t * 2.4)) * g; }
   rec.actRing.rotation.z = t * 2;
   rec.owRing.rotation.z = -t * 1.5;
   rec.selRing.material.opacity = 0.6 + 0.35 * Math.sin(t * 6);
@@ -2560,14 +2750,7 @@ function makeViewer() {
   const scene = new T.Scene();
   const cam = new T.PerspectiveCamera(34, 1, 0.25, 50);
   cam.position.set(0, 1.45, 4.3); cam.lookAt(0, 0.95, 0);
-  // studio light: key, a cool rim to cut the silhouette from the back wall, and the dome for reflections
-  scene.environment = envFor(renderer);
-  scene.add(new T.HemisphereLight(0xdfe8f5, 0x30363e, 0.45));
-  const key2 = new T.DirectionalLight(0xfff4e2, 1.05); key2.position.set(2, 4, 3); scene.add(key2);
-  key2.castShadow = true; key2.shadow.mapSize.set(1024, 1024); key2.shadow.radius = 3; key2.shadow.bias = -0.002;
-  Object.assign(key2.shadow.camera, { left: -2, right: 2, top: 3, bottom: -1, near: 0.5, far: 12 });
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
-  const rim = new T.DirectionalLight(0xa8d0ff, 0.7); rim.position.set(-3, 2.5, -3); scene.add(rim);
+  threePoint(scene, renderer, true);
   // gantry: hazard-striped plate, scaffold towers, catwalk, back wall with lamps
   const env = new T.Group(); scene.add(env);
   mesh(cyl(1.25, 1.3, 0.12, 24), toon(0x3a414a), env, [0, -0.06, 0], null, { t: 0.02, recv: true });
@@ -2719,10 +2902,7 @@ R3.snapshot = function (L, doctrine, owner, opt) {
       const renderer = new T.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
       renderer.setPixelRatio(1); renderer.setSize(240, 300, false); renderer.setClearColor(0x000000, 0);
       const scene = new T.Scene();
-      scene.environment = envFor(renderer);
-      scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.5));
-      const key = new T.DirectionalLight(0xf2ead8, 1.05); key.position.set(2, 4, 3); scene.add(key);
-      const rim = new T.DirectionalLight(0xa8d0ff, 0.6); rim.position.set(-3, 2, -3); scene.add(rim);
+      threePoint(scene, renderer, false);
       const cam = new T.PerspectiveCamera(30, 240 / 300, 0.25, 50);
       const holder = new T.Group(); scene.add(holder);
       PR = { renderer, scene, cam, holder, ink: { weight: 1.2 } };
@@ -2783,7 +2963,9 @@ R3.hangar = function (el, m, owner, doctrine, opt) {
       const kk = Math.min(1, k);
       HV.fit = { lo: Math.max(0, bb.min.y * kk), hi: bb.max.y * kk, r: reach * kk };
     } else HV.fit = null;
-    HV.sig = sig; HV.snapUntil = clock() + 0.6;
+    // a different mech appears already framed; the same mech rebuilt (a part fitted, removed or repaired) eases instead
+    if (!m || m.uid !== HV.uid) HV.snapUntil = clock() + 0.6;
+    HV.sig = sig; HV.uid = m ? m.uid : null;
     measureSlots();
   }
   if (HV.R) highlight(HV.R, opt.sel || null);
@@ -2797,11 +2979,13 @@ R3.hangar = function (el, m, owner, doctrine, opt) {
       const bb = new T.Box3(); objs.forEach(o => bb.expandByObject(o));
       const c = new T.Vector3(); bb.getCenter(c);
       const local = HV.holder.worldToLocal(c.clone());
-      HV.rotT = Math.atan2(-local.x, local.z);
+      // the body and legs are shown from the front; an arm turns its side toward the camera, no further than a
+      // three-quarter turn; aux systems sit on the back, so the mech turns round for those
+      HV.rotT = sel === 'torso' || sel === 'core' || sel === 'legs' ? 0 : sel.startsWith('arm') ? Math.max(-1.1, Math.min(1.1, Math.atan2(-local.x, local.z))) : Math.atan2(-local.x, local.z);
       const r = Math.hypot(local.x, local.z);
       HV.lookT.set(0, Math.max(0.35, local.y), r * 0.6);
       HV.distT = 2.1;
-    } else { HV.rotT = null; }
+    } else { HV.rotT = HV.rotT != null ? 0 : null; }
   }
   HV.onPick = opt.onPick || null;
   HV.topEl = el.querySelector('.h3d-top');
@@ -2835,10 +3019,7 @@ function makePreview() {
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
   const scene = new T.Scene();
-  scene.environment = envFor(renderer);
-  scene.add(new T.HemisphereLight(0xdfe3e0, 0x3a3e42, 0.5));
-  const key2 = new T.DirectionalLight(0xf2ead8, 1.05); key2.position.set(2, 4, 3); scene.add(key2);
-  const rim = new T.DirectionalLight(0xa8d0ff, 0.6); rim.position.set(-3, 2, -3); scene.add(rim);
+  threePoint(scene, renderer, false);
   const cam = new T.PerspectiveCamera(30, 1, 0.25, 50);
   const holder = new T.Group(); scene.add(holder);
   const fx = new T.Group(); scene.add(fx);
@@ -2858,6 +3039,7 @@ function makePreview() {
 // show a loadout in el: L = { torso, core, legs, armL, armR, aux: [] }
 R3.preview = function (el, L, doctrine, owner) {
   if (!PV) makePreview();
+  PV.auto = null;
   if (PV.renderer.domElement.parentNode !== el) el.appendChild(PV.renderer.domElement);
   const D = DEFS(), mk = id => (id ? { id, hp: D[id].hp } : null);
   const m = { owner: owner || 0, slots: { torso: mk(L.torso), core: mk(L.core), legs: mk(L.legs), armL: mk(L.armL), armR: mk(L.armR), aux: (L.aux || []).map(mk) } };
@@ -2867,10 +3049,23 @@ R3.preview = function (el, L, doctrine, owner) {
     PV.R = buildMech(m, owner || 0, doctrine, {}); PV.holder.add(PV.R.root); PV.sig = sig; PV.base = PV.R.root.scale.x; PV.gait = {};
     PV.holder.rotation.y = 0; PV.holder.updateMatrixWorld(true);
     const bb = new T.Box3().setFromObject(PV.R.root), c = new T.Vector3(), sz = new T.Vector3(); bb.getCenter(c); bb.getSize(sz);
-    PV.frame = { c, h: Math.max(sz.y, sz.x * 1.1, sz.z * 1.1) };
+    PV.frame = { c, h: Math.max(sz.y, sz.x * 1.1, sz.z * 1.1), ht: sz.y, w: Math.max(sz.x, sz.z) };
   }
   pvLoop();
 };
+// the doctrine picker's showroom: the army's typical machine, idling, turned by dragging, and now and then showing off
+// one of its moves
+R3.showcase = function (el, doctrine, owner) {
+  R3.preview(el, ARCHETYPE[doctrine] || ARCHETYPE.assault, doctrine, owner);
+  PV.view = 'show'; PV.rot = 0.5; PV.act = 'idle';
+  PV.auto = { next: clock() + 2.5 };
+};
+function pvAutoAct(t) {
+  const R = PV.R, acts = ['jump', 'brace'];
+  for (const k of ['armL', 'armR']) if (R.muzzles[k]) acts.push(R.muzzles[k].cat === 'melee' ? 'melee' : k === 'armL' ? 'fireL' : 'fireR');
+  PV.act = acts[Math.floor(Math.random() * acts.length)]; PV.t0 = t; PV.done = {};
+  PV.auto.next = t + 4 + Math.random() * 3;
+}
 R3.previewPlay = function (act) { if (PV) { PV.act = act; PV.t0 = clock(); PV.done = {}; } };
 R3.previewTurn = function (rot) { if (PV) PV.rot = rot; };
 R3.previewView = function (v) { if (PV) PV.view = v; };
@@ -2886,11 +3081,15 @@ function pvLoop() {
     const el = PV.renderer.domElement, w = el.clientWidth, h = el.clientHeight;
     if (w && h && (PV.w !== w || PV.h !== h)) { PV.w = w; PV.h = h; PV.renderer.setSize(w, h, false); PV.cam.aspect = w / h; PV.cam.updateProjectionMatrix(); }
     if (!PV.R || !PV.frame) return;
+    if (PV.auto && PV.act === 'idle' && t > PV.auto.next) pvAutoAct(t);
     pvAnimate(t, dt);
     // camera: a showroom 3/4 view, the board's isometric angle, or straight down like the overview
-    const f = PV.frame, dist = f.h / (2 * Math.tan(15 * Math.PI / 180)) * (PV.view === 'front' ? 1.3 : 1.7);
-    const el2 = PV.view === 'top' ? 1.35 : PV.view === 'iso' ? 0.62 : 0.18, az = PV.view === 'front' ? 0 : 0.785;
-    PV.cam.position.set(f.c.x + Math.sin(az) * Math.cos(el2) * dist, f.c.y + Math.sin(el2) * dist, f.c.z + Math.cos(az) * Math.cos(el2) * dist); PV.cam.lookAt(f.c.x, f.c.y * 0.8, f.c.z);
+    // the doctrine showroom ('show') fills the view with the mech, centred, whatever the box's shape, with a little
+    // headroom for a jump
+    const show = PV.view === 'show', tn = 2 * Math.tan(15 * Math.PI / 180);
+    const f = PV.frame, dist = show ? Math.max(f.ht * 1.12, f.w * 1.05 / PV.cam.aspect) / tn * 1.15 : f.h / tn * (PV.view === 'front' ? 1.5 : 1.7);
+    const el2 = PV.view === 'top' ? 1.35 : PV.view === 'iso' ? 0.62 : show ? 0.12 : 0.18, az = PV.view === 'front' || show ? 0 : 0.785;
+    PV.cam.position.set(f.c.x + Math.sin(az) * Math.cos(el2) * dist, f.c.y + Math.sin(el2) * dist, f.c.z + Math.cos(az) * Math.cos(el2) * dist); PV.cam.lookAt(f.c.x, show ? f.c.y : f.c.y * 0.8, f.c.z);
     PV.renderer.render(PV.scene, PV.cam);
     inkPass(PV.renderer, PV.scene, PV.cam, PV.holder, PV.ink);
   };

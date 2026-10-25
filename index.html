@@ -51,7 +51,7 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 #start > .menu { margin-block: auto; }
 .menu { display: flex; flex-direction: column; gap: 18px; width: 100%; max-width: 760px; margin: 0 auto; }
 .modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.modes .mode:nth-child(3), .modes .mode.train { grid-column: 1 / -1; padding-block: 12px; }
+.modes .mode.train { grid-column: 1 / -1; padding-block: 12px; }
 .mode.train { box-shadow: inset 0 -5px 0 var(--good); }
 .newbie { margin: -6px 0 0; font-size: 14px; color: var(--muted); }
 .newbie b { color: var(--good); }
@@ -81,7 +81,7 @@ body.first .mode.train { order: -1; border-color: var(--good); }
 .net-join { display: flex; gap: 8px; }
 .net-join input { font: inherit; font-family: var(--mono); font-size: 18px; letter-spacing: .01em; text-transform: none; padding: 7px 10px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 3px; flex: 1; min-width: 0; }
 .nrow .code { font-family: var(--mono); font-weight: 600; letter-spacing: .12em; color: var(--ink); }
-.menu-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.menu-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .menu-acts #resume { grid-column: 1 / -1; }
 .menu-acts .btn { justify-content: center; text-align: center; }
 #recent .netlist { max-height: none; overflow: visible; }
@@ -195,6 +195,7 @@ fieldset.seat[data-seat] { flex: 1; min-height: 0; display: flex; flex-direction
 @keyframes dIn { from { opacity: 0; transform: translateX(var(--dx)); } }
 @media (prefers-reduced-motion: reduce) { .dcard.go-r, .dcard.go-l { animation: none; } }
 .dpic { height: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.dlive { width: 100%; height: 100%; min-height: 220px; }
 .dpic img { height: 100%; width: 100%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 14px 18px rgba(0,0,0,.18)); }
 .dpic .dq { height: min(70%, 340px); aspect-ratio: 4 / 5; display: grid; place-items: center; font: 900 clamp(80px, 14vw, 180px) var(--display); color: var(--muted); border: 3px dashed var(--line); border-radius: 8px; }
 .dtext { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -224,28 +225,27 @@ fieldset.seat[data-seat] { flex: 1; min-height: 0; display: flex; flex-direction
 .ddots span { display: block; height: 8px; width: 8px; border-radius: 4px; background: var(--line); transition: width .2s, background .2s; }
 .ddots label:has(input:checked) span { width: 28px; background: var(--sc); }
 .ddots label:has(input:focus-visible) span { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cmdrow { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 16px; margin-top: 10px; padding: 12px 14px; background: var(--surface); border: 2px solid var(--sc); border-radius: 4px; }
+.cmdrow { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 10px; margin-top: 6px; padding: 6px 8px; background: var(--surface); border: 1px solid var(--sc); border-left-width: 3px; border-radius: 4px; }
 .cmdrow:empty { display: none; }
-.cmdhead { display: flex; flex-direction: column; line-height: 1.05; }
-.cmdhead b { font-family: var(--display); font-size: 24px; font-weight: 900; text-transform: uppercase; color: var(--sc); }
-.cmdhead span { font-size: 16px; color: var(--muted); }
-.cmdchips { display: flex; flex-wrap: wrap; gap: 6px; }
-.cmdchip { position: relative; cursor: pointer; }
+/* the commander picker: one slim line of chips and one line saying how it fights, so the mech keeps the room */
+.cmdhead { display: flex; line-height: 1; }
+.cmdhead b { font-family: var(--display); font-size: 16px; font-weight: 900; text-transform: uppercase; color: var(--sc); }
+.cmdhead span { display: none; }
+.cmdchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.cmdchip { position: relative; cursor: pointer; flex: none; }
 .cmdchip input { position: absolute; opacity: 0; pointer-events: none; }
-.cmdchip span { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; font-weight: 600; font-size: 16px; color: var(--ink); }
-.cmdchip em { font-style: normal; font-family: var(--mono); font-size: 16px; padding: 0 5px; border-radius: 2px; background: var(--good); color: #fff; }
+.cmdchip span { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--line); background: var(--raised); border-radius: 999px; font-weight: 600; font-size: 14px; line-height: 1.2; color: var(--ink); white-space: nowrap; }
+.cmdchip em { font-style: normal; font-family: var(--mono); font-size: 11px; padding: 0 4px; border-radius: 2px; background: var(--good); color: #fff; }
 .cmdchip:hover span { border-color: var(--sc); }
 .cmdchip input:checked + span { background: var(--sc); border-color: var(--sc); color: #fff; }
 .cmdchip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cmdblurb { grid-column: 1 / -1; margin: 0; font-size: 16px; color: var(--ink); }
+.cmdblurb { grid-column: 1 / -1; margin: 0; font-size: 13px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a phone: the label and how it fights on one line, every commander below in a 3×2 grid, nothing hidden */
 @media (max-width: 640px) {
-  .cmdrow { grid-template-columns: minmax(0, 1fr); padding: 10px 12px; gap: 8px; }
-  .cmdhead { flex-direction: row; align-items: baseline; gap: 8px; }
-  .cmdhead b { font-size: 24px; }
-  .cmdchips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; }
-  .cmdchip { display: flex; }
-  .cmdchip span { width: 100%; flex-direction: column; justify-content: center; gap: 2px; padding: 6px 4px; font-size: 16px; line-height: 1.1; }
-  .cmdchip em { padding: 0 4px; }
+  .cmdrow { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "head blurb" "chips chips"; }
+  .cmdhead { grid-area: head; } .cmdblurb { grid-area: blurb; } .cmdchips { grid-area: chips; }
+  .cmdchips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cmdchip span { width: 100%; justify-content: center; padding: 4px 4px; }
 }
 @media (max-width: 640px) {
   .dcar { grid-template-columns: minmax(0, 1fr); min-height: 370px; }
@@ -897,6 +897,9 @@ button.rost { cursor: pointer; }
 #camctl { display: none; position: absolute; right: 6px; bottom: 6px; z-index: 6; gap: 4px; }
 .board-wrap.r3 #camctl { display: flex; }
 #camctl button { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 82%, transparent); color: var(--text); backdrop-filter: blur(3px); }
+#camctl button[hidden] { display: none; }
+#camctl button.on { border-color: var(--accent); color: var(--accent); }
+#camctl #simspeed svg { fill: currentColor; stroke: none; }
 #camctl button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #labels { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
 #labels.compact .mlrow, #labels.compact .odd3 + .mlrow { display: none; }
@@ -919,6 +922,13 @@ button.rost { cursor: pointer; }
 .mlrow .pips i { width: 6px; height: 6px; }
 .mlrow .ico { width: 11px; height: 11px; color: #e8eef4; }
 .mlrow .owi { color: #ff6a5a; }
+.emp3 { display: inline-flex; align-items: center; gap: 2px; font: 700 11px/1 var(--body); text-transform: uppercase; letter-spacing: .04em; color: #1a1300; background: repeating-linear-gradient(135deg, #f4c431 0 6px, #e0b020 6px 12px); padding: 2px 5px 2px 3px; border-radius: 3px; box-shadow: 0 0 0 1px #1a1300, 0 2px 4px rgba(0, 0, 0, .4); }
+.emp3 .ico { width: 12px; height: 12px; }
+.held3 { display: inline-flex; align-items: center; gap: 2px; font: 700 11px/1 var(--body); text-transform: uppercase; letter-spacing: .04em; color: #fff; background: var(--pc); padding: 2px 6px 2px 4px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(10, 14, 20, .6); }
+.held3 .ico { width: 11px; height: 11px; color: #fff; }
+.lbl3 > .held3 { transform: translate(-50%, -50%); }
+#labels.compact .emp3 { font-size: 0; gap: 0; padding: 2px; }
+.mh-s b.emp { color: #f4c431; }
 .heatb3 { font-family: var(--mono); font-size: 14px; line-height: 1; background: #edb13a; color: #1a1300; padding: 1px 3px; border-radius: 2px; }
 .heatb3.hot { background: #ef5a4a; color: #fff; }
 .odd3 { font-family: var(--mono); font-size: 14px; font-weight: 600; background: #ef4a3a; color: #fff; padding: 1px 4px; border-radius: 2px; margin-bottom: 2px; }
@@ -1124,7 +1134,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 .hud { position: absolute; top: 0; left: 0; right: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: calc(8px + env(safe-area-inset-top, 0px)) 8px 0; pointer-events: none; }
 .hud > * { pointer-events: auto; }
 .glass, .hud .top > *, .hud .track, #game .dock, #game #win { background: var(--glass); border: 1px solid var(--glass-line); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 6px 18px rgba(0, 0, 0, .28); }
-.hud .top { width: 100%; max-width: 920px; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto minmax(0, 1fr) 40px; gap: 6px; align-items: stretch; }
+.hud .top { width: 100%; max-width: 920px; display: grid; grid-template-columns: 40px minmax(0, 1fr) 108px minmax(0, 1fr) 40px; gap: 6px; align-items: stretch; }
 .hb { min-height: 40px; display: grid; place-items: center; padding: 0; color: var(--ink); border-radius: 10px; cursor: pointer; position: relative; }
 .hb:hover { border-color: rgba(255, 255, 255, .3); }
 .hb svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -1148,7 +1158,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 .hud .vpbar i[data-new] { animation: vpseg 1.2s ease-out 1; }
 @keyframes vpseg { 0%, 40% { background: #f4c431; box-shadow: 0 0 8px #f4c431; } }
 .hud .vpbar i.on { background: var(--pc); }
-.hud .mid { justify-content: center; padding: 4px 12px; border-radius: 10px; gap: 1px; }
+.hud .mid { justify-content: center; align-items: center; text-align: center; padding: 4px 6px; border-radius: 10px; gap: 1px; min-width: 0; overflow: hidden; }
 .hud .round { font: 600 12px/1.1 var(--body); color: var(--muted); text-transform: none; letter-spacing: .02em; }
 .hud .phase { font: 900 18px/1 var(--display); text-transform: uppercase; letter-spacing: .04em; color: var(--ink); white-space: nowrap; }
 .hud .track { width: auto; max-width: min(100%, 720px); min-height: 0; padding: 4px 6px; border-radius: 10px; gap: 4px; }
@@ -1196,7 +1206,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 }
 @media (max-width: 520px) {
   .hud { padding-inline: 6px; }
-  .hud .top { gap: 4px; grid-template-columns: 36px minmax(0, 1fr) auto minmax(0, 1fr) 36px; }
+  .hud .top { gap: 4px; grid-template-columns: 36px minmax(0, 1fr) 88px minmax(0, 1fr) 36px; }
   .hud .top .side { grid-template-columns: minmax(0, 1fr); padding: 5px 8px 6px; }
   .hud .mid { padding: 4px 6px; }
   .hud .phase { font-size: 16px; }
@@ -1224,7 +1234,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
    the right, and the Base window over the whole screen. */
 @media (orientation: landscape) and (max-height: 520px) {
   .hud { padding: calc(4px + env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) 0 calc(8px + env(safe-area-inset-left, 0px)); gap: 4px; }
-  .hud .top { max-width: 640px; gap: 4px; grid-template-columns: 34px minmax(0, 1fr) auto minmax(0, 1fr) 34px; }
+  .hud .top { max-width: 640px; gap: 4px; grid-template-columns: 34px minmax(0, 1fr) 92px minmax(0, 1fr) 34px; }
   .hb { min-height: 34px; border-radius: 8px; }
   .hb svg { width: 18px; height: 18px; }
   .hud .top .side { padding: 4px 8px 5px; row-gap: 3px; border-radius: 8px; }
@@ -1438,6 +1448,8 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 #game .ab.br .ico { color: #b8c4cf; background: rgba(184, 196, 207, .14); }
 #game .ab[data-act=enter] .ico { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
 #game .ab.hl .ico { color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+#game .ab.trick { border-color: color-mix(in srgb, var(--c-energy) 55%, transparent); }
+#game .ab.trick .ico { color: var(--c-energy); background: color-mix(in srgb, var(--c-energy) 16%, transparent); }
 #game .ab.danger .ico { color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, transparent); }
 #game .ab:not(:disabled):hover { border-color: rgba(255, 255, 255, .3); }
 #game .ab.end { flex: 1.25; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
@@ -1479,6 +1491,38 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 .ts { display: block; width: 12px; height: 18px; border-radius: 4px; background: var(--pc); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
 .ts.done { opacity: .28; height: 12px; }
 .ts.now { width: 16px; height: 26px; box-shadow: 0 0 0 2px var(--accent), 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent); }
+/* the commander's description is one line whichever one is picked, so the screen never jumps */
+#start .cmdblurb { font-size: 13px; }
+/* build actions as pips */
+.bpips { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; line-height: 0; }
+.bpips i { display: block; width: 6px; height: 11px; border-radius: 2px; background: var(--accent); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .18); }
+.bpips i.new { background: var(--good); }
+
+/* on the draw screen the earned pips pop in green, one by one, then settle to gold like the rest */
+.rv-supply .bpips i.new { animation: pipnew 2.4s ease-out calc(.55s + var(--pd, 0) * .18s) both; }
+@keyframes pipnew {
+  0% { transform: translateY(-10px) scale(.2); opacity: 0; background: var(--good); }
+  14% { transform: translateY(0) scale(1.35); opacity: 1; background: var(--good); box-shadow: 0 0 12px var(--good); }
+  26% { transform: scale(1); background: var(--good); box-shadow: 0 0 6px var(--good); }
+  60% { background: var(--good); box-shadow: none; }
+  100% { transform: none; opacity: 1; background: var(--accent); }
+}
+@media (prefers-reduced-motion: reduce) { .rv-supply .bpips i.new { animation: none; background: var(--accent); } }
+.bpips i.off { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; opacity: .4; }
+.btn .bpips, .pfc .bpips { margin-left: 2px; }
+.btn.blocked .bpips i:not(.off) { background: var(--bad); }
+#win-head .rchips .bpips i { width: 9px; height: 18px; }
+#win-head .rchips .rinc .bpips i { width: 6px; height: 11px; }
+.rv-supply .bpips { gap: 4px; }
+.rv-supply .bpips i { width: 14px; height: 30px; border-radius: 3px; }
+.rv-supply .rv-inc .bpips i { width: 7px; height: 14px; background: var(--good); }
+.olab .bpips i { width: 5px; height: 9px; }
+/* the draw screen also says how many build actions there are this round */
+.rv-supply { display: inline-flex; align-items: center; gap: 10px; padding: 8px 18px 8px 10px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); animation: dealin .65s cubic-bezier(.2, .8, .2, 1) both; }
+.rv-supply .rico { width: 34px; height: 34px; padding: 6px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.rv-supply b { font: 900 34px/1 var(--display); color: var(--ink); }
+.rv-supply .rv-inc { color: var(--good); font-style: normal; }
+.rv-supply span { font: 600 15px var(--body); color: var(--muted); }
 </style>
 
 <div id="app">
@@ -1486,15 +1530,15 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
     <div id="menu" class="menu">
       <div>
         <h1>Mecha <span>Warfare</span></h1>
-        <p class="pitch">Pick a chassis, fit legs and weapons to its hardpoints, and send your mechs out to hold the capture points. First to 12 victory points wins, or destroy the enemy base outright.</p>
+        <p class="pitch">Build your mechs. Hold the field. Win the war.</p>
       </div>
       <div class="modes">
-        <button type="button" class="mode" data-start="ai"><b>Play the AI</b><span>Command Azure against a computer opponent.</span></button>
-        <button type="button" class="mode" data-start="hot"><b>Two players</b><span>Two commanders share this screen.</span></button>
-        <button type="button" class="mode" id="go-online"><b>Online match</b><span>Each commander plays from their own device.</span></button>
-        <button type="button" class="mode train" data-act="training"><b>Training</b><span>A guided first battle against an easy opponent. About 5 minutes.</span></button>
+        <button type="button" class="mode" data-start="ai"><b>Play the AI</b></button>
+        <button type="button" class="mode" data-start="hot"><b>Two players</b></button>
+        <button type="button" class="mode" id="go-online"><b>Online match</b></button>
+        <button type="button" class="mode" data-start="sim"><b>AI vs AI</b></button>
+        <button type="button" class="mode train" data-act="training"><b>Training</b></button>
       </div>
-      <p class="newbie" id="newbie" hidden><b>New here?</b> Start with Training: it walks you through one round, step by step.</p>
       <div class="row menu-acts">
         <button class="btn primary" type="button" id="resume" hidden>Continue last battle</button>
         <button class="btn" type="button" data-act="recent">Recent games</button>
@@ -1544,6 +1588,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
           <button type="button" class="dnav" data-dnav="1" aria-label="Next doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
         </div>
         <div class="dpager"><button type="button" class="dnav" data-dnav="-1" aria-label="Previous doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ddots" id="doc0"></div><button type="button" class="dnav" data-dnav="1" aria-label="Next doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div>
+        <div class="cmdrow" id="cmdrow0"></div>
       </fieldset>
       <fieldset class="seat p1 s2" data-seat="1">
         <legend class="seathead" id="leg1">Ember doctrine</legend>
@@ -1553,7 +1598,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
           <button type="button" class="dnav" data-dnav="1" aria-label="Next doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
         </div>
         <div class="dpager"><button type="button" class="dnav" data-dnav="-1" aria-label="Previous doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ddots" id="doc1"></div><button type="button" class="dnav" data-dnav="1" aria-label="Next doctrine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div>
-        <div class="cmdrow" id="cmdrow"></div>
+        <div class="cmdrow" id="cmdrow1"></div>
       </fieldset>
       <fieldset class="seat mapseat s3" data-seat="map">
         <legend class="vh">Battlefield</legend>
@@ -1593,6 +1638,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
             <button type="button" data-cam="rotL" title="Turn view left" aria-label="Turn view left"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 3v5h5"/></svg></button>
             <button type="button" data-cam="rotR" title="Turn view right" aria-label="Turn view right"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3v5h-5"/></svg></button>
             <button type="button" data-cam="overview" title="Whole map" aria-label="Show the whole map"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg></button>
+            <button type="button" id="simspeed" data-act="simSpeed" title="Speed" aria-label="Play fast" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><path d="M4 6l8 6-8 6zM12 6l8 6-8 6z"/></svg></button>
           </div>
         </div>
         <div id="toast" hidden></div>
@@ -1631,12 +1677,13 @@ const flip = () => !!net && net.seat === 1;
 const dc = (x, y) => flip() ? MW.H - 1 - y : y, dr = (x, y) => flip() ? x : MW.W - 1 - x;
 const ui = { sel: null, hangarSel: null, slotSel: null, mode: 'idle', weaponKey: null, pendingTarget: null, deployUid: null, busy: false, timer: null, phaseKey: '', confirmNew: false, seen: new Set(), flash: null, prev: null, prevRes: null, logN: null, annKey: '', win: null, winShown: undefined, startMode: 'ai' };
 let S = null;
+try { ui.simSpeed = localStorage.getItem('mw-simspeed') === 'fast' ? 'fast' : 'normal'; } catch (e) { /* storage unavailable */ }
 const SAVE = 'mecha-warfare-save-v4';          // the single save of older versions, folded into the list below
 const GAMES = 'mw-games', GAME = id => 'mw-game-' + id, GAMES_MAX = 20;
 function gamesIndex() { try { return JSON.parse(localStorage.getItem(GAMES) || '[]') || []; } catch (e) { return []; } }
 // a saved online match opened from the list keeps its own mode and seat
 const viewing = st => ui.viewMeta && ui.viewMeta.id === st.gameId ? ui.viewMeta : null;
-function gameMode(st) { return net ? 'online' : viewing(st) ? viewing(st).mode : st.players.some(p => p.isAI) ? 'ai' : 'local'; }
+function gameMode(st) { return net ? 'online' : viewing(st) ? viewing(st).mode : st.players.every(p => p.isAI) ? 'watch' : st.players.some(p => p.isAI) ? 'ai' : 'local'; }
 function gameId(st) {
   if (net) return 'online-' + net.code;
   if (!st.gameId) st.gameId = gameMode(st) + '-' + (st.startedAt || Date.now());
@@ -1684,7 +1731,7 @@ const OBJ_SVG = {
   repair: '<path d="M17 9h6v8h8v6h-8v8h-6v-8H9v-6h8z" fill="none" stroke="currentColor" stroke-width="2.5"/>',
   uplink: '<path d="M20 12v22M14 34h12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="20" cy="11" r="4" fill="currentColor"/><path d="M11 6a12 12 0 0 0 0 10M29 6a12 12 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
 };
-const OBJ_NAME = { depot: 'Supply depot', radar: 'Radar station', repair: 'Repair station', uplink: 'Uplink' };
+const OBJ_NAME = { depot: 'Depot', radar: 'Radar station', repair: 'Repair station', uplink: 'Uplink' };
 const ICONS = {
   ap: '<path d="M3 12h14M13 7l5 5-5 5"/><path d="M9 4v16"/>',
   arc: '<path d="M3 19c2-9 8-13 15-10"/><path d="M14 5l4 4-5 2"/>',
@@ -1755,6 +1802,9 @@ function keyword(d) {
   return '';
 }
 const si = name => ico(name, 'si');
+// build actions as pips: one gold bar per action, spent ones as empty outlines
+// the last `fresh` of them are green: actions earned on the field last round
+const bpips = (n, spent, cls, fresh) => { const f = Math.min(Math.max(0, fresh || 0), Math.max(0, n)); return '<span class="bpips' + (cls ? ' ' + cls : '') + '" role="img" aria-label="' + MW.actWord(n) + (f ? ', ' + f + ' earned' : '') + '" title="' + MW.actWord(n) + (f ? ', ' + f + ' earned last round' : '') + '">' + '<i></i>'.repeat(Math.max(0, n - f)) + Array.from({ length: f }, (_, i) => '<i class="new" style="--pd:' + i + '"></i>').join('') + '<i class="off"></i>'.repeat(Math.max(0, spent || 0)) + '</span>'; };
 
 /* ---------- Helpers ---------- */
 const selMech = () => (ui.sel != null && S) ? (MW.fieldMech(ui.sel) || S.players.flatMap(p => p.hangar).find(m => m.uid === ui.sel) || null) : null;
@@ -1829,8 +1879,8 @@ function statList(d) {
   if (d.moveHeat) add('moveHeat', '+' + d.moveHeat + ' heat per move', d.moveHeat, -1);
   if (d.passiveHeat) add('passiveHeat', '+' + d.passiveHeat + ' heat a round', d.passiveHeat, -1);
   if (d.breach) add('breach', 'Breach ' + d.breach + ' DMG', d.breach, -1);
-  if (d.event) { const e = d.event; if (e.supply) add('e1', '+' + e.supply + ' Supply', 0, 0); if (e.ep) add('e2', '+' + e.ep + ' engineering', 0, 0); if (e.draw) add('e3', 'Draw ' + e.draw + ' more', 0, 0); if (e.repair) add('e4', 'Every mech +' + e.repair + ' HP', 0, 0); }
-  if (d.tactic) { if (d.tactic.supply) add('t1', '+' + d.tactic.supply + ' Supply', 0, 0); if (d.tactic.ep) add('t2', '+' + d.tactic.ep + ' engineering', 0, 0); if (d.tactic.draw) add('t3', 'Draw ' + d.tactic.draw, 0, 0); }
+  if (d.event) { const e = d.event; if (e.ep) add('e2', '+' + MW.actWord(e.ep), 0, 0); if (e.draw) add('e3', 'Draw ' + e.draw + ' more', 0, 0); if (e.repair) add('e4', 'Every mech +' + e.repair + ' HP', 0, 0); }
+  if (d.tactic) { if (d.tactic.ep) add('t2', '+' + MW.actWord(d.tactic.ep), 0, 0); if (d.tactic.draw) add('t3', 'Draw ' + d.tactic.draw, 0, 0); }
   if (d.slot !== 'tactic' && d.slot !== 'event') {
     if (d.pips != null && d.slot !== 'torso') add('pips', d.pips + ' capacity pips', d.pips, -1, 'PIPS');
     if (d.slot !== 'aux') add('hp', 'HP ' + d.hp, d.hp, 1, 'HP');
@@ -1886,8 +1936,7 @@ function faceHTML(d, cmp) {
   }
   if (d.event) {
     const e = d.event;
-    if (e.supply) num('supply', '+' + e.supply, '+' + e.supply + ' Supply');
-    if (e.ep) num('eng', '+' + e.ep, '+' + e.ep + ' engineering this round');
+    if (e.ep) head.push('<span class="fi big" title="+' + MW.actWord(e.ep) + ' this round">+' + bpips(e.ep) + '</span>');
     if (e.draw) num('cards', '+' + e.draw, 'Draw ' + e.draw + ' more cards');
     if (e.repair) num('wrench', e.repair, 'Repairs ' + e.repair + ' on every mech');
   }
@@ -1923,10 +1972,10 @@ function partPic(d, cls) {
 }
 function showPartInfo(id, uid) {
   const d = D[id]; if (!d) return;
-  const sell = uid ? '<div class="row"><button type="button" class="btn sell grow" data-act="scrap" data-uid="' + uid + '"><span>Sell for +' + MW.sellValue(d) + ' ' + si('supply') + '</span></button></div>' : '';
+  const sell = uid ? '<div class="row"><button type="button" class="btn sell grow" data-act="scrap" data-uid="' + uid + '"><span>Scrap for +' + bpips(MW.sellValue(d)) + '</span></button></div>' : '';
   const o = $('#overlay');
   o.innerHTML = '<div class="sheet pinfo" role="dialog" aria-label="' + d.name + '"><div class="phead"><h2>' + d.name + '</h2><button type="button" class="btn sm" data-act="closeOverlay">Close</button></div>' +
-    '<span class="lbl">' + (d.special ? '★ Special · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.cost ? ' · ' + d.cost + ' Supply' : '') + (d.pips != null && d.slot !== 'torso' ? ' · ' + d.pips + ' capacity pips' : '') + '</span>' +
+    '<span class="lbl">' + (d.special ? '★ Special · ' : '') + TYPE_LABEL[d.slot] + (d.cat ? ' · ' + CAT_NAME[d.cat] : '') + (d.slot !== 'event' && d.slot !== 'tactic' ? ' · ' + bpips(MW.buildCost(d)) : '') + (d.pips != null && d.slot !== 'torso' ? ' · ' + d.pips + ' capacity pips' : '') + '</span>' +
     partPic(d) + faceHTML(d) + chips(d) + (d.modeText ? '<p class="note">' + d.modeText + '</p>' : '') + (d.trait ? '<p class="note">' + d.trait + '</p>' : '') + sell + '</div>';
   o.hidden = false;
 }
@@ -2027,13 +2076,13 @@ function fieldLists() {
 function renderTop() {
   const prev = ui.prev || {}, now = {};
   // one plate per side: the name over the race to the win, as a bar (the numbers stay in the tooltip;
-  // Supply is in the Base window)
+  // build actions are in the Base window)
   const side = p => {
     const v = ui.vpShow && ui.vpShow[p.id] != null ? ui.vpShow[p.id] : (p.vp || 0);
     now['v' + p.id] = v;
     const segs = Array.from({ length: C.VP_WIN }, (_, i) => '<i' + (i < v ? ' class="on"' : '') + (i === v - 1 && prev['v' + p.id] != null && prev['v' + p.id] < v ? ' data-new' : '') + '></i>').join('');
     const who = MW.DOCTRINES[p.doctrine].name.replace(' Doctrine', '') + (p.isAI ? ' · AI' + (p.ai && MW.PERSONAS[p.ai.persona] ? ' ' + MW.PERSONAS[p.ai.persona].name : '') : '');
-    return '<div class="side vpp p' + p.id + (S.current === p.id && S.phase !== 'over' ? ' turn' : '') + (S.phase === 'over' && S.winner === p.id ? ' won' : '') + '" title="' + p.name + ' · ' + who + ' · ' + v + ' of ' + C.VP_WIN + ' victory points · ' + p.supply + ' Supply">' +
+    return '<div class="side vpp p' + p.id + (S.current === p.id && S.phase !== 'over' ? ' turn' : '') + (S.phase === 'over' && S.winner === p.id ? ' won' : '') + '" title="' + p.name + ' · ' + who + ' · ' + v + ' of ' + C.VP_WIN + ' victory points">' +
       '<span class="side-name">' + p.name + (net && net.seat === p.id ? '<em class="you">You</em>' : '') + '</span>' +
       '<span class="vpbar" data-vp aria-label="' + v + ' of ' + C.VP_WIN + ' victory points" style="grid-template-columns:repeat(' + C.VP_WIN + ',1fr)">' + segs + '</span></div>';
   };
@@ -2095,6 +2144,7 @@ function renderBoard() {
   let reach = null, targets = [], dep = [];
   const threat = {};
   if (human && S.phase === 'combat' && sm && sm.x != null && sm.owner === S.current && !MW.actGuard(sm)) {
+    if (ui.mode === 'phase') { reach = {}; MW.phaseTiles(sm).forEach(([x, y]) => { reach[x + ',' + y] = 1; }); }
     if (ui.mode === 'move') {
       reach = MW.reachable(sm);
       for (const wp of MW.weaponsOf(sm)) if (MW.usable(sm, wp.key) && !wp.w.repair) MW.validTargets(sm, wp.key).forEach(t => { threat[t.x + ',' + t.y] = 1; });
@@ -2124,10 +2174,10 @@ function renderBoard() {
       inner += '<svg class="basegfx p' + b + '" viewBox="0 0 40 40"><path d="M20 3l14 8v18l-14 8-14-8V11z" fill="currentColor"/><path d="M20 9l9 5v12l-9 5-9-5V14z" fill="none" stroke="var(--bg)" stroke-width="1.5"/><text x="20" y="24" text-anchor="middle">' + bp.base.hp + '</text></svg>';
       lab.push(bp.name + ' base, ' + bp.base.hp + ' hit points');
     }
-    if (o) { inner += '<svg class="obj' + (o.owner != null ? ' own' + o.owner : '') + '" viewBox="0 0 40 40"' + (m ? ' style="opacity:.3"' : '') + '>' + OBJ_SVG[o.type] + '</svg>'; if (!m) { const ol = '<span class="olab">' + (o.type === 'depot' ? '+' + C.DEPOT + ico('supply') : o.type === 'radar' ? '+' + C.RADAR_ACC + '%' + ico('ballistic') : o.type === 'uplink' ? '×' + MW.objVp(o) : '+' + C.STATION_REPAIR + ico('hp')) + (o.type !== 'repair' && MW.scores(o, viewer()) ? ico('star', 'vpstar') : '') + '</span>'; inner += ol; olabs.push({ x, y, html: ol }); }
+    if (o) { inner += '<svg class="obj' + (o.owner != null ? ' own' + o.owner : '') + '" viewBox="0 0 40 40"' + (m ? ' style="opacity:.3"' : '') + '>' + OBJ_SVG[o.type] + '</svg>'; if (!m) { const ol = '<span class="olab">' + (o.type === 'depot' ? '+' + bpips(C.DEPOT) : o.type === 'radar' ? '+' + C.RADAR_ACC + '%' + ico('ballistic') : o.type === 'uplink' ? '×' + MW.objVp(o) : '+' + C.STATION_REPAIR + ico('hp')) + (o.type !== 'repair' && MW.scores(o, viewer()) ? ico('star', 'vpstar') : '') + '</span>'; inner += ol; olabs.push({ x, y, html: ol }); }
     if (o.type !== 'repair' && MW.scores(o, viewer())) lab.push('scores ' + (MW.objVp(o) > 1 ? MW.objVp(o) + ' victory points' : 'a victory point') + ' for you'); if (o.owner != null) cls.push('owned' + o.owner); lab.push(OBJ_NAME[o.type] + (o.owner != null ? ' held by ' + S.players[o.owner].name : '')); }
     const cr = MW.crateAt(x, y);
-    if (cr) { inner += '<svg class="crate" viewBox="-5 -5 34 34">' + ICONS.event + '</svg>' + (m ? '' : '<span class="olab">' + (cr.kind === 'supply' ? '+' + cr.amount + ico('supply') : '★') + (MW.rule('crateVp', 0) ? ico('star', 'vpstar') : '') + '</span>'); lab.push(MW.rule('crateVp', 0) ? 'salvage crate, worth a victory point' : 'supply crate'); }
+    if (cr) { inner += '<svg class="crate" viewBox="-5 -5 34 34">' + ICONS.event + '</svg>' + (m ? '' : '<span class="olab">' + (cr.kind === 'supply' ? '+' + bpips(cr.amount) : '★') + (MW.rule('crateVp', 0) ? ico('star', 'vpstar') : '') + '</span>'); lab.push(MW.rule('crateVp', 0) ? 'salvage crate, worth a victory point' : 'supply crate'); }
     if (w) { inner += '<svg viewBox="0 0 40 40"' + (m ? ' style="opacity:.4"' : '') + '><circle class="wglow" cx="20" cy="22" r="15"/><path d="M6 32l6-10 5 4 6-11 6 8 5 9z" fill="var(--muted)"/><path d="M10 12l5 5m0-5l-5 5M27 8l4 4m0-4l-4 4" stroke="var(--muted)" stroke-width="1.6"/></svg>'; lab.push('wreck'); }
     if (m) {
       const st = MW.stats(m);
@@ -2173,16 +2223,19 @@ function sync3d(overlay, zoneMap, olabs, oddsMap, turret) {
     let row = '';
     if (S.phase === 'combat' && !m.activated) row += pips(m.ap);
     if (m.heat > 0) row += '<span class="heatb3' + (m.heat > st.heatCap ? ' hot' : '') + '">' + m.heat + '</span>';
-    row += (m.burn > 0 ? ico('incendiary', 'sm k-incendiary') : '') + (m.slow > 0 ? ico('cryo', 'sm k-cryo') : '') + (m.shock ? ico('energy', 'sm k-energy') : '') + (m.overwatch ? ico('eye', 'sm owi') : '') + (m.entrenched ? ico('anchor', 'sm') : '');
+    row += (m.burn > 0 ? ico('incendiary', 'sm k-incendiary') : '') + (m.slow > 0 ? ico('cryo', 'sm k-cryo') : '') + (m.shock ? ico('energy', 'sm k-energy') : '') + (m.overwatch ? ico('eye', 'sm owi') : '');
+    if (m.entrenched) inner = '<span class="emp3" title="Emplaced: a turret, +1 range">' + ico('anchor') + 'Emplaced</span>' + inner;
     if (row) inner += '<span class="mlrow">' + row + '</span>';
     if (oddsMap[m.uid] != null) inner = '<span class="odd3">' + oddsMap[m.uid] + '%</span>' + inner;
     add('<div class="ml p' + m.owner + (ui.sel === m.uid ? ' sel' : '') + (S.phase === 'combat' && m.activated ? ' done' : '') + '">' + inner + '</div>', { uid: m.uid, h: 1.3 });
   }
   // base HP sits just off the board edge behind each base so it never hides the hangar itself
   for (const p of S.players) add('<div class="bl p' + p.id + '">' + ico('base', 'sm') + p.base.hp + '</div>', { x: p.base.x + (p.base.x === 0 ? -0.75 : 0.75), y: p.base.y, h: 0 });
+  // an objective held from the next tile over (Armored's zone control) says so on the map
+  for (const o of S.objectives) { const hm = MW.holderOf(o); if (hm && (hm.x !== o.x || hm.y !== o.y)) add('<div class="held3 p' + hm.owner + '" title="' + S.players[hm.owner].name + ' holds this from the next tile">' + ico('anchor', 'sm') + 'Held</div>', { x: o.x, y: o.y, h: 0.75 }); }
   // what a capture point gives only shows when it is tapped
   for (const o of olabs) if (ui.peek === o.x + ',' + o.y) add('<div class="ol3 peek">' + o.html + '</div>', { x: o.x, y: o.y, h: 0.9 });
-  for (const c of S.crates || []) if (!MW.mechAt(c.x, c.y)) add('<div class="ol3"><span class="olab">' + (c.kind === 'supply' ? '+' + c.amount + ico('supply') : '★') + '</span></div>', { x: c.x, y: c.y, h: 0.55 });
+  for (const c of S.crates || []) if (!MW.mechAt(c.x, c.y)) add('<div class="ol3"><span class="olab">' + (c.kind === 'supply' ? '+' + bpips(c.amount) : '★') + '</span></div>', { x: c.x, y: c.y, h: 0.55 });
   const smA = ui.sel != null ? MW.fieldMech(ui.sel) : null, tmA = ui.pendingTarget != null ? MW.fieldMech(ui.pendingTarget) : null;
   const aiming = isHuman() && S.phase === 'combat' && ui.mode === 'fire' && smA && tmA && smA.owner === S.current && !MW.actGuard(smA);
   if (aiming) applyLabels({ html: aimOptions(smA).map(o => '<div class="lbl3 aim3">' + aimTag(o) + '</div>').join(''), anchors: aimOptions(smA).map(o => ({ uid: tmA.uid, part: o.part })) }, true);
@@ -2196,7 +2249,7 @@ function sync3d(overlay, zoneMap, olabs, oddsMap, turret) {
   const sm = ui.sel != null ? S.mechs.find(m => m.uid === ui.sel && m.x != null) : null;
   const frame = sm && human && S.phase === 'combat' && ui.mode === 'fire' && ui.weaponKey ? [[sm.x, sm.y]].concat(MW.rangeTiles(sm, ui.weaponKey)) : null;
   // picking a tile to move to: frame the mech and everywhere it can reach, seen from above
-  const reach = sm && human && S.phase === 'combat' && ui.mode === 'move' && sm.owner === S.current && !MW.actGuard(sm) ? MW.reachable(sm) : null;
+  const reach = sm && human && S.phase === 'combat' && (ui.mode === 'move' || ui.mode === 'phase') && sm.owner === S.current && !MW.actGuard(sm) ? (ui.mode === 'phase' ? Object.fromEntries(MW.phaseTiles(sm).map(([x, y]) => [x + ',' + y, 1])) : MW.reachable(sm)) : null;
   const plan = reach ? [[sm.x, sm.y]].concat(Object.keys(reach).filter(k => reach[k] > 0).map(k => k.split(',').map(Number))) : null;
   const cam = aiming ? { aim: tmA.uid, x: tmA.x, y: tmA.y } : human && S.phase === 'deploy' && ui.mode === 'deploy' ? { deploy: S.current } : frame ? { frame, key: sm.uid + ':' + ui.weaponKey + ':' + sm.x + ',' + sm.y } : plan && plan.length > 1 ? { plan, key: sm.uid + ':' + sm.x + ',' + sm.y } : sm ? { sel: sm.uid } : {};
   window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, turret: turret || {}, sel: ui.sel, active: S.active, cam, labels: ui.curLabels, aim: aiming ? tmA.uid : null, onAim: part => onAct({ dataset: { act: 'shoot', part } }) });
@@ -2264,17 +2317,57 @@ async function saveHistory() {
     const st = S, sum = gameSummary(st);
     await NETDB.doc('data/users/' + ME + '/mw/history/' + sum.id).set(Object.assign(sum, {
       v: 2,
-      players: st.players.map(p => ({ name: p.name, doctrine: p.doctrine, isAI: !!p.isAI, vp: p.vp || 0, baseHp: p.base.hp, kills: p.kills || 0, lost: p.lost || 0, supply: p.supply, hangar: p.hangar.length })),
+      players: st.players.map(p => ({ name: p.name, doctrine: p.doctrine, isAI: !!p.isAI, vp: p.vp || 0, baseHp: p.base.hp, kills: p.kills || 0, lost: p.lost || 0, actions: p.ep, hangar: p.hangar.length })),
       log: (st.log || []).map(l => 'R' + l.r + ' ' + l.t),
       state: JSON.stringify(st)
     }));
   } catch (e) { /* history is a nicety; the game goes on without it */ }
 }
+/* ---------- AI vs AI records: every line of every round, kept where Claude can read them ----------
+   simlogs/<game>          the war at a glance: doctrines, commanders, map, result
+   simlogs/<game>/rounds/N round N's full log, and how each side stood when it was sent (the next round's build done)
+   The engine's own log keeps only its last 400 lines, so the lines are gathered here as they appear. */
+function simSide(p) {
+  const a = p.ai || {}, ids = m => ({ torso: m.slots.torso && m.slots.torso.id, legs: m.slots.legs && m.slots.legs.id, armL: m.slots.armL && m.slots.armL.id, armR: m.slots.armR && m.slots.armR.id, aux: m.slots.aux.filter(Boolean).map(x => x.id) });
+  return { name: p.name, doctrine: p.doctrine, persona: a.persona || null, playbook: a.vid || null, experiment: !!a.experiment, stance: a.stance || null,
+    vp: p.vp || 0, actions: p.ep, next: p.next || 0, baseHp: p.base.hp, kills: p.kills || 0, lost: p.lost || 0, workshop: p.workshop.length, deck: p.deck.length,
+    field: MW.fieldMechs(p.id).map(m => ({ name: m.name, role: MW.role(m), at: MW.coord(m.x, m.y), hp: MW.hpOf(m) + '/' + MW.maxHpOf(m), heat: m.heat, parts: ids(m) })),
+    hangar: p.hangar.filter(m => !MW.isBlank(m)).map(m => ({ name: m.name, ready: !MW.issues(m).length, parts: ids(m) })) };
+}
+function simRecord() {
+  const id = gameId(S);
+  if (ui.sim && ui.sim.id !== id) ui.sim = null;
+  // a war picked up again part way through starts recording from where it stands
+  if (!ui.sim) ui.sim = { id, seen: (S.logN || 0) - S.log.length, buf: {}, sent: 0, head: '' };
+  const R = ui.sim, n = S.logN || 0;
+  for (const l of S.log.slice(Math.max(0, S.log.length - (n - R.seen)))) (R.buf[l.r] = R.buf[l.r] || []).push('[' + l.k + '] ' + l.t);
+  R.seen = n;
+  const done = S.phase === 'over', upTo = done ? S.round : S.round - 1;
+  const rounds = [];
+  for (let r = R.sent + 1; r <= upTo; r++) rounds.push(r);
+  const head = { id, at: Date.now(), startedAt: S.startedAt || null, map: S.map, status: done ? 'over' : 'playing', round: S.round, rounds: upTo,
+    winner: done ? S.winner : null, winReason: done ? S.winReason || null : null, players: S.players.map(simSide) };
+  const hk = head.status + ':' + upTo;
+  if (!rounds.length && R.head === hk) return;
+  R.head = hk; R.sent = upTo;
+  const sides = S.players.map(simSide);
+  const batch = rounds.map(r => ({ r, lines: R.buf[r] || [], after: r === upTo ? sides : null }));
+  rounds.forEach(r => { delete R.buf[r]; });
+  (async () => {
+    try {
+      await netReady;
+      if (!NETDB) return;
+      for (const b of batch) await NETDB.doc('simlogs/' + id + '/rounds/' + String(b.r).padStart(2, '0')).set(b);
+      await NETDB.doc('simlogs/' + id).set(head);
+    } catch (e) { /* the war plays on without its record */ }
+  })();
+}
 function showEnd() {
   if (!S || S.phase !== 'over') return;
   const w = S.players[S.winner], l = S.players[1 - S.winner];
   // whose eyes: online it is this device's seat; against the AI it is the human; two players on one screen see the winner's view
-  const me = net ? net.seat : S.players.some(p => p.isAI) ? S.players.find(p => !p.isAI).id : S.winner;
+  // the side this screen cheers for: yours against the AI, the winner's when two people (or two AIs) shared it
+  const human = S.players.find(p => !p.isAI), me = net ? net.seat : human && S.players.some(p => p.isAI) ? human.id : S.winner;
   const won = me === S.winner, hot = !net && !S.players.some(p => p.isAI);
   const why = S.winReason === 'points' ? w.name + ' reached ' + w.vp + ' victory points' : S.winReason === 'concede' ? l.name + ' conceded' : l.name + '’s base was destroyed';
   const row = p => '<div class="es-row p' + p.id + '"><b>' + p.name + '</b><span>' + ico('star', 'sm') + (p.vp || 0) + '</span><span>' + ico('base', 'sm') + p.base.hp + '</span><span title="Kills">✕ ' + (p.kills || 0) + '</span></div>';
@@ -2545,10 +2638,14 @@ function picker(m) {
     '<span class="pbn"><b>' + o.pv.chance + '%</b><small>−' + o.pv.hull + o.n + ' hull</small></span></button>';
   return h + '</div>';
 }
+const TRICK_ICO = { overclock: 'energy', phase: 'jump', cloak: 'eye' };
 function actionsRow(m) {
   const b = (act, icon, label, dis, cls) => '<button type="button" class="ab' + (cls || '') + '" data-act="' + act + '"' + (dis ? ' disabled' : '') + '>' + ico(icon) + '<span>' + label + '</span></button>';
   let h = '<div class="arow">';
-  if (MW.canEntrench(m)) h += m.entrenched ? b('unentrench', 'anchor', 'Pack up') : b('entrench', 'anchor', 'Dig in', false, ' hl');
+  if (MW.canEntrench(m)) h += m.entrenched ? b('unentrench', 'anchor', 'Pack up') : b('entrench', 'anchor', 'Emplace', false, ' hl');
+  // the chassis's prototype trick, if it has one
+  const tk = MW.trickOf(m);
+  if (tk) h += b(tk === 'phase' ? 'phaseArm' : tk, TRICK_ICO[tk], ui.mode === 'phase' ? 'Cancel' : MW.TRICK[tk].name, !!MW.trickGuard(m, tk) && ui.mode !== 'phase', ' trick');
   h += b('overwatch', 'overwatch', 'Overwatch', m.overwatch, ' ow') + b('brace', 'brace', 'Brace', m.braced, ' br');
   if (MW.wreckAt(m.x, m.y)) h += b('salvage', 'supply', 'Salvage', false, ' hl');
   if (MW.inDeployZone(m)) h += b('enter', 'tobase', 'To base', S.players[m.owner].hangar.filter(x => !MW.isBlank(x)).length >= MW.hangarMax(S.players[m.owner]));
@@ -2563,7 +2660,7 @@ function mechDock(m, closable) {
   const own = isHuman() && m.owner === S.current && S.phase === 'combat';
   const guard = own ? MW.actGuard(m) : 'x', live = own && !guard;
   const st = MW.stats(m);
-  const flags = [m.heat > st.heatCap ? '<b class="bad">overheating</b>' : '', st.underpowered ? '<b class="bad">low power</b>' : '', m.braced ? 'braced' : '', m.shield > 0 ? 'shield ' + m.shield : '', m.entrenched ? 'dug in' : '', m.burn > 0 ? 'burning' : '', m.slow > 0 ? 'slowed' : '', m.shock ? 'shocked' : '', m.overwatch ? 'on overwatch' : ''].filter(Boolean);
+  const flags = [m.heat > st.heatCap ? '<b class="bad">overheating</b>' : '', st.underpowered ? '<b class="bad">low power</b>' : '', m.braced ? 'braced' : '', m.shield > 0 ? 'shield ' + m.shield : '', m.entrenched ? '<b class="emp">emplaced</b>' : '', m.burn > 0 ? 'burning' : '', m.slow > 0 ? 'slowed' : '', m.shock ? 'shocked' : '', m.overwatch ? 'on overwatch' : ''].filter(Boolean);
   let h = '<div class="mh p' + m.owner + '">' + mechPic(m) + '<div class="mh-t"><div class="mh-1"><b>' + m.name + '</b>' + (S.phase === 'combat' && !m.activated ? pips(m.ap) : '') +
     '<span class="mh-s">' + MW.role(m) + ' · ' + MW.coord(m.x, m.y) + (flags.length ? ' · ' + flags.join(' · ') : '') + '</span></div></div>' +
     '<div class="mh-b"><button type="button" class="ib" data-act="details" aria-label="Details">i</button>' + (closable ? '<button type="button" class="ib" data-act="deselect" aria-label="Close">✕</button>' : '') + '</div></div>' +
@@ -2593,7 +2690,7 @@ function renderDock() {
     const o = S.players[1 - p.id];
     h += '<div class="dock-h p' + p.id + '"><b>Build locked in.</b> Deployment starts when ' + o.name + ' is ready; ' + S.players[S.first].name + ' deploys first.</div><div class="row"><button type="button" class="btn sm" data-act="openShop">Hangar</button></div>';
   } else if (S.phase === 'build') {
-    h += '<div class="row"><button type="button" class="btn grow" data-act="openShop">Base<small>' + si('supply') + p.supply + ' · ' + si('eng') + p.ep + ' · ' + si('cards') + p.workshop.length + ' cards</small></button>' +
+    h += '<div class="row"><button type="button" class="btn grow" data-act="openShop">Base<small>' + bpips(p.ep) + ' · ' + si('cards') + p.workshop.length + ' cards</small></button>' +
       '<button type="button" class="btn primary grow" data-act="endBuild">End build ›<small>Go to deployment</small></button></div>';
   } else if (S.phase === 'deploy') {
     h += '<div class="dchips">' + (p.hangar.filter(m => !MW.isBlank(m)).map(m => { const why = MW.canDeploy(p, m); return '<button type="button" class="dchip p' + p.id + (ui.mode === 'deploy' && ui.deployUid === m.uid ? ' on' : '') + '" data-act="pickDeploy" data-uid="' + m.uid + '"' + (why ? ' disabled title="' + why + '"' : '') + '>' + mechPic(m) + '<span><b>' + m.name + '</b><small>' + (why ? (MW.issues(m).length ? 'Not ready' : 'Field full') : MW.role(m)) + '</small></span></button>'; }).join('') || '<p class="note">No mecha in the hangar.</p>') + '</div>' +
@@ -2629,6 +2726,7 @@ function fitInfo(m, d) {
   }
   if (d.slot === 'legs' && d.carry && d.carry < st.size) return { key, why: 'Can’t carry ' + MW.SIZE_NAME[st.size].toLowerCase() };
   if (d.weapon && d.weapon.needsEntrench && !(m.slots.legs && MW.digsIn(m.slots.legs.id))) return { key, why: 'Needs legs that dig in' };
+  if (key && key.startsWith('arm') && MW.anchoredLegs(m) && MW.shortGun(d)) return { key, why: 'Anchors: range ' + MW.LONG_RANGE + '+ only' };
   if (cur && cur.id === d.id && cur.hp >= D[cur.id].hp) return { key, why: 'Already fitted' };
   return { key, why: '' };
 }
@@ -2655,10 +2753,11 @@ const portraitPhone = () => !!(window.matchMedia && window.matchMedia(PORTRAIT_P
 function baseRes(p) {
   const pr = ui.prevRes && ui.prevRes.pid === p.id ? ui.prevRes : null;
   const rb = (k, v) => '<b' + (pr && pr[k] !== v ? ' class="bump"' : '') + '>' + v + '</b>';
-  ui.prevRes = { pid: p.id, supply: p.supply, ep: p.ep };
+  ui.prevRes = { pid: p.id, ep: p.ep };
   const chip = (title, icon, val, res, extra) => '<div title="' + title + '"' + (res ? ' data-res="' + res + '"' : '') + '>' + ico(icon, 'rico') + val + (extra || '') + '</div>';
-  return '<div class="res rchips">' + chip('Supply', 'supply', rb('supply', p.supply), 'supply', '<small class="rinc">+' + MW.incomeOf(p) + '</small>') +
-    chip('Engineering actions left', 'eng', rb('ep', p.ep), 'ep') + chip('Cards left in your Arsenal deck', 'deck', '<b>' + p.deck.length + '</b>') +
+  const nx = (p.next || 0) + MW.incomeOf(p);
+  return '<div class="res rchips">' + chip('Build actions left this round', 'eng', bpips(p.ep, Math.max(0, (p.epMax || 0) - p.ep), pr && pr.ep !== p.ep ? 'bump' : ''), 'ep', nx ? '<small class="rinc" title="Earned for next round">+' + bpips(nx) + '</small>' : '') +
+    chip('Cards left in your Arsenal deck', 'deck', '<b>' + p.deck.length + '</b>') +
     chip('Mecha on the field', 'torso', '<b>' + MW.fieldMechs(p.id).length + '<i>/' + MW.fieldMax(p.id) + '</i></b>') + '</div>';
 }
 function panelBase(p) {
@@ -2681,16 +2780,15 @@ function panelBase(p) {
     let act = '', cmp = null;
     if (d.tactic || d.event) act = '<button type="button" class="btn sm fit" data-act="play" data-uid="' + inst.uid + '">Play</button>';
     else {
-      const fi = fitInfo(m, d), key = fi.key, cost = inst ? (inst.paid ? 0 : d.cost) : d.cost;
+      const fi = fitInfo(m, d), key = fi.key, cost = MW.buildCost(d, inst);
       let why = fi.why;
       const cur = m && key ? MW.getSlot(m, key) : null;
       if (ui.cmp && cur && cur.id !== d.id) cmp = D[cur.id];
       let need = '';
-      if (!why && p.ep < 1) { why = 'Needs 1' + si('eng'); need = 'ep'; }
-      else if (!why && p.supply < cost) { why = 'Needs ' + cost + si('supply'); need = 'supply'; }
+      if (!why && p.ep < cost) { why = 'Needs ' + bpips(cost); need = 'ep'; }
       const verb = cur ? (cur.id === d.id ? 'Renew ' : 'Swap ') : 'Fit ';
       const SHORT = { torso: 'chassis', core: 'reactor', legs: 'legs', armL: 'L arm', armR: 'R arm', aux0: 'aux 1', aux1: 'aux 2', aux2: 'aux 3' };
-      act = '<button type="button" class="btn sm' + (why ? (need ? ' blocked' : '') : ' fit') + '"' + (need ? ' data-need="' + need + '" aria-disabled="true"' : ' data-act="install"') + ' ' + (inst ? 'data-uid="' + inst.uid + '"' : 'data-basic="' + d.id + '"') + ' data-key="' + (key || '') + '"' + (why && !need ? ' disabled' : '') + '>' + (why || (cur && cur.id !== d.id ? 'Replace' : verb + (SHORT[key] || '')) + ' · ' + (cost ? cost + si('supply') : 'free')) + '</button>';
+      act = '<button type="button" class="btn sm' + (why ? (need ? ' blocked' : '') : ' fit') + '"' + (need ? ' data-need="' + need + '" aria-disabled="true"' : ' data-act="install"') + ' ' + (inst ? 'data-uid="' + inst.uid + '"' : 'data-basic="' + d.id + '"') + ' data-key="' + (key || '') + '"' + (why && !need ? ' disabled' : '') + '>' + (why || (cur && cur.id !== d.id ? 'Replace' : verb + (SHORT[key] || '')) + ' ' + bpips(cost)) + '</button>';
     }
     return '<div class="card cface k-' + cardKind(d) + (d.special ? ' special' : '') + (inst && inst.hp < d.hp ? ' hurt' : '') + (inst && !ui.seen.has(inst.uid) ? ' new' : '') + '"><div class="cpic">' + (partPic(d) || '<span class="cpic-ico">' + kindIco(d) + '</span>') + '<span class="badge" title="' + KIND_NAME[cardKind(d)] + '">' + kindIco(d) + '</span><button type="button" class="ib pi" data-act="partInfo" data-id="' + d.id + '"' + (inst ? ' data-uid="' + inst.uid + '"' : '') + ' aria-label="Details for ' + d.name + '">i</button></div><div class="card-top"><b class="cname">' + (d.special ? '★ ' : '') + d.name + '</b></div>' + (cmp ? '<span class="vs">vs ' + cmp.name + '</span>' : '') + faceHTML(d, cmp) + '<div class="row">' + act + '</div></div>';
   };
@@ -2721,9 +2819,9 @@ function panelBase(p) {
           let line = '<div class="slotline"><b>' + MW.slotName(ui.slotSel) + ':</b> <span>' + (inst ? D[inst.id].name + ' ' + inst.hp + '/' + D[inst.id].hp : 'empty') + '</span>';
           if (inst) {
             const d = D[inst.id], rc = MW.repairCost(inst);
-            if (MW.worn(inst)) line += p.ep < 1 ? '<button type="button" class="btn sm blocked" data-need="ep" aria-disabled="true">Repair needs 1' + si('eng') + '</button>' : p.supply < rc ? '<button type="button" class="btn sm blocked" data-need="supply" aria-disabled="true">Repair needs ' + rc + si('supply') + '</button>' : '<button type="button" class="btn sm" data-act="repair">Repair · ' + rc + si('supply') + '</button>';
+            if (MW.worn(inst)) line += p.ep < rc ? '<button type="button" class="btn sm blocked" data-need="ep" aria-disabled="true">Repair needs ' + bpips(rc) + '</button>' : '<button type="button" class="btn sm" data-act="repair">Repair ' + bpips(rc) + '</button>';
             const core = ui.slotSel === 'torso' ? m.slots.core : null;
-            if (core && MW.worn(core)) { const cc = MW.repairCost(core); line += p.ep < 1 ? '<button type="button" class="btn sm blocked" data-need="ep" aria-disabled="true">Reactor needs 1' + si('eng') + '</button>' : p.supply < cc ? '<button type="button" class="btn sm blocked" data-need="supply" aria-disabled="true">Reactor needs ' + cc + si('supply') + '</button>' : '<button type="button" class="btn sm primary" data-act="repair" data-key="core">Repair reactor · ' + cc + si('supply') + '</button>'; }
+            if (core && MW.worn(core)) { const cc = MW.repairCost(core); line += p.ep < cc ? '<button type="button" class="btn sm blocked" data-need="ep" aria-disabled="true">Reactor needs ' + bpips(cc) + '</button>' : '<button type="button" class="btn sm primary" data-act="repair" data-key="core">Repair reactor ' + bpips(cc) + '</button>'; }
             line += '<button type="button" class="btn sm" data-act="remove">Remove</button>';
           }
           h += line + '<button type="button" class="btn sm primary" data-act="findParts">Find parts ›</button><button type="button" class="btn sm ghost" data-act="slotClear" title="Deselect part" aria-label="Deselect part">✕</button></div>';
@@ -2743,8 +2841,8 @@ function panelBase(p) {
     const slotType = ui.slotSel && MW.slotType(ui.slotSel) === type ? ui.slotSel : null;
     const nOf = t => p.workshop.filter(c => D[c.id].slot === t).length;
     const chip = (f, label, icon, n) => '<button type="button" class="pfc' + ((f === 'all' ? !type : type === f) ? ' on' : '') + '" data-act="pf" data-f="' + f + '" aria-label="' + label + ', ' + n + '" title="' + label + '">' + (icon ? ico(icon) : label) + '<i>' + n + '</i></button>';
-    const rq = MW.canRequisition(p), rqNeed = p.supply < C.REQ_COST && !(!p.deck.length || p.workshop.length >= C.WORKSHOP_MAX);
-    const rqb = '<button type="button" class="pfc rq' + (rq ? (rqNeed ? ' blocked' : '') : '') + '"' + (rq ? (rqNeed ? ' data-need="supply" aria-disabled="true"' : ' disabled title="' + rq + '"') : ' data-act="requisition"') + ' aria-label="Draw one more card for ' + C.REQ_COST + ' Supply">' + ico('cards') + '+1<i>' + C.REQ_COST + si('supply') + '</i></button>';
+    const rq = MW.canRequisition(p), rqNeed = p.ep < C.REQ_COST && !(!p.deck.length || p.workshop.length >= C.WORKSHOP_MAX);
+    const rqb = '<button type="button" class="pfc rq' + (rq ? (rqNeed ? ' blocked' : '') : '') + '"' + (rq ? (rqNeed ? ' data-need="ep" aria-disabled="true"' : ' disabled title="' + rq + '"') : ' data-act="requisition"') + ' aria-label="Draw one more card for ' + MW.actWord(C.REQ_COST) + '">' + ico('cards') + '+1 ' + bpips(C.REQ_COST) + '</button>';
     h += '<div class="pfil" role="group" aria-label="Show parts">' + chip('all', 'All', null, p.workshop.length) + chip('torso', 'Chassis', 'torso', nOf('torso')) + chip('legs', 'Legs', 'legs', nOf('legs')) + chip('arm', 'Weapons', 'dmg', nOf('arm')) + chip('aux', 'Aux', 'aux', nOf('aux')) + '<button type="button" class="pfc cmpt' + (ui.cmp ? ' on' : '') + '" data-act="cmpToggle" aria-pressed="' + !!ui.cmp + '" title="Compare with what is fitted">⇄</button>' + rqb + '</div>';
     const ws = p.workshop.filter(c => !type || D[c.id].slot === type || D[c.id].slot === 'tactic' || D[c.id].slot === 'event');
     const std = MW.standardFor(p).map(id => D[id]).filter(d => !type || d.slot === type);
@@ -2825,7 +2923,7 @@ function swapWarn(m, d, el) {
 }
 function revealCard(d, i) {
   if (d.event) return '<div class="rcard event k-event" style="animation-delay:' + (i * 420 + 150) + 'ms"><span class="badge big">' + ico('event') + '</span><span class="now">Event · keep it and play it when it counts</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
-  return '<div class="rcard k-' + cardKind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms">' + (partPic(d, 'big') || '<span class="badge big">' + kindIco(d) + '</span>') + '<span class="lbl">' + (d.special ? '<span class="star">★</span> ' : '') + KIND_NAME[cardKind(d)] + (d.cost ? ' · ' + d.cost + ' Supply' : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
+  return '<div class="rcard k-' + cardKind(d) + (d.special ? ' special' : '') + '" style="animation-delay:' + (i * 420 + 150) + 'ms">' + (partPic(d, 'big') || '<span class="badge big">' + kindIco(d) + '</span>') + '<span class="lbl">' + (d.special ? '<span class="star">★</span> ' : '') + KIND_NAME[cardKind(d)] + (d.slot !== 'event' && d.slot !== 'tactic' ? ' · ' + bpips(MW.buildCost(d)) : '') + '</span><h3>' + d.name + '</h3>' + faceHTML(d) + '</div>';
 }
 function renderReveal() {
   const el = $('#reveal'), p = S.players[S.current];
@@ -2838,6 +2936,8 @@ function renderReveal() {
   const n = p.incoming.length;
   el.className = 'p' + p.id;
   el.innerHTML = '<div class="rv-head"><span class="lbl">' + p.name + ' · Round ' + S.round + ' · ' + (p.wave ? 'Extra draw' : 'Arsenal draw') + '</span><h2>' + (p.wave ? (p.waveFrom || 'Extra draw') + ': ' + n + ' more' : n + ' new card' + (n > 1 ? 's' : '')) + '</h2></div>' +
+    // the build actions this round, and how many of them were earned on the field last round
+    '<div class="rv-supply" title="Build actions">' + ico('eng', 'rico') + bpips(p.ep, 0, '', S.round > 1 ? p.lastIncome : 0) + '</div>' +
     '<div class="rv-cards">' + p.incoming.map((c, i) => revealCard(D[c.id], i)).join('') + '</div>' +
     '<div class="rv-foot"><span class="note">' + p.deck.length + ' cards left in your Arsenal · Workshop ' + p.workshop.length + '/' + C.WORKSHOP_MAX + '</span><button type="button" class="btn primary" data-act="acceptDraw">' + 'Add to Workshop ›<small>Then build</small>' + '</button></div>';
 }
@@ -2885,12 +2985,12 @@ const COACH = [
   { t: 'Waiting for the enemy to deploy…', wait: true, done: () => S.phase === 'combat' && isHuman() },
   { t: '<b>Combat.</b> Commanders take turns activating one mech. Tap one of your mecha on the map: the highlighted tiles show where it can move. Tap a tile to move there.', hl: '.mrow', done: () => myMechs().some(m => m.moves > 0 || m.activated || Object.keys(m.fired || {}).length) },
   { t: 'Now pick a <b>weapon</b>. Tiles in reach light up and each target shows your hit chance. Tap an enemy in range to fire, or finish this mech if nothing is close yet.', hl: '[data-act=weapon]', done: () => myMechs().some(m => m.activated || Object.keys(m.fired || {}).length) },
-  { t: '<b>Objectives</b> score points. Hold a <b>radar</b> (or an uplink) at the end of a round, or a <b>depot on the enemy half</b> (marked ★), and you score. Depots also pay Supply. Move onto one to take it.', next: 'Got it' },
+  { t: '<b>Objectives</b> score points. Hold a <b>radar</b> (or an uplink) at the end of a round, or a <b>depot on the enemy half</b> (marked ★), and you score. Depots also give an extra build action every round. Move onto one to take it.', next: 'Got it' },
   { t: 'Activate your other mecha the same way. When you are done, they can hold position. The round ends once everyone has acted.', done: () => S.round >= 2 || S.phase === 'over' },
   { t: '<b>Resolution</b> just played: heat cooled, base turrets fired, and points were scored. Your points are the ★ at the top. Keep an eye on <b>heat</b>: a mech over its limit at round end is damaged and shuts down.', next: 'Next', low: true },
   { t: 'Round 2 begins. Tap <b>Add to Workshop</b> for this round\'s cards.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
   { t: 'Time to upgrade. Open the <b>Parts</b> tab: it lists the cards in your Workshop that can go on the selected mech.', hl: '[data-act=wtab][data-tab=cards]', done: () => ui.wtab === 'cards' || fittedNew() },
-  { t: 'Pick a card and tap its gold button. <b>Fit</b> puts the part in an empty slot; <b>Replace</b> swaps out the part already there. Either costs Supply (the box icon at the top of the Workshop) and one engineering action (the wrench).', hl: '[data-act=install]', prefer: b => /^Fit/.test(b.textContent.trim()), done: () => fittedNew() || S.phase !== 'build' },
+  { t: 'Pick a card and tap its gold button. <b>Fit</b> puts the part in an empty slot; <b>Replace</b> swaps out the part already there. Most parts take one build action (the wrench at the top of the Workshop), big ones two, specials three.', hl: '[data-act=install]', prefer: b => /^Fit/.test(b.textContent.trim()), done: () => fittedNew() || S.phase !== 'build' },
   { t: 'That is the loop: <b>build, deploy, fight, resolve</b>. New mechanics get a short note the first time they come up. The <b>Rules</b> button has the full field manual. Now win this battle!', next: 'Finish' }
 ];
 const NOTES = [
@@ -2899,23 +2999,25 @@ const NOTES = [
   { id: () => 'map-' + S.map, when: () => S.map && S.map !== 'open' && S.round <= 2,
     t: () => '<b>' + MW.MAP.name + '</b>: ' + MW.MAP.blurb },
   { id: () => 'fit', when: () => uiPhase() === 'build' && S.round >= 2,
-    t: () => '<b>Fitting parts.</b> Tap a step on the strip (chassis, legs, arms, aux), then pick a card and tap Fit. Each fit costs Supply and one engineering action. Removing a part is free.' },
+    t: () => '<b>Fitting parts.</b> Tap a step on the strip (chassis, legs, arms, aux), then pick a card and tap Fit. Each fit takes 1 build action (big parts 2, specials 3). Removing a part is free.' },
   { id: () => 'deploy-limit', when: () => S.phase === 'deploy' && S.current === viewer() && myMechs().length >= MW.fieldMax(viewer()),
     t: () => '<b>Field limit.</b> Your doctrine can field ' + MW.fieldMax(viewer()) + ' mecha at once. More can wait in the hangar and deploy when a slot frees up.' },
+  { id: () => 'armored-hold', when: () => S.phase === 'combat' && S.players.some(p => p.doctrine === 'armored'),
+    t: () => { const a = S.players.find(p => p.doctrine === 'armored'); return '<b>' + a.name + ' is Armored.</b> It holds an objective, and grabs a crate, from the next tile over, as long as no enemy stands as close: watch for the <b>Held</b> tag. Its Quad Walker artillery must <b>emplace</b> to fire: the striped ring marks a turret.'; } },
   { id: () => 'heat', when: () => S.phase === 'combat' && myMechs().some(m => m.heat >= MW.stats(m).heatCap - 1),
     t: () => '<b>Running hot.</b> A mech of yours is near its heat limit (the flame). If it ends the round above the limit, its core takes damage and it shuts down next round. Hold fire or brace to let it cool.' },
   { id: () => 'crate', when: () => S.phase === 'combat' && (S.crates || []).length > 0,
-    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> are the points on this map: end a move on one to grab it, for a victory point plus Supply or a special part.' : '<b>Supply crate.</b> A crate has dropped. The first mech to end a move on it grabs Supply or a special part.' },
+    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> are the points on this map: end a move on one to grab it, for a victory point plus a build action or a special part.' : '<b>Crate.</b> A crate has dropped. The first mech to end a move on it grabs an extra build action or a special part.' },
   { id: () => 'overwatch', when: () => S.phase === 'combat' && S.mechs.some(m => m.owner !== viewer() && m.overwatch),
     t: () => '<b>Enemy overwatch.</b> A mech on overwatch shoots the first enemy that ends a move in its range. Those tiles are striped when you move. Wait it out, or send something tough first.' },
   { id: () => 'damaged', when: () => myMechs().concat(S.players[viewer()].hangar).some(m => ['armL', 'armR', 'legs', 'core'].some(k => m.slots[k] && m.slots[k].hp <= 0)),
-    t: () => '<b>Broken part.</b> A destroyed arm loses its weapon; broken legs slow the mech. Return it to base and repair it in the Workshop (costs Supply), or fit a replacement.' },
+    t: () => '<b>Broken part.</b> A destroyed arm loses its weapon; broken legs slow the mech. Return it to base and repair it in the Workshop (1 build action), or fit a replacement.' },
   { id: () => 'disarmed', when: () => S.phase === 'combat' && myMechs().some(m => !MW.hasWeapon(m)),
     t: () => '<b>Disarmed.</b> A mech with no working weapon can still <b>Detonate</b> (a blast that hurts everything within 2 tiles) or <b>Strip</b> itself in the field to recover parts.' },
   { id: () => 'depot', when: () => S.objectives.some(o => o.type === 'depot' && o.owner === viewer()),
-    t: () => '<b>Depot held.</b> Each depot pays ' + C.DEPOT + ' extra Supply a round. Depots on the enemy half (★) also score a victory point' + (MW.rule('depotVp', true) ? '.' : ', but not on this map.') },
+    t: () => '<b>Depot held.</b> Each depot gives ' + C.DEPOT + ' extra build action a round (up to ' + C.DEPOT_FULL + '). Depots on the enemy half (★) also score a victory point' + (MW.rule('depotVp', true) ? '.' : ', but not on this map.') },
   { id: () => 'behind', when: () => uiPhase() === 'build' && (S.players[1 - viewer()].vp || 0) > (S.players[viewer()].vp || 0),
-    t: () => '<b>Behind on points.</b> The side that is behind gets bonus Supply each round, more the further behind. Spend it on better parts.' },
+    t: () => '<b>Behind on points.</b> The side that is behind gets an extra build action each round, two when 3 or more points behind.' },
   { id: () => 'lead', when: () => (S.players[viewer()].vp || 0) - (S.players[1 - viewer()].vp || 0) >= C.LEAD_GAP,
     t: () => '<b>In the lead.</b> While ' + C.LEAD_GAP + ' or more points ahead, objectives score at most ' + C.LEAD_CAP + ' a round. Kills and damage to the enemy base still count in full: press the advantage.' },
   { id: () => 'base-threat', when: () => S.phase === 'combat' && S.mechs.some(m => m.owner !== viewer() && Math.abs(m.x - S.players[viewer()].base.x) + Math.abs(m.y - S.players[viewer()].base.y) <= C.TURRET_RANGE),
@@ -3002,6 +3104,12 @@ function render() {
   saveGameLocal(S);
   const hk = gameId(S) + ':' + S.round + ':' + (S.phase === 'over');
   if (ui.histKey !== hk) { ui.histKey = hk; saveHistory(); }
+  if (gameMode(S) === 'watch') simRecord();
+  // on fast, attacks wind up and land quicker too
+  if (R3on && window.R3.setPace) window.R3.setPace(simFast() ? 0.3 : 1);
+  const sp = $('#simspeed'), watch = gameMode(S) === 'watch' && S.phase !== 'over';
+  sp.hidden = !watch; sp.classList.toggle('on', ui.simSpeed === 'fast'); sp.setAttribute('aria-pressed', String(ui.simSpeed === 'fast'));
+  sp.title = ui.simSpeed === 'fast' ? 'Speed: fast (tap for normal)' : 'Speed: normal (tap for fast)';
   layoutPad();
 }
 // tell the 3D camera which edges the HUD covers, so the board is framed in the clear part of the screen
@@ -3094,16 +3202,18 @@ function tick() {
     ui.holding = true; ui.busy = true; ui.holdPrev = ui.phaseKey.split(':')[0];
     ui.win = null; ui.sel = null; ui.mode = 'idle'; ui.pendingTarget = null;
     render();
-    ui.timer = setTimeout(() => { ui.holding = false; tick(); }, Math.max(1900, (ui.fxEnd || 0) - Date.now() + 500));
+    ui.timer = setTimeout(() => { ui.holding = false; tick(); }, simFast() ? 150 : Math.max(1900, (ui.fxEnd || 0) - Date.now() + 500));
     return;
   }
   if (S.phase !== 'over' && S.players[S.current].isAI) {
     ui.busy = true;
     phaseChanged();
     render();
-    ui.timer = setTimeout(() => { MW.aiStep(); tick(); }, Math.max(S.phase === 'combat' ? 1100 : S.phase === 'draw' ? 450 : 800, (ui.fxEnd || 0) - Date.now() + 350));
+    ui.timer = setTimeout(() => { MW.aiStep(); tick(); }, simFast() ? 60 : Math.max(S.phase === 'combat' ? 1100 : S.phase === 'draw' ? 450 : 800, (ui.fxEnd || 0) - Date.now() + 350));
   } else { ui.busy = false; if (S.phase === 'over') { ui.win = null; ui.sel = null; } else syncMode(); render(); if (S.phase === 'over') queueEnd(); }
 }
+// AI vs AI can run fast: the next move doesn't wait for the last one's animation
+const simFast = () => !!(S && ui.simSpeed === 'fast' && gameMode(S) === 'watch');
 function after(r, okMsg) {
   if (r && r.ok && net) push();
   if (r && !r.ok && r.msg) toast(r.msg);
@@ -3131,6 +3241,11 @@ function onTile(x, y) {
   }
   if (S.phase === 'combat') {
     const sm = selMech(), live = sm && sm.x != null && sm.owner === S.current && !MW.actGuard(sm);
+    if (ui.mode === 'phase' && live) {
+      ui.mode = 'move';
+      if (MW.phaseTiles(sm).some(t => t[0] === x && t[1] === y)) return after(MW.phase(sm, x, y));
+      return render();
+    }
     if (ui.mode === 'fire' && live) {
       const t = MW.validTargets(sm, ui.weaponKey).find(v => v.x === x && v.y === y);
       if (t) {
@@ -3161,6 +3276,7 @@ function onTile(x, y) {
 }
 function onAct(el) {
   const a = el.dataset.act;
+  if (a === 'simSpeed') { ui.simSpeed = ui.simSpeed === 'fast' ? 'normal' : 'fast'; try { localStorage.setItem('mw-simspeed', ui.simSpeed); } catch (e) { /* storage unavailable */ } return tick(); }
   if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } if (!$('#overlay').hidden) showBattleMenu(); return renderTop(); }
   if (a === 'rules') { ui.ruleTab = 0; return showRules(); }
   if (a === 'recent') return showRecent();
@@ -3235,7 +3351,7 @@ function onAct(el) {
     case 'remove': if (hm && ui.slotSel) return after(MW.removePart(p, hm, ui.slotSel)); return;
     case 'repair': if (hm && ui.slotSel) { const r = MW.repair(p, hm, el.dataset.key || ui.slotSel); if (r.ok) ui.flash = { m: hm.uid, key: ui.slotSel, cls: 'fx-fix' }; return after(r, 'Repaired.'); } return;
     case 'dismantle': if (hm) { ui.slotSel = null; return after(MW.dismantle(p, hm)); } return;
-    case 'scrap': { $('#overlay').hidden = true; const c = p.workshop.find(x => x.uid === +el.dataset.uid), v = c ? MW.sellValue(D[c.id]) : 1; return after(MW.scrapCard(p, +el.dataset.uid), 'Sold for ' + v + ' Supply.'); }
+    case 'scrap': { $('#overlay').hidden = true; const c = p.workshop.find(x => x.uid === +el.dataset.uid), v = c ? MW.sellValue(D[c.id]) : 1; return after(MW.scrapCard(p, +el.dataset.uid), 'Scrapped for ' + MW.actWord(v) + '.'); }
     case 'play': { const c = p.workshop.find(x => x.uid === +el.dataset.uid); return after(MW.playTactic(p, +el.dataset.uid), (c ? D[c.id].name : 'Card') + ' played.'); }
     case 'acceptDraw': return after(MW.acceptDraw(), 'Added to the Workshop.');
     case 'requisition': return after(MW.requisition(p));
@@ -3289,6 +3405,9 @@ function onAct(el) {
       return after(r);
     }
     case 'brace': return after(MW.brace(sm));
+    case 'overclock': return after(MW.overclock(sm));
+    case 'cloak': return after(MW.cloak(sm));
+    case 'phaseArm': ui.mode = ui.mode === 'phase' ? 'move' : 'phase'; ui.pendingTarget = null; return render();
     case 'nukeArm': ui.confirmNuke = sm.uid; setTimeout(() => { if (ui.confirmNuke === sm.uid) { ui.confirmNuke = null; render(); } }, 3000); return render();
     case 'nuke': ui.confirmNuke = null; return after(MW.selfDestruct(sm));
     case 'strip': return after(MW.fieldStrip(sm), 'Stripped for parts.');
@@ -3306,35 +3425,38 @@ function showRules() {
       ['Win', 'Reach <b>' + C.VP_WIN + ' victory points</b>, or destroy the enemy base. Points come from holding objectives at the end of each round and from damaging the enemy base.'],
       ['A round', '<b>Draw</b> new cards, <b>build</b> and repair mecha in the Workshop, <b>deploy</b> them next to your base, then <b>fight</b>: you and your opponent take turns activating one mech each. <b>Resolution</b> scores points and cools heat.'],
       ['Mecha', 'Each mech is a <b>chassis</b> (HP and two weapon mounts), <b>legs</b> (movement) and <b>weapons</b>. Fit them in that order. Tap any stat or icon in the game to see what it means.'],
-      ['On the map', 'Stand on a <b>radar</b> or <b>uplink</b>, or on a <b>depot</b> on the enemy half (★), to score at the end of the round. Depots also pay Supply. Ruins give cover; rocks block shots.'],
+      ['On the map', 'Stand on a <b>radar</b> or <b>uplink</b>, or on a <b>depot</b> on the enemy half (★), to score at the end of the round. Depots also give build actions. Ruins give cover; rocks block shots.'],
       ['New?', 'Play <b>Training</b> for a guided first round against an easy opponent. Field notes explain each new mechanic the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Start Training</button>']]],
-    ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point. Holding your own depots pays Supply but no points. Azure holds the bottom of the map, Ember the top.'],
-      ['Comebacks', 'Whoever is behind on points gets +1 Supply per point behind (at least ' + C.CATCHUP + ', at most ' + C.CATCHUP_MAX + '). A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Base damage always scores in full.'],
+    ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point. Holding your own depots gives build actions but no points. Azure holds the bottom of the map, Ember the top.'],
+      ['Comebacks', 'Whoever is behind on points gets +1 build action next round, +2 when 3 or more points behind. A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Base damage always scores in full.'],
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
-    ['Build', [['Start', 'Each side starts with mecha ready to deploy, each on a different chassis from its doctrine (Assault brings an extra one), and ' + C.EP + ' engineering actions a round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) take effect when collected: Supply Drop, Overtime Shift, Tech Requisition, Field Repairs.'],
-      ['Build', 'You get ' + C.EP + ' engineering actions a round. Fitting or repairing a part uses one and costs Supply; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads have armoured tracks, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
+    ['Build', [['Start', 'Each side starts with mecha ready to deploy, each on a different chassis from its doctrine (Assault brings an extra one), and ' + C.EP + ' build actions a round (Armored 6, Experimental 3). Up to ' + C.CARRY_MAX + ' unused ones carry over to the next round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) wait in the Workshop until you play them: Spare Parts and Overtime Shift (extra build actions), Tech Requisition (more cards), Field Repairs.'],
+      ['Build', 'You get ' + C.EP + ' build actions a round. Fitting a part takes 1 (big chassis and heavy guns 2, specials 3); repairing takes 1; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads have armoured tracks, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
       ['Aiming', 'Pick where a shot goes. Body: no penalty, full damage to the hull. Weapon arm (−15%): knocks that weapon offline for the rest of the round and the next (it restarts at half strength), half the damage reaches the hull. Legs (−10%): slows the mech, 1 move once destroyed, half to the hull. The reactor sits inside the chassis and cannot be aimed at.'],
       ['Energy weapons', 'Lasers, lances and projectors melt through 1 point of armour (2 for the Experimental doctrine). Pierce ignores armour completely.'],
       ['Reading a card', 'Every card has the same layout. Top left: its type (chassis, legs, aux, or the weapon mount it needs: gun, energy, melee, heavy). Middle: two numbers (weapons: damage and range; chassis: HP and size; legs: move and the heaviest chassis they carry). Bottom left: its one special rule as a word. Bottom right: its weight in capacity pips, and a flame if it runs hot. Tap i for every detail.'],
-      ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Sell unused cards from their i details: parts 1 Supply, weapons 2, special parts 3, special weapons 4. Short on cards? Requisition one more from the Arsenal for ' + C.REQ_COST + ' Supply.']]],
-    ['Fight', [['Turns', 'Mecha on the field at once: Assault 4, Experimental 3, Armored 2. Commanders alternate activating one mech, two actions each: move, fire a weapon (each once per activation), overwatch, brace, salvage, or return to base.'],
+      ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Scrap unused cards from their i details for 1 build action each. Short on cards? Requisition one more from the Arsenal for ' + MW.actWord(C.REQ_COST) + '.']]],
+    ['Fight', [['Turns', 'Mecha on the field at once: Assault 4, Armored 3, Experimental 3. Commanders alternate activating one mech, two actions each (Experimental three): move, fire a weapon (each once per activation), overwatch, brace, salvage, or return to base.'],
+      ['Tricks', 'Every Experimental chassis carries one prototype trick, usable once a round. Overclock (Prototype): +1 action now, +3 heat. Phase jump (Singularity): an action to blink up to 3 tiles over anything, +2 heat. Cloak (Lattice): an action to make enemies 25% less likely to hit it for the rest of the round.'],
+      ['Pack tactics', 'Assault mecha hunt together: each shot gets +10% for every other Assault mech within 2 tiles of the target, up to +20%.'],
       ['Shooting', 'Ruins give 20% cover. Rocks block direct fire; indirect weapons ignore them.'],
-      ['Disarmed', 'A mech with no working weapon can Detonate: its core blasts every tile within 2 (full damage next to it, half at range 2), flattens ruins, knocks objectives back to neutral and hits an adjacent enemy base. Or Strip it in the field: special parts go back to the Workshop, standard parts give 1 Supply each.'],
+      ['Disarmed', 'A mech with no working weapon can Detonate: its core blasts every tile within 2 (full damage next to it, half at range 2), flattens ruins, knocks objectives back to neutral and hits an adjacent enemy base. Or Strip it in the field: special parts go back to the Workshop, standard parts give a build action each (up to 2) next round.'],
       ['Overwatch', 'Hold fire for the round: the first enemy to end a move in range of a ready weapon is shot automatically. Tiles under enemy overwatch are striped red when you move.']]],
     ['Damage', [['HP', 'A mech’s HP is its frame’s HP, the bar under it on the map. Every hit lowers it; at 0 the mech is destroyed. A hit on another part also damages that part: a weapon knocked out goes offline for a round, legs slow, a reactor cuts power.'],
       ['Heat', 'Firing and boosting build heat; cooling removes some each round. Heat over capacity at Resolution damages the core and leaves one action next round.'],
       ['Weapons', Object.keys(CAT_NAME).map(k => '<span class="chip">' + ico(k, 'sm k-' + k) + ' ' + CAT_NAME[k] + '</span>').join(' ')]]],
     ['Special', [['Specials', '5 per deck, gold ★. Inferno Cannon burns (1 damage at each of 3 Resolutions), Cryo Lance slows (−2 move), EMP Projector shocks (one action next round). Aegis Frame and Lattice Core are tougher standard parts.'],
-      ['Entrench', 'Siege Anchors are slow, tough legs that add ' + MW.DEFS.s_anchor.hull + ' HP to their mech. Their mech fires only after spending an action to dig in, and must pack up to move again. Dug-in mecha get +1 armor. The Heavy Railgun fires only when dug in.']]],
+      ['Artillery', 'The Quad Walker (Armored issue) is very slow, tough legs that add ' + MW.DEFS.l_quad.hull + ' HP and take long-range weapons only (range ' + MW.LONG_RANGE + '+). Their mech fires only after spending an action to dig in; dug in, it works as a turret with +1 range and +1 armour, and must pack up to move again. The Heavy Railgun fires only when dug in.'],
+      ['Fortified', 'Armored scores no points for kills. Instead, while it holds an objective it already held last round, it scores up to 1 more point that round (within the usual cap).']]],
     ['AI', [['Commanders', 'The computer opponent is led by a commander with its own style. ' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).map(k => MW.PERSONAS[k].name + ': ' + MW.PERSONAS[k].blurb).join(' ')],
       ['Adapting', 'Each round a commander reads the board and picks a stance: defending its base when threatened, raiding objectives when behind, pressing the base when ahead, regrouping when outnumbered. It grows warier when it loses mecha and turns to defence when its base is hit.'],
       ['Learning', 'Commanders remember their wars in this browser. Each keeps a proven playbook and now and then tries a variation, keeping it if it wins more, and leaning away from whatever cost it past wars.']]],
     ['Doctrines', Object.keys(MW.DOCTRINES).map(id => [DOC_NAME(id), MW.DOCTRINES[id].blurb + ' ' + (MW.DOCTRINES[id].perks || []).join(' · ') + '.'])],
     ['Map', [['Battlefields', MW.MAP_IDS.map(id => '<b>' + MW.MAPS[id].name + '</b> (' + MW.MAPS[id].goal.toLowerCase() + '): ' + MW.MAPS[id].blurb + (MW.MAPS[id].notes ? ' <i>' + MW.MAPS[id].notes + '</i>' : '')).join('<br>') + (S && S.map ? '<br>This battle: <b>' + MW.MAP.name + '</b>.' : '')],
-      ['Objectives', 'End a round on a depot or radar to hold it. Depots add ' + C.DEPOT + ' Supply a round (' + C.DEPOT_EXTRA + ' for each past the ' + (C.DEPOT_FULL === 2 ? 'second' : C.DEPOT_FULL + 'th') + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
-      ['Crates', 'Every other round a crate drops on the centre line: +' + C.CRATE_SUPPLY + ' Supply or a special card, taken by the first mech to end a move on it.'],
+      ['Objectives', 'End a round on a depot or radar to hold it. Each depot adds ' + C.DEPOT + ' build action to your next build (up to ' + C.DEPOT_FULL + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
+      ['Crates', 'Every other round a crate drops on the centre line: +' + MW.actWord(C.CRATE_SUPPLY) + ' or a special card, taken by the first mech to end a move on it.'],
       ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution; its reach is tinted and outlined in the base\'s colour on the map. Returning to base vents heat and restocks ammo.'],
-      ['Salvage', 'Wrecks hold ' + C.SCRAP + ' Supply plus any special parts that survived, free to fit.']]]
+      ['Salvage', 'Salvaging a wreck gives an extra build action plus any special parts that survived, which refit for 1.']]]
   ];
   const cur = Math.min(ui.ruleTab || 0, T.length - 1);
   const o = $('#overlay');
@@ -3362,14 +3484,14 @@ function showStart() {
   leaveMatch();
   $('#online').hidden = true;
   $('#game').hidden = true; $('#start').hidden = false; $('#overlay').hidden = true;
-  const last = gamesIndex().find(g => g.status === 'playing' && g.mode !== 'online');
+  const last = gamesIndex().find(g => g.status === 'playing' && g.mode !== 'online' && g.mode !== 'watch');
   $('#resume').hidden = !last;
   if (last) $('#resume').dataset.id = last.id;
   $('#menu').hidden = false; $('#setup').hidden = true; $('#recent').hidden = true;
   // nobody has played here yet: point them at Training
   let trained = false; try { trained = !!localStorage.getItem('mw-trained'); } catch (e) { /* storage unavailable */ }
   const fresh = !trained && !gamesIndex().length;
-  document.body.classList.toggle('first', fresh); $('#newbie').hidden = !fresh;
+  document.body.classList.toggle('first', fresh);
   coachEnd(false);
   const fn = document.getElementById('fnote'); if (fn) fn.remove();
 }
@@ -3426,13 +3548,16 @@ function renderDoc(seat, dir) {
       '<ul class="drand">' + DOC_ORDER().map(k => '<li>' + docPic(k, '', seat) + '<b>' + DOC_NAME(k) + '</b></li>').join('') + '</ul></div></div>';
   } else {
     const d = MW.DOCTRINES[id], P = PLAY[id] || { style: '', line: d.blurb };
-    h = '<div class="dcard' + anim + '"><div class="dpic">' + (docPic(id, '', seat) || '<span class="dq" aria-hidden="true">' + DOC_NAME(id)[0] + '</span>') + '</div>' +
+    h = '<div class="dcard' + anim + '"><div class="dpic">' + (R3on ? '<div class="dlive" id="dlive' + seat + '" title="Drag to turn"></div>' : docPic(id, '', seat) || '<span class="dq" aria-hidden="true">' + DOC_NAME(id)[0] + '</span>') + '</div>' +
       '<div class="dtext"><div class="dhead"><h3' + (DOC_NAME(id).length > 9 ? ' class="long"' : '') + '>' + DOC_NAME(id) + '</h3><span class="dstyle">' + P.style + '</span></div>' +
       '<p class="dplay">' + P.line + '</p>' +
       '<div class="dstats">' + docStats(id) + '</div>' +
       '</div></div>';
   }
   $('#dview' + seat).innerHTML = h;
+  // the army's machine in 3D: it idles, turns when dragged, and every few seconds shows off a move
+  const live = document.getElementById('dlive' + seat);
+  if (live) window.R3.showcase(live, id, seat);
 }
 // step to the previous or next doctrine for a seat, wrapping round
 function navDoc(seat, dir) {
@@ -3448,14 +3573,20 @@ function saveDoc(seat) {
   if (el) try { localStorage.setItem('mw-doc' + seat, el.value); } catch (e) { /* storage unavailable */ }
 }
 const CMD_RANDOM = 'Any of the commanders, picked when the battle starts.';
+// the AI commander picker for one seat: Ember's against the AI, both sides' in a simulation
+const cmdOf = seat => seat ? ui.cmd : ui.cmd0;
 function cmdRow() {
-  if (ui.startMode !== 'ai') { $('#cmdrow').innerHTML = ''; return; }
-  const P = MW.PERSONAS[ui.cmd];
-  const ids = Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).sort((a, b) => !!MW.PERSONAS[b].easy - !!MW.PERSONAS[a].easy).concat('random');
-  $('#cmdrow').innerHTML = '<div class="cmdhead"><b>Commander</b><span>how the AI fights</span></div>' +
-    '<div class="cmdchips" role="radiogroup" aria-label="AI commander">' + ids.map(k => { const Q = MW.PERSONAS[k]; return '<label class="cmdchip"><input type="radio" name="cmd1" value="' + k + '"' + (ui.cmd === k ? ' checked' : '') + '><span>' + (Q ? Q.name : 'Random') + (Q && Q.easy ? '<em>Easy</em>' : '') + '</span></label>'; }).join('') + '</div>' +
-    '<p class="cmdblurb">' + (P ? P.blurb : CMD_RANDOM) + '</p>';
+  for (const seat of [0, 1]) {
+    const el = $('#cmdrow' + seat), on = ui.startMode === 'sim' || (seat === 1 && ui.startMode === 'ai');
+    if (!on) { el.innerHTML = ''; continue; }
+    const cur = cmdOf(seat), P = MW.PERSONAS[cur];
+    const ids = Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).sort((a, b) => !!MW.PERSONAS[b].easy - !!MW.PERSONAS[a].easy).concat('random');
+    el.innerHTML = '<div class="cmdhead"><b>Commander</b><span>how the AI fights</span></div>' +
+      '<div class="cmdchips" role="radiogroup" aria-label="' + (seat ? 'Ember' : 'Azure') + ' AI commander">' + ids.map(k => { const Q = MW.PERSONAS[k]; return '<label class="cmdchip"><input type="radio" name="cmd' + seat + '" value="' + k + '"' + (cur === k ? ' checked' : '') + '><span>' + (Q ? Q.name : 'Random') + (Q && Q.easy ? '<em>Easy</em>' : '') + '</span></label>'; }).join('') + '</div>' +
+      '<p class="cmdblurb" title="' + (P ? P.blurb : CMD_RANDOM) + '">' + (P ? P.blurb : CMD_RANDOM) + '</p>';
+  }
 }
+const MODE_NAME = { ai: 'Against the AI', hot: 'Two players', sim: 'AI vs AI' };
 function openSetup(mode) {
   ui.startMode = mode;
   if (ui.cmd == null) {
@@ -3463,12 +3594,13 @@ function openSetup(mode) {
     try { saved = localStorage.getItem('mw-cmd'); } catch (e) { /* storage unavailable */ }
     ui.cmd = saved === 'random' || (saved && MW.PERSONAS[saved] && !MW.PERSONAS[saved].hidden) ? saved : gamesIndex().filter(g => g.mode === 'ai' && g.status === 'over').length < 2 ? 'recruit' : 'random';
   }
-  const ai = mode === 'ai';
-  $('#setup-mode').textContent = (ai ? 'Against the AI' : 'Two players') + ' · Step 1 of 3';
+  if (ui.cmd0 == null) { let saved = null; try { saved = localStorage.getItem('mw-cmd0'); } catch (e) { /* storage unavailable */ } ui.cmd0 = saved === 'random' || (saved && MW.PERSONAS[saved] && !MW.PERSONAS[saved].hidden) ? saved : 'random'; }
+  const ai = mode === 'ai', sim = mode === 'sim';
+  $('#setup-mode').textContent = MODE_NAME[mode] + ' · Step 1 of 3';
   $('#h-s1').textContent = ai ? 'Your doctrine' : 'Azure doctrine';
   $('#h-s2').textContent = ai ? 'Your opponent' : 'Ember doctrine';
-  $('#leg0').innerHTML = '<span class="who">' + ico('user', 'sm') + (ai ? ' You' : ' Player 1') + '</span><b>Azure</b><small>swipe to compare</small>';
-  $('#leg1').innerHTML = '<span class="who">' + (ai ? ico('cpu', 'sm') + ' AI' : ico('user', 'sm') + ' Player 2') + '</span><b>Ember</b><small>' + (ai ? 'the computer' : 'second player') + '</small>';
+  $('#leg0').innerHTML = '<span class="who">' + (sim ? ico('cpu', 'sm') + ' AI' : ico('user', 'sm') + (ai ? ' You' : ' Player 1')) + '</span><b>Azure</b><small>swipe to compare</small>';
+  $('#leg1').innerHTML = '<span class="who">' + (ai || sim ? ico('cpu', 'sm') + ' AI' : ico('user', 'sm') + ' Player 2') + '</span><b>Ember</b><small>' + (ai ? 'the computer' : sim ? 'swipe to compare' : 'second player') + '</small>';
   $('#menu').hidden = true; $('#setup').hidden = false;
   cmdRow();
   renderDoc(0); renderDoc(1);
@@ -3582,7 +3714,7 @@ function starPath(cx, cy, r) {
   for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .45 : r; d += (i ? 'L' : 'M') + (cx + rr * Math.cos(a)).toFixed(3) + ' ' + (cy + rr * Math.sin(a)).toFixed(3); }
   return d + 'Z';
 }
-const OBJ_KEY = { depot: 'Supply depot', radar: 'Radar', uplink: 'Uplink', repair: 'Repair station', crate: 'Crate drops' };
+const OBJ_KEY = { depot: 'Depot', radar: 'Radar', uplink: 'Uplink', repair: 'Repair station', crate: 'Crate drops' };
 function mapKeySym(t) {
   const s = { depot: '<circle cx="8" cy="8" r="5"/>', radar: '<circle cx="8" cy="8" r="2.6"/><circle class="ring" cx="8" cy="8" r="5.5"/>', uplink: '<rect x="3.5" y="3.5" width="9" height="9" transform="rotate(45 8 8)"/>', repair: '<path d="M6.3 2.5h3.4v3.8h3.8v3.4H9.7v3.8H6.3V9.7H2.5V6.3h3.8z"/>', crate: '<rect class="crate" x="1.5" y="3" width="13" height="10" rx="1.5"/>' }[t];
   return '<svg class="mkey o-' + t + '" viewBox="0 0 16 16" aria-hidden="true">' + s + '</svg>';
@@ -3606,14 +3738,14 @@ function tourSteps(id) {
     Object.assign({ t: ai ? 'Enemy base' : 'Ember base', f: ['base1', 'zone1'], x: 'Top of the map. Destroy it to win outright, or reach ' + C0.VP_WIN + ' victory points first. Keep out of its outlined area unless you are attacking.' },
       { focus: [M.bases[1]].concat(zone(1)), tiles: zone(1), col: 'p1', models: [M.bases[1]], rings: [1] })
   ];
-  if (of('depot').length) st.push(Object.assign({ t: 'Supply depots', f: ['depot'], x: depotVp ? 'End a round on one to hold it: +' + C0.DEPOT + ' Supply every round. Depots on the enemy half (marked gold) also score a victory point each round.' : 'End a round on one to hold it: +' + C0.DEPOT + ' Supply every round. On this map they score no points.' },
+  if (of('depot').length) st.push(Object.assign({ t: 'Depots', f: ['depot'], x: depotVp ? 'End a round on one to hold it: +' + C0.DEPOT + ' build action every round. Depots on the enemy half (marked gold) also score a victory point each round.' : 'End a round on one to hold it: +' + C0.DEPOT + ' build action every round. On this map they score no points.' },
     spot(of('depot'), depotVp ? { tiles: of('depot').filter(([x]) => x > (W - 1) / 2) } : {})));
   if (of('radar').length) st.push(Object.assign({ t: 'Radar stations', f: ['radar'], x: 'Hold one for a victory point every round and +' + C0.RADAR_ACC + '% accuracy for your mecha.' }, spot(of('radar'))));
   if (of('uplink').length) st.push(Object.assign({ t: 'The uplink', f: ['uplink'], x: 'Worth ' + (M.rules.uplinkVp || 2) + ' victory points every round to whoever holds it. Expect the whole battle to be fought here.' }, spot(of('uplink'))));
   if (of('repair').length) st.push(Object.assign({ t: 'Repair stations', f: ['repair'], x: 'End a round here and the station repairs ' + C0.STATION_REPAIR + ' HP on a damaged part.' }, spot(of('repair'))));
   st.push(Object.assign(salvage
     ? { t: 'Salvage crates', f: ['crate'], x: 'A pair of crates drops inside the lit area every round. The first mech to reach one scores a victory point and takes what is inside.' }
-    : { t: 'Crate drops', f: ['crate'], x: 'Every other round a crate lands on the lit centre line: Supply or a special card for the first mech to reach it.' },
+    : { t: 'Crate drops', f: ['crate'], x: 'Every other round a crate lands on the lit centre line: a build action or a special card for the first mech to reach it.' },
     { focus: band, tiles: band, crates }));
   if (M.rocks.length) st.push(Object.assign({ t: BIOME_ROCK[id] || 'Rocks', f: ['rock'], x: 'Block movement and direct fire. Booster Legs jump over them, and artillery fires over them.' }, spot(M.rocks)));
   if (M.ruins.length) st.push(Object.assign({ t: 'Ruins', f: ['ruin'], x: 'Mecha standing in ruins are 20% harder to hit. Explosions can flatten them.' }, spot(M.ruins)));
@@ -3724,7 +3856,8 @@ document.addEventListener('click', e => {
 });
 document.querySelectorAll('.dcar').forEach(car => {
   let x0 = null, y0 = 0;
-  car.addEventListener('pointerdown', e => { if (e.target.closest('button, select')) return; x0 = e.clientX; y0 = e.clientY; });
+  // a drag on the 3D model or map turns it, so only a swipe elsewhere on the card changes the doctrine
+  car.addEventListener('pointerdown', e => { if (e.target.closest('button, select, .dlive, .m3d')) return; x0 = e.clientX; y0 = e.clientY; });
   const end = e => {
     if (x0 == null) return;
     const dx = e.clientX - x0, dy = e.clientY - y0; x0 = null;
@@ -3737,7 +3870,7 @@ document.addEventListener('keydown', e => {
   const f = $('#setup');
   if (f.hidden || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
   const step = f.dataset.step;
-  if (e.target.closest && e.target.closest('select, input[type=text], input[name^=doc], input[name=map], input[name=cmd1]')) return;
+  if (e.target.closest && e.target.closest('select, input[type=text], input[name^=doc], input[name=map], input[name^=cmd]')) return;
   const d = e.key === 'ArrowRight' ? 1 : -1;
   e.preventDefault();
   if (step === '3') { if (ui.tour) tourGo(d > 0 ? 'next' : 'prev'); else navMap(d); }
@@ -3763,20 +3896,24 @@ document.addEventListener('click', e => {
 function setupStep(n) {
   $('#setup').dataset.step = n;
   if (n !== 3) { ui.tour = null; endMapPreview(); }
-  if (n === 1) $('#setup-mode').textContent = (ui.startMode === 'ai' ? 'Against the AI' : 'Two players') + ' · Step 1 of 3';
+  if (n === 1) $('#setup-mode').textContent = MODE_NAME[ui.startMode] + ' · Step 1 of 3';
   if (n === 3) {
     const f = new FormData($('#setup')), nm = v => v === 'random' ? 'Random' : DOC_NAME(v);
     $('#setup-vs').textContent = nm(f.get('doc0')) + ' vs ' + nm(f.get('doc1')) + ' · Step 3 of 3';
     updateMapInfo();
   }
+  // there is one live showroom: it moves to the doctrine card on the step being shown
+  if (n === 1 || n === 2) renderDoc(n - 1);
   $('#start').scrollTop = 0;
 }
 document.addEventListener('change', e => {
-  if (!e.target || e.target.name !== 'cmd1') return;
-  ui.cmd = e.target.value;
-  try { localStorage.setItem('mw-cmd', ui.cmd); } catch (err) { /* storage unavailable */ }
-  const P = MW.PERSONAS[ui.cmd], p = $('#cmdrow .cmdblurb');
-  if (p) p.textContent = P ? P.blurb : CMD_RANDOM;
+  const m = e.target && /^cmd([01])$/.exec(e.target.name || '');
+  if (!m) return;
+  const seat = +m[1], v = e.target.value;
+  if (seat) ui.cmd = v; else ui.cmd0 = v;
+  try { localStorage.setItem(seat ? 'mw-cmd' : 'mw-cmd0', v); } catch (err) { /* storage unavailable */ }
+  const P = MW.PERSONAS[v], p = $('#cmdrow' + seat + ' .cmdblurb');
+  if (p) { p.textContent = P ? P.blurb : CMD_RANDOM; p.title = p.textContent; }
 });
 $('#setup').addEventListener('submit', e => {
   e.preventDefault();
@@ -3786,9 +3923,14 @@ $('#setup').addEventListener('submit', e => {
   let d1 = f.get('doc1');
   if (d1 === 'random') d1 = keys[Math.floor(Math.random() * keys.length)];
   const cs = document.querySelector('input[name=cmd1]:checked'); if (cs) ui.cmd = cs.value;
-  MW.newGame({ map: f.get('map') || 'open', players: [{ name: 'Azure', doctrine: f.get('doc0'), isAI: false }, { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai', persona: ui.cmd !== 'random' ? ui.cmd : null }] });
+  const cs0 = document.querySelector('input[name=cmd0]:checked'); if (cs0) ui.cmd0 = cs0.value;
+  const sim = ui.startMode === 'sim', who = c => c && c !== 'random' ? c : null;
+  // in AI vs AI both commanders learn from the war, the same as they do against a person
+  MW.newGame({ map: f.get('map') || 'open', players: [
+    { name: 'Azure', doctrine: f.get('doc0'), isAI: sim, persona: sim ? who(ui.cmd0) : undefined },
+    { name: 'Ember', doctrine: d1, isAI: ui.startMode === 'ai' || sim, persona: who(ui.cmd) }] });
   MW.S.startedAt = Date.now();
-  MW.S.gameId = (ui.startMode === 'ai' ? 'ai-' : 'local-') + MW.S.startedAt;
+  MW.S.gameId = (sim ? 'watch-' : ui.startMode === 'ai' ? 'ai-' : 'local-') + MW.S.startedAt;
   ui.endShown = null; ui.histKey = null; ui.viewMeta = null;
   showGame();
 });
@@ -3890,7 +4032,7 @@ document.addEventListener('click', async e => {
 // tapping an icon or stat names it, since phones have no hover
 function needFlash(k) {
   document.querySelectorAll('.res [data-res="' + k + '"]').forEach(cell => { cell.classList.remove('flash'); void cell.offsetWidth; cell.classList.add('flash'); });
-  toast(k === 'ep' ? 'No engineering actions left this round. Each build gets ' + C.EP + '; end the build to continue.' : 'Not enough Supply. Sell cards you won\'t use (tap i on a card), or hold depots for more income.');
+  toast('Not enough build actions left this round. Scrap a card you won\'t use (tap i on it) for one more, or end the build: up to ' + C.CARRY_MAX + ' carry over.');
 }
 // what each stat and icon means, matched against the name it carries
 const GLOSSARY = [
@@ -3910,8 +4052,7 @@ const GLOSSARY = [
   [/^Accurate/, 'Hits more often than most weapons.'], [/^Inaccurate/, 'Misses more often than most weapons.'],
   [/^Pierces/, 'Ignores the target\'s armour.'], [/^Fires over/, 'Indirect fire: rocks and other mecha do not block it.'],
   [/^Limited ammo/, 'Runs out after this many shots. Returning to base restocks it.'],
-  [/^Supply income/, 'Supply you collect at the end of each round: base income, plus depots you hold, plus a bonus when you are behind on points.'],
-  [/^Supply/, 'Money for fitting and repairing parts. You earn more each round, more with depots.'],
+  [/^Build actions/, 'What you build with: fitting a part takes 1 (big chassis and heavy guns 2, specials 3), a repair 1. You get 4 a round (Armored 6, Experimental 3), plus 1 for each depot you hold, crates, salvage, and a bonus when behind. Up to 3 unused carry over.'],
   [/^Engineering/, 'Fitting or repairing a part uses one action. They refill every build phase.'],
   [/^Mecha on the field/, 'How many of your mecha are deployed, and how many your doctrine allows at once.'],
   [/^Cards left/, 'Cards still in your Arsenal deck. You draw new ones each round.'],

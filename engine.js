@@ -4,18 +4,18 @@
 
 let W = 9, H = 7;   // set by the map in play
 const C = {
-  EP: 5, START_SUPPLY: 10, INCOME: 4, DEPOT: 2, BASE_HP: 20,
+  EP: 4, CARRY_MAX: 3, INCOME: 0, DEPOT: 1, BASE_HP: 20,   // build actions a round, how many unused ones carry over, and what a depot adds
   HAND_START: 4, DRAW: 2, WORKSHOP_MAX: 10, FIELD_MAX: 3, HANGAR_MAX: 3,
-  AP: 2, TURRET_DMG: 3, TURRET_RANGE: 3, SCRAP: 2, SALVAGE_CHANCE: 0.6,
-  STATION_REPAIR: 2, RADAR_ACC: 5, ENTRENCH_ARMOR: 1, CATCHUP: 2,
-  VP_WIN: 12, CRATE_EVERY: 2, CRATE_SUPPLY: 4,
-  DEPOT_FULL: 2, DEPOT_EXTRA: 1,     // depots past the first DEPOT_FULL pay DEPOT_EXTRA instead of DEPOT
-  CATCHUP_PER_VP: 1, CATCHUP_MAX: 4,  // trailing bonus grows with the points gap, up to the cap
+  AP: 2, TURRET_DMG: 3, TURRET_RANGE: 3, SCRAP: 1, SALVAGE_CHANCE: 0.6,
+  STATION_REPAIR: 2, RADAR_ACC: 5, ENTRENCH_ARMOR: 1, CATCHUP: 1,
+  VP_WIN: 12, CRATE_EVERY: 2, CRATE_SUPPLY: 1,
+  DEPOT_FULL: 2, DEPOT_EXTRA: 0,     // depots past the first DEPOT_FULL pay DEPOT_EXTRA instead of DEPOT
+  CATCHUP_PER_VP: 0.34, CATCHUP_MAX: 2, // trailing bonus in build actions: 1, or 2 when 3+ points behind
   BASE_VP_PER: 4,                     // every this much damage dealt to the enemy base is worth a victory point (0 = off)
   VP_ROUND_CAP: 2,                    // most victory points one side can score from objectives in a round (0 = no cap)
   LEAD_GAP: 2, LEAD_CAP: 1, LEAD_UNTIL: 99, // once ahead by LEAD_GAP points, objectives earn at most LEAD_CAP a round, up to round LEAD_UNTIL
   START_ARMS: 'all',                  // opening mecha: 'lead' arms only the first in both mounts, 'all' arms every mount that fits
-  REQ_COST: 5,                        // supply to requisition one extra card from the Arsenal during the build (0 = off)
+  REQ_COST: 1,                        // build actions to requisition one extra card from the Arsenal (0 = off)
   BOUNTY: 0                           // points the trailing side earns per kill on the leader (0 = off)
 };
 
@@ -44,21 +44,21 @@ const DEFS = {};
   // Legs
   { id: 'l_boost', name: 'Booster Legs', slot: 'legs', cost: 4, en: 2, hp: 4, capacity: 9, move: 4, moveHeat: 1 },
   { id: 'l_treads', name: 'Heavy Treads', slot: 'legs', cost: 4, hp: 10, armor: 2, capacity: 24, move: 3, armor: 1 },
-  { id: 'l_quad', name: 'Quad Walker', slot: 'legs', cost: 5, hp: 8, capacity: 18, move: 3, dig: true },
+  { id: 'l_quad', name: 'Quad Walker', slot: 'legs', cost: 5, hp: 12, armor: 1, capacity: 24, move: 2, entrench: true, hull: 4 },
   { id: 'l_hover', name: 'Hover Skirt', slot: 'legs', cost: 4, en: 3, hp: 4, capacity: 11, move: 4 },
   { id: 'l_biped', name: 'Reinforced Biped', slot: 'legs', cost: 3, hp: 7, armor: 1, capacity: 15, move: 3 },
 
   // Arms
   { id: 'w_blade', name: 'Plasma Blade', slot: 'arm', cost: 3, wt: 2, en: 2, hp: 4, weapon: { dmg: 4, range: 1, acc: 80, heat: 1, ap: true, melee: true } },
-  { id: 'w_rail', name: 'Heavy Rail Cannon', slot: 'arm', cost: 6, wt: 6, en: 4, hp: 4, weapon: { dmg: 5, range: 6, acc: 80, heat: 3, ap: true, ammo: 5 } },
-  { id: 'w_missile', name: 'Missile Rack', slot: 'arm', cost: 4, wt: 3, en: 1, hp: 3, weapon: { dmg: 3, range: 5, min: 2, acc: 70, heat: 2, indirect: true, ammo: 4 } },
-  { id: 'w_howitzer', name: 'Howitzer', slot: 'arm', cost: 6, wt: 7, en: 1, hp: 4, weapon: { dmg: 4, range: 6, min: 3, acc: 65, heat: 2, indirect: true, siege: 1.5, ammo: 4 } },
+  { id: 'w_rail', name: 'Heavy Rail Cannon', slot: 'arm', cost: 6, wt: 6, en: 4, hp: 4, weapon: { dmg: 5, range: 5, acc: 80, heat: 3, ap: true, ammo: 5 } },
+  { id: 'w_missile', name: 'Missile Rack', slot: 'arm', cost: 4, wt: 3, en: 1, hp: 3, weapon: { dmg: 3, range: 4, min: 2, acc: 70, heat: 2, indirect: true, ammo: 4 } },
+  { id: 'w_howitzer', name: 'Howitzer', slot: 'arm', cost: 6, wt: 7, en: 1, hp: 4, weapon: { dmg: 4, range: 5, min: 2, acc: 65, heat: 2, indirect: true, siege: 1.5, ammo: 4 } },
   { id: 'w_ram', name: 'Siege Ram', slot: 'arm', cost: 4, wt: 4, en: 2, hp: 5, weapon: { dmg: 3, range: 1, acc: 90, heat: 1, siege: 2, melee: true } },
   { id: 'w_laser', name: 'Laser Rifle', slot: 'arm', cost: 4, wt: 2, en: 3, hp: 3, weapon: { dmg: 3, range: 4, acc: 85, heat: 2 } },
   { id: 'w_scatter', name: 'Scatter Cannon', slot: 'arm', cost: 3, wt: 3, en: 1, hp: 3, weapon: { dmg: 3, range: 2, acc: 85, heat: 1 } },
   { id: 'w_gatling', name: 'Gatling Gun', slot: 'arm', cost: 4, wt: 3, en: 1, hp: 3, weapon: { dmg: 2, range: 3, acc: 75, heat: 2, shots: 2 } },
   { id: 'w_shield', name: 'Tower Shield', slot: 'arm', cost: 3, wt: 4, en: 0, hp: 8, armorAll: 1 },
-  { id: 'w_lance', name: 'Particle Lance', slot: 'arm', cost: 6, wt: 4, en: 6, hp: 3, weapon: { dmg: 5, range: 5, acc: 75, heat: 4, ap: true } },
+  { id: 'w_lance', name: 'Particle Lance', slot: 'arm', cost: 6, wt: 4, en: 6, hp: 3, weapon: { dmg: 5, range: 4, acc: 75, heat: 4, ap: true } },
   { id: 'w_arc', name: 'Arc Projector', slot: 'arm', cost: 4, wt: 3, en: 4, hp: 3, weapon: { dmg: 3, range: 3, acc: 85, heat: 2, heatDmg: 2 } },
   { id: 'w_repair', name: 'Repair Arm', slot: 'arm', cost: 3, wt: 2, en: 2, hp: 3, weapon: { repair: 3, range: 1, heat: 1 } },
 
@@ -66,8 +66,8 @@ const DEFS = {};
   { id: 's_inferno', name: 'Inferno Cannon', slot: 'arm', special: true, cost: 6, wt: 3, en: 2, hp: 5, weapon: { dmg: 4, range: 3, acc: 85, heat: 2, burn: 3 } },
   { id: 's_cryo', name: 'Cryo Lance', slot: 'arm', special: true, cost: 6, wt: 3, en: 3, hp: 5, weapon: { dmg: 4, range: 4, acc: 85, heat: 1, slow: 2 } },
   { id: 's_emp', name: 'EMP Projector', slot: 'arm', special: true, cost: 6, wt: 3, en: 4, hp: 4, weapon: { dmg: 3, range: 4, acc: 85, heat: 2, shock: true } },
-  { id: 's_railgun', name: 'Heavy Railgun', slot: 'arm', special: true, cost: 8, wt: 8, en: 5, hp: 6, weapon: { dmg: 7, range: 8, acc: 90, heat: 3, ap: true, ammo: 4, needsEntrench: true } },
-  { id: 's_anchor', name: 'Siege Anchors', slot: 'legs', special: true, cost: 6, hp: 16, armor: 2, capacity: 26, move: 2, entrench: true, hull: 6 },
+  { id: 's_railgun', name: 'Heavy Railgun', slot: 'arm', special: true, cost: 8, wt: 8, en: 5, hp: 6, weapon: { dmg: 7, range: 6, acc: 90, heat: 3, ap: true, ammo: 4, needsEntrench: true } },
+  { id: 's_anchor', name: 'Siege Anchors', slot: 'legs', cost: 4, hp: 16, armor: 2, capacity: 26, move: 2, hull: 6, hidden: true },
   { id: 's_frame', name: 'Aegis Frame', slot: 'torso', special: true, cost: 7, wt: 6, hp: 13, armor: 1, auxSlots: 3, heatCap: 9 },
   { id: 's_core', name: 'Lattice Core', slot: 'core', special: true, cost: 6, wt: 2, hp: 7, power: 13, cooling: 4 },
 
@@ -82,8 +82,8 @@ const DEFS = {};
   { id: 'a_shield', name: 'Shield Generator', slot: 'aux', cost: 4, wt: 2, en: 4, shield: 3 },
   { id: 'a_over', name: 'Overcharger', slot: 'aux', cost: 3, wt: 1, en: 0, dmgBonus: 1, shotHeat: 1 },
 
-  // Events: take effect as soon as they are drawn
-  { id: 'x_supply', name: 'Supply Drop', slot: 'event', cost: 0, event: { supply: 4 } },
+  // Events: held in the Workshop until their commander plays them
+  { id: 'x_supply', name: 'Spare Parts', slot: 'event', cost: 0, event: { ep: 2 } },
   // doctrine signature cards
   { id: 't_skirm', name: 'Skirmisher Frame', slot: 'torso', cost: 2, wt: 1, hp: 4, auxSlots: 1, heatCap: 5, move: 1 },
   { id: 'w_smg', name: 'Twin SMGs', slot: 'arm', cost: 2, wt: 1, en: 1, hp: 3, weapon: { dmg: 2, range: 2, acc: 72, heat: 1, shots: 2 } },
@@ -103,10 +103,10 @@ const CHASSIS = {
   t_assault: { name: 'Striker Chassis', cost: 4, mounts: ['any', 'gun'], reactor: { hp: 4, power: 8, cooling: 3 }, meleeBonus: 1, trait: 'Melee weapons +1 damage' },
   t_heavy: { name: 'Heavy Chassis', cost: 6, mounts: ['gun', 'heavy'], reactor: { hp: 6, power: 10, cooling: 2 }, trait: 'Armour 2' },
   t_fortress: { name: 'Fortress Chassis', cost: 7, mounts: ['melee', 'heavy'], reactor: { hp: 6, power: 12, cooling: 2, passiveHeat: 1 }, bulwark: 1, trait: 'Bulwark: bracing gives +2 armour' },
-  t_proto: { name: 'Prototype Chassis', cost: 5, mounts: ['energy', 'energy'], reactor: { hp: 5, power: 12, cooling: 3 }, energyRange: 1, trait: 'Energy weapons +1 range' },
+  t_proto: { name: 'Prototype Chassis', cost: 5, mounts: ['energy', 'energy'], reactor: { hp: 5, power: 12, cooling: 3 }, energyRange: 1, trick: 'overclock', trait: 'Overclock: once a round, +1 action for +3 heat. Energy weapons +1 range' },
   s_frame: { name: 'Aegis Chassis', cost: 8, mounts: ['any', 'any'], reactor: { hp: 6, power: 12, cooling: 3 }, shield: 2, trait: 'Shield 2 a round, universal mounts' },
-  c_sing: { name: 'Singularity Chassis', slot: 'torso', cost: 6, wt: 3, hp: 6, auxSlots: 2, heatCap: 7, mounts: ['energy', 'heavy'], reactor: { hp: 3, power: 16, cooling: 1, passiveHeat: 1, breach: 4 }, trait: 'Huge power, but its reactor explodes when breached' },
-  s_core: { name: 'Lattice Chassis', slot: 'torso', special: true, cost: 7, wt: 3, hp: 9, auxSlots: 2, heatCap: 8, mounts: ['energy', 'any'], reactor: { hp: 7, power: 14, cooling: 4 }, selfRepair: 1, trait: 'Self-repairs 1 a round' }
+  c_sing: { name: 'Singularity Chassis', slot: 'torso', cost: 6, wt: 3, hp: 6, auxSlots: 2, heatCap: 7, mounts: ['energy', 'heavy'], reactor: { hp: 3, power: 16, cooling: 1, passiveHeat: 1, breach: 4 }, trick: 'phase', trait: 'Phase jump: once a round, an action to blink up to 3 tiles over anything, +2 heat. Its reactor explodes when breached' },
+  s_core: { name: 'Lattice Chassis', slot: 'torso', special: true, cost: 7, wt: 3, hp: 9, auxSlots: 2, heatCap: 8, mounts: ['energy', 'any'], reactor: { hp: 7, power: 14, cooling: 4 }, selfRepair: 1, trick: 'cloak', trait: 'Cloak: once a round, an action to make enemies 25% less likely to hit it until the round ends. Self-repairs 1 a round' }
 };
 for (const id in CHASSIS) {
   const d = DEFS[id], c = CHASSIS[id];
@@ -129,9 +129,9 @@ const LOCO = {
   l_biped: { mode: 'surefoot', modeText: 'Reinforced: hits on the legs are reduced by 1' },
   l_boost: { mode: 'jump', modeText: 'Jump: moves over rocks, ruins and mecha' },
   l_treads: { mode: 'tracks', modeText: 'Armoured tracks: hits on the legs are reduced by 2' },
-  l_quad: { mode: 'stable', modeText: 'Stable: heavy weapons keep full accuracy after moving. Can dig in for +1 armour' },
+  l_quad: { mode: 'entrench', modeText: 'Emplacement: long-range weapons only (range 4+). Fires only when dug in; dug in it is a turret with +1 range and +1 armour' },
   l_hover: { mode: 'hover', modeText: 'Hover: immune to slowing' },
-  s_anchor: { mode: 'entrench', modeText: 'Entrench: dig in to fire siege guns' }
+  s_anchor: { mode: null }
 };
 for (const id in LOCO) Object.assign(DEFS[id], LOCO[id]);
 /* Size classes replace weight and load: a chassis is Light (1), Medium (2) or Heavy (3), and legs carry up to a class.
@@ -170,22 +170,22 @@ const DOCTRINES = {
   assault: {
     name: 'Assault Doctrine',
     blurb: 'A swarm of light, fast mecha that overwhelm by numbers and speed.',
-    perks: ['Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Issue parts: Striker Chassis, Booster Legs (jump), Scatter Cannon, Plasma Blade'],
-    traits: { fieldMax: 4, hangarMax: 4, move: 1, ep: 5, startMechs: 3 },
+    perks: ['Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Pack tactics: +10% to hit for each other Assault mech within 2 tiles of the target (up to +20%)', 'Issue parts: Striker Chassis and Booster Legs (fast), Skirmisher Chassis and Twin SMGs (cheap), Scatter Cannon, Plasma Blade'],
+    traits: { fieldMax: 4, hangarMax: 4, move: 1, startMechs: 3, pack: 10 },
     deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 3, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 2, w_smg: 2, w_gatling: 2, a_jump: 2, a_servo: 1, a_cool: 1, a_over: 1, s_inferno: 2, s_cryo: 1, s_emp: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
   },
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Only 2 mecha on the field', '+3 plating HP per mech, regains 3 a round', '+15% accuracy when it has not moved', 'Holds objectives up to 2 tiles away', '1 victory point per enemy mech destroyed', 'Issue parts: Heavy Chassis, Heavy Treads (armoured), Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { fieldMax: 2, plate: 3, plateRegen: 3, steady: 15, control: 2, killVp: 1, baseHp: 6, turretShots: 2, turretDmg: 2 },
-    deck: { l_treads: 2, l_quad: 3, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 3, w_ram: 2, w_repair: 1, w_shield: 1, a_plate: 2, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_anchor: 2, s_frame: 1, x_supply: 2, x_overtime: 1, x_repair: 1 }
+    perks: ['Up to 3 mecha on the field, every one 1 move slower', 'Heavy industry: 6 build actions a round instead of 4', 'Line mechs: +6 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers dig in and fire long guns as turrets, +1 range', '+15% accuracy when it has not moved', 'Holds an objective, and grabs a crate, from the next tile over, if no enemy stands as close', 'Fortified: +1 victory point a round while it holds an objective it held last round', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { ep: 6, fieldMax: 3, plate: 6, plateRegen: 0, steady: 15, control: 1, fortify: 1, move: -1, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    deck: { l_treads: 2, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 3, w_ram: 2, w_repair: 1, w_shield: 1, a_plate: 2, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_frame: 1, x_supply: 2, x_overtime: 1, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['3 actions per mech instead of 2', 'Overclocked reactors: +2 heat every round', 'Draws 3 cards a round instead of 2', 'Energy weapons melt 2 armour instead of 1', 'Issue parts: Prototype Chassis (two energy mounts), Hover Skirt, Laser Rifle'],
-    traits: { ap: 3, heatTick: 2, draw: 3, melt: 1 },
+    perks: ['Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 actions per mech instead of 2', 'Prototype workshop: 3 build actions a round instead of 4', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
+    traits: { ap: 3, ep: 3, melt: 2, turretArc: 1 },
     deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
@@ -217,12 +217,12 @@ const MAPS = {
     rocks: [[3, 2], [4, 2], [6, 2], [7, 2], [3, 5], [4, 5], [6, 5], [7, 5]],
     ruins: [[2, 1], [8, 6], [4, 0], [6, 7], [3, 3], [7, 4], [3, 4], [7, 3], [8, 1], [2, 6]],
     rules: {},
-    traits: { assault: { startMechs: 2 }, armored: { control: 1 }, experimental: { heatTick: 2.5 } },
-    notes: 'Assault starts with 2 mecha; Armored holds objectives only from an adjacent tile; Experimental reactors gain +2.5 heat a round.'
+    traits: { assault: { startMechs: 2 } },
+    notes: 'Assault starts with 2 mecha.'
   },
   uplink: {
     name: 'Uplink', goal: 'King of the hill',
-    blurb: 'One uplink in the centre is worth 2 points a round to whoever holds it. Depots only pay Supply, and repair pads wait on the flanks.',
+    blurb: 'One uplink in the centre is worth 2 points a round to whoever holds it. Depots only add build actions, and repair pads wait on the flanks.',
     W: 9, H: 7, bases: [[0, 3], [8, 3]],
     obj: [[4, 3, 'uplink'], [2, 0, 'depot'], [6, 6, 'depot'], [2, 6, 'depot'], [6, 0, 'depot'], [4, 0, 'repair'], [4, 6, 'repair']],
     rocks: [[4, 1], [4, 5], [2, 2], [6, 4]],
@@ -238,9 +238,9 @@ const MAPS = {
     obj: [[2, 1, 'depot'], [7, 5, 'depot'], [2, 5, 'depot'], [7, 1, 'depot'], [4, 3, 'repair'], [5, 3, 'repair']],
     rocks: [[3, 2], [6, 4], [3, 4], [6, 2]],
     ruins: [[4, 1], [5, 5], [4, 5], [5, 1], [2, 3], [7, 3], [1, 0], [8, 6]],
-    rules: { depotVp: false, crateVp: 1, crateEvery: 1, cratePairs: true, crateMax: 6, crateBand: [2, 7], baseHp: 8, crateSupply: 2 },
-    traits: { armored: { killVp: 1, move: 1 } },
-    notes: 'Bases +8 HP, crates hold +2 Supply. Armored moves +1.'
+    rules: { depotVp: false, crateVp: 1, crateEvery: 1, cratePairs: true, crateMax: 6, crateBand: [2, 7], baseHp: 8, crateSupply: 1 },
+    traits: {},
+    notes: 'Bases +8 HP.'
   }
 };
 const MAP_IDS = Object.keys(MAPS);
@@ -339,12 +339,14 @@ function partsOf(m) {
   return out;
 }
 // A mech's HP is its frame's HP. Every hit lowers it; a hit on a core, leg or arm also damages that part.
-// extra hull from legs such as Siege Anchors, used up before the frame
+// extra hull from legs such as the Quad Walker, used up before the frame
 // doctrine traits: what sets each army apart beyond its deck
-const ISSUE = { assault: ['t_assault', 'l_boost', 'w_scatter', 'w_blade'], armored: ['t_heavy', 'l_treads', 'w_missile'], experimental: ['t_proto', 'l_hover', 'w_laser'] };
+const ISSUE = { assault: ['t_assault', 't_skirm', 'l_boost', 'w_scatter', 'w_blade', 'w_smg'], armored: ['t_heavy', 'l_treads', 'l_quad', 'w_missile'], experimental: ['t_proto', 'l_hover', 'w_laser'] };
 const issuedTo = p => (p && ISSUE[p.doctrine]) || [];
 // the chassis each doctrine's opening mecha are built on, in order: the issue chassis first, then others from its deck
 const START_CHASSIS = { assault: ['t_assault', 't_skirm', 't_light', 't_assault'], armored: ['t_heavy', 't_fortress'], experimental: ['t_proto', 'c_sing'] };
+// Armored opens with one line mech and one artillery emplacement: a Heavy Chassis on a Quad Walker with long guns
+const START_BUILD = { armored: [null, { torso: 't_heavy', legs: 'l_quad', armL: 'w_rail', armR: 'w_missile' }] };
 // the old separate cores are gone from play: chassis carry their own reactor now
 for (const id of ['b_core', 'c_heavy', 'c_compact', 'c_fusion']) DEFS[id].hidden = true;
 const standardFor = p => Object.values(DEFS).filter(d => (d.basic && !d.hidden) || issuedTo(p).includes(d.id)).map(d => d.id);
@@ -356,7 +358,7 @@ for (const [doc, add] of Object.entries({ assault: { t_skirm: 1 }, armored: {}, 
   for (const k in add) dk[k] = (dk[k] || 0) + add[k];
   for (const k of Object.keys(dk)) if ((DEFS[k] && DEFS[k].basic) || ISSUE[doc].includes(k)) delete dk[k];
 }
-const TRAIT_KEYS = ['control', 'fieldMax', 'hangarMax', 'startMechs', 'move', 'ep', 'draw', 'ap', 'plate', 'plateRegen', 'steady', 'turretDmg', 'heatTick'];
+const TRAIT_KEYS = ['turretArc', 'pack', 'fortify', 'control', 'fieldMax', 'hangarMax', 'startMechs', 'move', 'ep', 'draw', 'ap', 'plate', 'plateRegen', 'steady', 'turretDmg', 'heatTick'];
 function docTrait(doc, k) {
   const mt = MAP.traits[doc], t = DOCTRINES[doc] && DOCTRINES[doc].traits;
   if (mt && mt[k] != null) return mt[k];
@@ -369,7 +371,7 @@ function trait(pid, k) {
   if (k === 'fieldMax' && isEasy(p)) return Math.min(2, docTrait(p.doctrine, k) || C.FIELD_MAX);
   const v = p ? docTrait(p.doctrine, k) : null;
   if (v != null) return v;
-  return { fieldMax: C.FIELD_MAX, hangarMax: C.HANGAR_MAX, startMechs: 2, killVp: 0, baseHp: 0, turretShots: 1, control: 0, move: 0, ep: C.EP, draw: C.DRAW, ap: C.AP, plate: 0, plateRegen: 0, steady: 0, turretDmg: 0, heatTick: 0 }[k];
+  return { fieldMax: C.FIELD_MAX, hangarMax: C.HANGAR_MAX, startMechs: 2, killVp: 0, fortify: 0, pack: 0, turretArc: 0, baseHp: 0, turretShots: 1, control: 0, move: 0, ep: C.EP, draw: C.DRAW, ap: C.AP, plate: 0, plateRegen: 0, steady: 0, turretDmg: 0, heatTick: 0 }[k];
 }
 const fieldMax = pid => trait(pid, 'fieldMax');
 const hangarMax = p => trait(p.id, 'hangarMax');
@@ -380,7 +382,11 @@ function hpOf(m) { return m.slots.torso ? Math.max(0, m.slots.torso.hp) + hullOf
 function maxHpOf(m) { const l = m.slots.legs; return m.slots.torso ? DEFS[m.slots.torso.id].hp + (l && DEFS[l.id].hull && l.hp > 0 ? DEFS[l.id].hull : 0) + plateMax(m) : 0; }
 const worn = inst => { const d = DEFS[inst.id]; return (inst.hp > 0 || d.slot === 'core') && (inst.hp < d.hp || (!!d.hull && inst.hullHp != null && inst.hullHp < d.hull)); };
 // Sale price: plain parts 1, weapons 2, special parts 3, special weapons 4
-function sellValue(d) { return (d.weapon ? 2 : 1) + (d.special ? 2 : 0); }
+// scrapping a card gives one build action back this round
+function sellValue(d) { return 1; }
+// build actions to fit a part: 1 for most, 2 for the big ones, 3 for specials; a part already paid for refits for 1
+function buildCost(d, inst) { if (inst && inst.paid) return 1; return d.special ? 3 : d.cost >= 5 ? 2 : 1; }
+const actWord = n => n + ' build action' + (n === 1 ? '' : 's');
 function auxCount(m) { return m.slots.torso ? (DEFS[m.slots.torso.id].auxSlots || 0) : 0; }
 
 function stats(m) {
@@ -396,12 +402,13 @@ function stats(m) {
     if (d.ignoreCover) st.ignoreCover = true;
   }
   const legs = m.slots.legs, core = m.slots.core;
-  if (m.owner != null && S && S.players[m.owner]) st.move += trait(m.owner, 'move');
+  if (m.owner != null && S && S.players[m.owner]) st.move = Math.max(1, st.move + trait(m.owner, 'move'));
   if (!legs || legs.hp <= 0) st.move = legs ? 1 : 0;
   else if (legs.hp <= DEFS[legs.id].hp / 2) st.move = Math.max(1, st.move - 1);
   st.fullPower = st.power;
   if (core && core.hp > 0 && core.hp <= DEFS[core.id].hp / 2) st.power = Math.ceil(st.power * 0.6);
   if (m.entrenched) st.armorAll += C.ENTRENCH_ARMOR;
+  if (m.entrenched && legs && DEFS[legs.id].entrench) st.emplaced = 1;
   if (m.slow > 0 && locoMode(m) !== 'hover') st.move = Math.max(1, st.move - 2);
   st.cap = capOf(m); st.used = pipsUsed(m); st.size = sizeOf(m); st.carry = carryOf(m);
   st.underpowered = st.used > st.cap;
@@ -418,7 +425,8 @@ function issues(m) {
   }
   const st = stats(m);
   if (m.slots.legs && m.slots.torso && st.size > st.carry) out.push(DEFS[m.slots.legs.id].name + ' cannot carry a ' + SIZE_NAME[st.size].toLowerCase() + ' chassis');
-  for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && m.slots.legs && needsDigLegs(DEFS[w.id]) && !hasDigLegs(m)) out.push(DEFS[w.id].name + ' needs legs that dig in (Quad Walker or Siege Anchors)'); }
+  for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && m.slots.legs && needsDigLegs(DEFS[w.id]) && !hasDigLegs(m)) out.push(DEFS[w.id].name + ' needs a Quad Walker to dig in'); }
+  for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && anchoredLegs(m) && shortGun(DEFS[w.id])) out.push(DEFS[w.id].name + ' is too short-ranged for a Quad Walker'); }
   if (m.slots.torso && st.used > st.cap) out.push('Over capacity: parts need ' + st.used + ' pips, the chassis has ' + st.cap);
   for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && !fitsMount(armMount(m, k), DEFS[w.id])) out.push(DEFS[w.id].name + ' does not fit the ' + MOUNT_NAME[armMount(m, k)].toLowerCase() + ' mount'); }
   return out;
@@ -432,17 +440,22 @@ function weaponsOf(m) {
   }
   return out;
 }
-// legs that dig in: Siege Anchors (and must, before firing) and Quad Walkers (when they choose to)
+// legs that dig in: the Quad Walker, which must before it fires
 const digsIn = id => !!DEFS[id] && !!(DEFS[id].entrench || DEFS[id].dig);
 const needsDigLegs = d => !!(d && d.weapon && d.weapon.needsEntrench);
 const hasDigLegs = m => !!m.slots.legs && digsIn(m.slots.legs.id);
+// an emplacement (legs that must dig in) is a turret for long guns: anything shorter than this has no place on it
+const LONG_RANGE = 4;
+const anchoredLegs = m => !!m.slots.legs && !!DEFS[m.slots.legs.id].entrench;
+const shortGun = d => !!(d && d.weapon && !d.weapon.repair && d.weapon.range < LONG_RANGE) || !!(d && d.slot === 'arm' && !d.weapon);
 // when the legs under it change, a dug-in-only weapon with nothing to dig in goes back to the Workshop
 function dropDugInWeapons(p, m) {
+  if (anchoredLegs(m)) for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && shortGun(DEFS[w.id])) { m.slots[k] = null; toWorkshop(p, w); log(DEFS[w.id].name + ' is too short-ranged for a Quad Walker and returns to the Workshop.', 'p' + p.id); } }
   if (hasDigLegs(m)) return;
   for (const k of ['armL', 'armR']) { const w = m.slots[k]; if (w && needsDigLegs(DEFS[w.id])) { m.slots[k] = null; toWorkshop(p, w); log(DEFS[w.id].name + ' needs legs that dig in and returns to the Workshop.', 'p' + p.id); } }
 }
 const canEntrench = m => { const l = m.slots.legs; return !!l && l.hp > 0 && digsIn(l.id); };
-// Siege Anchors lock every weapon until the mech digs in; the railgun needs to be dug in wherever it is mounted
+// a Quad Walker locks every weapon until the mech digs in; the railgun needs one
 function weaponLock(m, key) {
   const inst = getSlot(m, key);
   if (!inst || !DEFS[inst.id].weapon || m.entrenched) return null;
@@ -456,7 +469,7 @@ function usable(m, key) {
   return !!inst && inst.hp > 0 && (inst.ammo == null || inst.ammo > 0) && !(m.fired && m.fired[key]);
 }
 const hasWeapon = m => weaponsOf(m).some(wp => !wp.w.repair && wp.inst.hp > 0 && (wp.inst.ammo == null || wp.inst.ammo > 0));
-const effRange = (w, st) => w.range + (st && st.energyRange && w.cat === 'energy' ? st.energyRange : 0);
+const effRange = (w, st) => w.range + (st && st.energyRange && w.cat === 'energy' ? st.energyRange : 0) + (st && st.emplaced && !w.repair ? st.emplaced : 0);
 
 function role(m) {
   if (issues(m).length) return 'Under construction';
@@ -483,7 +496,7 @@ function newGame(opts) {
   opts.players.forEach((o, i) => {
     const ids = [];
     Object.entries(DOCTRINES[o.doctrine].deck).forEach(([id, n]) => { for (let j = 0; j < n; j++) ids.push(id); });
-    const p = { id: i, name: o.name, doctrine: o.doctrine, isAI: !!o.isAI, supply: C.START_SUPPLY, ep: 0, deck: shuffle(ids).map(id => mk(id)), workshop: [], hangar: [], base: { x: BASE_POS[i].x, y: BASE_POS[i].y, hp: C.BASE_HP + rule('baseHp', 0) + (docTrait(o.doctrine, 'baseHp') || 0), max: C.BASE_HP + rule('baseHp', 0) + (docTrait(o.doctrine, 'baseHp') || 0) }, names: shuffle(CALLSIGNS[i].slice()), lost: 0, kills: 0, vp: 0 };
+    const p = { id: i, name: o.name, doctrine: o.doctrine, isAI: !!o.isAI, ep: 0, next: 0, deck: shuffle(ids).map(id => mk(id)), workshop: [], hangar: [], base: { x: BASE_POS[i].x, y: BASE_POS[i].y, hp: C.BASE_HP + rule('baseHp', 0) + (docTrait(o.doctrine, 'baseHp') || 0), max: C.BASE_HP + rule('baseHp', 0) + (docTrait(o.doctrine, 'baseHp') || 0) }, names: shuffle(CALLSIGNS[i].slice()), lost: 0, kills: 0, vp: 0 };
     S.players.push(p);
     setupCommander(p, o);
     for (let guard = 0; p.workshop.length < C.HAND_START && p.deck.length && guard < 200; guard++) {
@@ -500,6 +513,12 @@ function newGame(opts) {
       const guns = ['b_gun'].concat(iss.filter(id => DEFS[id].slot === 'arm'));
       // the lead mech is armed in both mounts; the others carry one weapon, in whichever mount takes one
       for (const k of ['armR', 'armL']) { const g = guns.slice().reverse().find(id => fitsMount(armMount(m, k), DEFS[id])); if (g && (j === 0 || C.START_ARMS === 'all' || !m.slots.armR)) { m.slots[k] = mk(g, true); m.slots[k].issued = true; if (j > 0 && C.START_ARMS !== 'all') break; } }
+      // some armies open with a set machine in place of a standard one
+      const set = (START_BUILD[o.doctrine] || [])[j];
+      if (set) for (const k of ['torso', 'legs', 'armL', 'armR']) {
+        m.slots[k] = set[k] ? mk(set[k], true) : null; if (m.slots[k]) m.slots[k].issued = true;
+        if (k === 'torso') m.slots.core = mk('r_' + set.torso, true);
+      }
       p.hangar.push(m);
     }
   });
@@ -533,8 +552,7 @@ function receive(p, inst) { p.workshop.push(inst); }
 // an event's effect, when it is played
 function applyEvent(p, d) {
   const e = d.event, out = [];
-  if (e.supply) { p.supply += e.supply; out.push('+' + e.supply + ' Supply'); }
-  if (e.ep) { p.ep += e.ep; out.push('+' + e.ep + ' engineering this round'); }
+  if (e.ep) { p.ep += e.ep; out.push('+' + actWord(e.ep) + ' this round'); }
   if (e.repair) {
     let n = 0;
     for (const m of fieldMechs(p.id).concat(p.hangar)) {
@@ -556,7 +574,7 @@ function startBuildPhase() {
   S.phase = 'build'; S.current = S.first;
   for (const p of S.players) {
     ensureBlank(p);
-    p.ep = trait(p.id, 'ep'); p.incoming = []; p.wave = 0; p.waveFrom = null;
+    p.ep = Math.min(C.CARRY_MAX, p.ep || 0) + trait(p.id, 'ep') + (p.next || 0) - (isEasy(p) ? 1 : 0); p.epMax = p.ep; p.next = 0; p.incoming = []; p.wave = 0; p.waveFrom = null;
     for (let i = 0; i < trait(p.id, 'draw'); i++) {
       if (!p.deck.length || p.workshop.length + p.incoming.length >= C.WORKSHOP_MAX) break;
       p.incoming.push(p.deck.pop());
@@ -582,15 +600,15 @@ function canRequisition(p) {
   if (S.phase !== 'build' || p.stage !== 'build') return 'Requisition during your build.';
   if (!p.deck.length) return 'The Arsenal is empty.';
   if (p.workshop.length >= C.WORKSHOP_MAX) return 'The Workshop is full.';
-  if (p.supply < C.REQ_COST) return 'Needs ' + C.REQ_COST + ' Supply.';
+  if (p.ep < C.REQ_COST) return 'Needs ' + actWord(C.REQ_COST) + '.';
   return null;
 }
 function requisition(p) {
   const why = canRequisition(p); if (why) return fail(why);
-  p.supply -= C.REQ_COST;
+  p.ep -= C.REQ_COST;
   p.incoming = [p.deck.pop()]; p.extra = null; p.extraFrom = null; p.wave = 0; p.waveFrom = null;
   p.stage = 'draw';
-  log(p.name + ' requisitions a card from the Arsenal for ' + C.REQ_COST + ' Supply.', 'p' + p.id);
+  log(p.name + ' requisitions a card from the Arsenal for ' + actWord(C.REQ_COST) + '.', 'p' + p.id);
   return OK;
 }
 const fail = msg => ({ ok: false, msg });
@@ -604,9 +622,9 @@ function toWorkshop(p, inst) {
   p.workshop.push(inst);
 }
 function installCost(src, p) {
-  if (src.basic) return DEFS[src.basic].cost;
+  if (src.basic) return buildCost(DEFS[src.basic]);
   const inst = p.workshop.find(c => c.uid === src.uid);
-  return inst ? (inst.paid ? 0 : DEFS[inst.id].cost) : 0;
+  return inst ? buildCost(DEFS[inst.id], inst) : 1;
 }
 function install(p, m, key, src) {
   const g = buildGuard(p); if (g) return fail(g);
@@ -620,11 +638,11 @@ function install(p, m, key, src) {
   if (key === 'core') return fail('The reactor is built into the chassis.');
   if (key !== 'torso' && !m.slots.torso) return fail('Fit a chassis first: it decides what else can go on.');
   if (key.startsWith('arm') && !fitsMount(armMount(m, key), d)) return fail(d.name + ' needs a ' + MOUNT_NAME[mountOf(d)].toLowerCase() + ' mount: this arm is ' + MOUNT_NAME[armMount(m, key)].toLowerCase() + '.');
-  if (key.startsWith('arm') && needsDigLegs(d) && !hasDigLegs(m)) return fail(d.name + ' only fires dug in: fit a Quad Walker or Siege Anchors first.');
-  if (p.ep < 1) return fail('No engineering capacity left this round.');
+  if (key.startsWith('arm') && needsDigLegs(d) && !hasDigLegs(m)) return fail(d.name + ' only fires dug in: fit a Quad Walker first.');
+  if (key.startsWith('arm') && anchoredLegs(m) && shortGun(d)) return fail('A Quad Walker carries long-range weapons only (range ' + LONG_RANGE + '+).');
   const cost = installCost(src, p);
-  if (p.supply < cost) return fail('Not enough Supply: ' + d.name + ' costs ' + cost + '.');
-  p.ep--; p.supply -= cost;
+  if (p.ep < cost) return fail(d.name + ' takes ' + actWord(cost) + '; ' + p.ep + ' left this round.');
+  p.ep -= cost;
   const old = getSlot(m, key);
   let inst;
   if (src.basic) { inst = mk(src.basic, true, p); inst.issued = true; }
@@ -654,7 +672,7 @@ function removePart(p, m, key) {
   if (key === 'legs') dropDugInWeapons(p, m);
   ensureBlank(p); return OK;
 }
-function repairCost(inst) { const d = DEFS[inst.id]; return Math.max(1, Math.ceil((d.hp - inst.hp + (d.hull && inst.hullHp != null ? d.hull - inst.hullHp : 0)) / 2)); }
+function repairCost(inst) { return 1; }
 function repair(p, m, key) {
   const g = buildGuard(p); if (g) return fail(g);
   const inst = getSlot(m, key);
@@ -662,10 +680,8 @@ function repair(p, m, key) {
   const d = DEFS[inst.id];
   if (inst.hp <= 0 && key !== 'core') return fail(d.name + ' is destroyed. Replace it instead.');
   if (!worn(inst)) return fail(d.name + ' is undamaged.');
-  const cost = repairCost(inst);
-  if (p.ep < 1) return fail('No engineering capacity left this round.');
-  if (p.supply < cost) return fail('Not enough Supply: this repair costs ' + cost + '.');
-  p.ep--; p.supply -= cost; inst.hp = d.hp; if (d.hull) inst.hullHp = d.hull;
+  if (p.ep < 1) return fail('No build actions left this round.');
+  p.ep--; inst.hp = d.hp; if (d.hull) inst.hullHp = d.hull;
   log(p.name + ' repairs ' + m.name + "'s " + d.name + '.', 'p' + p.id);
   return OK;
 }
@@ -693,8 +709,8 @@ function scrapCard(p, uid) {
   if (i < 0) return fail('That card is not in the Workshop.');
   const d = DEFS[p.workshop[i].id];
   const v = sellValue(d);
-  p.workshop.splice(i, 1); p.supply += v;
-  log(p.name + ' sells ' + d.name + ' for ' + v + ' Supply.', 'p' + p.id);
+  p.workshop.splice(i, 1); p.ep += v;
+  log(p.name + ' scraps ' + d.name + ' for ' + actWord(v) + '.', 'p' + p.id);
   return OK;
 }
 function playTactic(p, uid) {
@@ -706,7 +722,6 @@ function playTactic(p, uid) {
   if (!t) return fail(d.name + ' is a component, not a tactic.');
   p.workshop.splice(i, 1);
   if (d.event) { applyEvent(p, d); return OK; }
-  if (t.supply) p.supply += t.supply;
   if (t.ep) p.ep += t.ep;
   if (t.draw) draw(p, t.draw);
   log(p.name + ' plays ' + d.name + '.', 'p' + p.id);
@@ -742,7 +757,7 @@ function deploy(p, m, x, y) {
   if (!deployTiles(p.id).some(t => t[0] === x && t[1] === y)) return fail('Deploy onto a tile next to your base.');
   if (mechAt(x, y)) return fail('That tile is occupied.');
   p.hangar.splice(p.hangar.indexOf(m), 1);
-  m.x = x; m.y = y; m.heat = 0; m.activated = false; m.braced = false; m.shutdown = false; m.fired = {}; m.moves = 0; m.plate = plateMax(m);
+  m.x = x; m.y = y; m.heat = 0; m.activated = false; m.braced = false; m.shutdown = false; m.fired = {}; m.moves = 0; m.plate = m.plate == null ? plateMax(m) : Math.min(m.plate, plateMax(m));
   m.entrenched = false; m.burn = 0; m.slow = 0; m.shock = 0;
   m.shield = stats(m).shield;
   S.mechs.push(m);
@@ -776,7 +791,7 @@ function startCombat() {
     const st = stats(m);
     m.ap = (m.shutdown || st.underpowered) ? 1 : trait(m.owner, 'ap');
     if (m.shock) { m.ap = Math.max(1, m.ap - 1); m.shock = 0; }
-    m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false;
+    m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false; m.tricked = false; m.cloak = 0;
   }
   log('Combat begins.', 'sys');
   S.current = S.first;
@@ -815,15 +830,14 @@ function passAll(pid) {
   advanceTurn();
   return OK;
 }
-// supply a player collects at the end of a round, before any catch-up bonus
+// extra build actions a player earns for the next round from depots, before any catch-up bonus
 function incomeOf(p) {
   const n = S.objectives.filter(o => o.type === 'depot' && o.owner === p.id).length;
-  const easy = isEasy(p) ? 2 : 0;   // the Recruit runs a lean factory
-  return C.INCOME - easy + C.DEPOT * Math.min(n, C.DEPOT_FULL) + C.DEPOT_EXTRA * Math.max(0, n - C.DEPOT_FULL);
+  return C.INCOME + C.DEPOT * Math.min(n, C.DEPOT_FULL) + C.DEPOT_EXTRA * Math.max(0, n - C.DEPOT_FULL);
 }
 function catchupOf(p) {
   const gap = Math.abs((S.players[0].vp || 0) - (S.players[1].vp || 0));
-  return Math.min(C.CATCHUP_MAX, Math.max(C.CATCHUP, gap * C.CATCHUP_PER_VP));
+  return Math.min(C.CATCHUP_MAX, Math.max(C.CATCHUP, Math.floor(gap * C.CATCHUP_PER_VP)));
 }
 function aiLearn() {
   if (!S || S.phase !== 'over' || S.aiLearned) return;
@@ -950,7 +964,7 @@ function pathTo(m, x, y) {
 }
 function move(m, x, y) {
   const g = actGuard(m); if (g) return fail(g);
-  if (m.entrenched) return fail(m.name + ' is entrenched. Pack up first.');
+  if (m.entrenched) return fail(m.name + ' is emplaced. Pack up first.');
   const r = reachable(m);
   if (!(K(x, y) in r) || (x === m.x && y === m.y)) return fail(m.name + ' cannot reach ' + coord(x, y) + ' this move.');
   const st = stats(m);
@@ -963,6 +977,65 @@ function move(m, x, y) {
   log(m.name + ' moves ' + from + ' → ' + coord(x, y) + '.', 'p' + m.owner);
   pickupCrate(m);
   triggerOverwatch(m);
+  settle();
+  return OK;
+}
+// who holds an objective at the end of the round: whoever stands on it, or an army with zone control from an
+// adjacent tile, if no enemy stands as close
+function holderOf(o) {
+  const on = mechAt(o.x, o.y);
+  if (on || o.type === 'repair') return on;
+  const near = S.mechs.filter(q => q.x != null && trait(q.owner, 'control') && man(q.x, q.y, o.x, o.y) <= trait(q.owner, 'control'));
+  const rivals = q => S.mechs.some(e => e.owner !== q.owner && e.x != null && man(e.x, e.y, o.x, o.y) <= man(q.x, q.y, o.x, o.y));
+  return near.find(q => !rivals(q)) || null;
+}
+/* ---------- Prototype tricks: one per Experimental chassis, once a round ---------- */
+const TRICK = {
+  overclock: { name: 'Overclock', text: '+1 action now, +3 heat' },
+  phase: { name: 'Phase jump', text: 'Blink up to 3 tiles over anything, +2 heat', range: 3 },
+  cloak: { name: 'Cloak', text: 'Enemies have −25% to hit it until the round ends' }
+};
+function trickOf(m) { const t = m.slots.torso; return t && t.hp > 0 ? DEFS[t.id].trick || null : null; }
+// what stands in the way of a trick right now, or null
+function trickGuard(m, kind) {
+  if (trickOf(m) !== kind) return m.name + ' has no ' + TRICK[kind].name + '.';
+  if (m.tricked) return m.name + ' has used its trick this round.';
+  if (S.phase !== 'combat' || m.owner !== S.current || m.activated || (S.active != null && S.active !== m.uid)) return actGuard(m) || 'Not now.';
+  if (kind !== 'overclock' && m.ap < 1) return m.name + ' has no actions left.';
+  if (m.entrenched && kind === 'phase') return m.name + ' is dug in.';
+  return null;
+}
+function overclock(m) {
+  const g = trickGuard(m, 'overclock'); if (g) return fail(g);
+  S.active = m.uid; m.tricked = true; m.ap++; m.heat += 3;
+  fxFloat(m.x, m.y, 'Overclock', 'warn');
+  log(m.name + ' overclocks: one more action, +3 heat.', 'p' + m.owner);
+  return OK;
+}
+// the tiles a phase jump can land on: free ground within range, whatever lies between
+function phaseTiles(m) {
+  const out = [], r = TRICK.phase.range;
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) if ((x !== m.x || y !== m.y) && man(x, y, m.x, m.y) <= r && passable(x, y) && !mechAt(x, y)) out.push([x, y]);
+  return out;
+}
+function phase(m, x, y) {
+  const g = trickGuard(m, 'phase'); if (g) return fail(g);
+  if (!phaseTiles(m).some(t => t[0] === x && t[1] === y)) return fail(m.name + ' cannot phase to ' + coord(x, y) + '.');
+  const from = coord(m.x, m.y);
+  S.active = m.uid; m.tricked = true; m.ap--; m.moves++; m.heat += 2;
+  fx({ k: 'move', uid: m.uid, path: [[m.x, m.y], [x, y]], jump: true });
+  m.x = x; m.y = y;
+  log(m.name + ' phase-jumps ' + from + ' → ' + coord(x, y) + ' (+2 heat).', 'p' + m.owner);
+  pickupCrate(m);
+  triggerOverwatch(m);
+  settle();
+  return OK;
+}
+function cloak(m) {
+  const g = trickGuard(m, 'cloak'); if (g) return fail(g);
+  S.active = m.uid; m.tricked = true; m.ap--; m.cloak = 25;
+  fxFloat(m.x, m.y, 'Cloaked', 'info');
+  log(m.name + ' cloaks: enemies have −25% to hit it this round.', 'p' + m.owner);
   settle();
   return OK;
 }
@@ -1030,15 +1103,23 @@ function overwatchCover(pid) {
 
 /* ---------- Supply crates: dropped mid-field, first mech to reach one takes it ---------- */
 const crateAt = (x, y) => (S.crates || []).find(c => c.x === x && c.y === y) || null;
-function pickupCrate(m) {
+// a crate in reach: the one underfoot, or for an army with zone control one on the next tile, if no enemy stands as close
+function crateInReach(m) {
   const c = crateAt(m.x, m.y);
+  if (c) return c;
+  const ctl = trait(m.owner, 'control');
+  if (!ctl) return null;
+  return (S.crates || []).find(q => man(q.x, q.y, m.x, m.y) <= ctl && !S.mechs.some(e => e.owner !== m.owner && e.x != null && man(e.x, e.y, q.x, q.y) <= man(m.x, m.y, q.x, q.y))) || null;
+}
+function pickupCrate(m) {
+  const c = crateInReach(m);
   if (!c) return;
   S.crates.splice(S.crates.indexOf(c), 1);
   const p = S.players[m.owner];
   if (c.kind === 'supply') {
-    p.supply += c.amount;
-    fxFloat(m.x, m.y, '+' + c.amount + ' Supply', 'good');
-    log(m.name + ' grabs a supply crate: +' + c.amount + ' Supply.', 'p' + m.owner);
+    p.next = (p.next || 0) + c.amount;
+    fxFloat(m.x, m.y, '+' + actWord(c.amount), 'good');
+    log(m.name + ' grabs a parts crate: +' + actWord(c.amount) + ' next build.', 'p' + m.owner);
     salvagePoint(m);
   } else {
     p.workshop.push(mk(c.card, true));
@@ -1088,12 +1169,12 @@ function dropCrate() {
   const c = crateContents(x, y);
   S.crates.push(c);
   fx({ k: 'drop', x, y });
-  log('A supply crate lands at ' + coord(x, y) + (c.kind === 'supply' ? ': +' + c.amount + ' Supply.' : ' holding ' + DEFS[c.card].name + '.'), 'sys');
+  log('A crate lands at ' + coord(x, y) + (c.kind === 'supply' ? ': +' + actWord(c.amount) + '.' : ' holding ' + DEFS[c.card].name + '.'), 'sys');
 }
 // an objective scores for a player if it is a radar, or a depot on the enemy's half of the map
 function scores(o, pid) { return o.type === 'radar' || o.type === 'uplink' || (o.type === 'depot' && rule('depotVp', true) && (pid === 0 ? o.x > (W - 1) / 2 : o.x < (W - 1) / 2)); }
 const objVp = o => (o.type === 'uplink' ? rule('uplinkVp', 2) : 1);
-const OBJ_NAME = { depot: 'supply depot', radar: 'radar station', uplink: 'uplink', repair: 'repair station' };
+const OBJ_NAME = { depot: 'depot', radar: 'radar station', uplink: 'uplink', repair: 'repair station' };
 // every tile a mech could hit: now, or after one move
 function reachZone(m) {
   const now = {}, later = {}, st = stats(m);
@@ -1167,8 +1248,11 @@ function aimPreview(m, key, tm, part) {
 function hitChance(m, key, tm, part) {
   const w = DEFS[getSlot(m, key).id].weapon, st = stats(m), ts = stats(tm);
   let c = w.acc + radarBonus(m.owner) + (m.moves ? 0 : trait(m.owner, 'steady'));
-  if (m.moves && mountOf(DEFS[getSlot(m, key).id]) === 'heavy' && locoMode(m) !== 'stable' && !m.entrenched) c -= 15;
+  if (m.moves && mountOf(DEFS[getSlot(m, key).id]) === 'heavy' && !m.entrenched) c -= 15;
   c -= ts.evasive || 0;
+  c -= tm.cloak || 0;
+  // a swarm closes in: every other mech of its own within 2 tiles of the target makes each shot likelier
+  if (trait(m.owner, 'pack')) c += trait(m.owner, 'pack') * Math.min(2, S.mechs.filter(q => q !== m && q.owner === m.owner && q.x != null && man(q.x, q.y, tm.x, tm.y) <= 2).length);
   if (terrain(tm.x, tm.y) === 'ruins' && !w.melee && !st.ignoreCover) c -= 20;
   if (part && AIM[part]) c -= AIM[part].acc;
   return Math.max(5, Math.min(95, c));
@@ -1311,20 +1395,20 @@ function brace(m) {
 }
 function entrench(m) {
   const g = actGuard(m); if (g) return fail(g);
-  if (!canEntrench(m)) return fail(m.name + ' has no legs that can entrench.');
-  if (m.entrenched) return fail(m.name + ' is already entrenched.');
+  if (!canEntrench(m)) return fail(m.name + ' needs a Quad Walker to emplace.');
+  if (m.entrenched) return fail(m.name + ' is already emplaced.');
   S.active = m.uid; m.ap--; m.entrenched = true;
   fx({ k: 'brace', x: m.x, y: m.y }); fxFloat(m.x, m.y, 'Entrenched', 'info');
-  log(m.name + ' digs in at ' + coord(m.x, m.y) + '. Weapons online, +1 armor.', 'p' + m.owner);
+  log(m.name + ' emplaces at ' + coord(m.x, m.y) + '. Weapons online, +1 armour, +1 range.', 'p' + m.owner);
   settle();
   return OK;
 }
 function unentrench(m) {
   const g = actGuard(m); if (g) return fail(g);
-  if (!m.entrenched) return fail(m.name + ' is not entrenched.');
+  if (!m.entrenched) return fail(m.name + ' is not emplaced.');
   S.active = m.uid; m.ap--; m.entrenched = false;
   fxFloat(m.x, m.y, 'Packed up', 'info');
-  log(m.name + (DEFS[m.slots.legs.id].entrench ? ' pulls up its anchors.' : ' rises out of its dug-in stance.'), 'p' + m.owner);
+  log(m.name + ' packs up its emplacement.', 'p' + m.owner);
   settle();
   return OK;
 }
@@ -1334,11 +1418,11 @@ function salvage(m) {
   if (!w) return fail('No wreck here to salvage.');
   const p = S.players[m.owner];
   S.active = m.uid; m.ap--;
-  p.workshop.push(...w.parts); p.supply += w.scrap;
+  p.workshop.push(...w.parts); p.next = (p.next || 0) + Math.min(2, w.scrap);
   S.wrecks.splice(S.wrecks.indexOf(w), 1);
-  fxFloat(m.x, m.y, '+' + w.scrap + ' Supply', 'good');
+  fxFloat(m.x, m.y, '+' + actWord(Math.min(2, w.scrap)), 'good');
   if (w.parts.length) fxFloat(m.x, m.y, '+' + w.parts.length + (w.parts.length > 1 ? ' parts' : ' part'), 'good');
-  log(m.name + ' salvages the wreck: +' + w.scrap + ' Supply' + (w.parts.length ? ', ' + w.parts.map(x => DEFS[x.id].name).join(', ') + ' sent to the Workshop.' : '.'), 'p' + m.owner);
+  log(m.name + ' salvages the wreck: +' + actWord(Math.min(2, w.scrap)) + ' next build' + (w.parts.length ? ', ' + w.parts.map(x => DEFS[x.id].name).join(', ') + ' sent to the Workshop.' : '.'), 'p' + m.owner);
   settle();
   return OK;
 }
@@ -1368,14 +1452,14 @@ function selfDestruct(m) {
     if (!inb(x, y) || man(x, y, ox, oy) > 1) continue;
     if (TERRAIN[K(x, y)] === 'ruins' && S.flat.indexOf(K(x, y)) < 0) { S.flat.push(K(x, y)); log('The ruins at ' + coord(x, y) + ' collapse into rubble.', 'hit'); }
     const o = objAt(x, y);
-    if (o && o.owner != null && o.type !== 'repair') { o.owner = null; log('The ' + (o.type === 'depot' ? 'supply depot' : 'radar station') + ' at ' + coord(x, y) + ' is knocked back to neutral.', 'hit'); }
+    if (o && o.owner != null && o.type !== 'repair') { o.owner = null; log('The ' + (o.type === 'depot' ? 'depot' : 'radar station') + ' at ' + coord(x, y) + ' is knocked back to neutral.', 'hit'); }
     const w = wreckAt(x, y);
     if (w) S.wrecks.splice(S.wrecks.indexOf(w), 1);
   }
   if (!checkWin()) advanceTurn();
   return OK;
 }
-// strip the mech where it stands: surviving special parts go back to the Workshop, standard parts are scrapped for 1 Supply each
+// strip the mech where it stands: surviving special parts go back to the Workshop, standard parts give a build action each (up to 2)
 function fieldStrip(m) {
   const g = actGuard(m); if (g) return fail(g);
   const p = S.players[m.owner];
@@ -1384,10 +1468,11 @@ function fieldStrip(m) {
     if (inst.hp <= 0) continue;
     if (DEFS[inst.id].basic) scrap++; else { inst.paid = true; p.workshop.push(inst); parts++; }
   }
-  p.supply += scrap;
+  scrap = Math.min(2, scrap);
+  p.next = (p.next || 0) + scrap;
   fx({ k: 'strip', uid: m.uid, x: m.x, y: m.y, owner: m.owner });
-  if (scrap) fxFloat(m.x, m.y, '+' + scrap + ' Supply', 'good');
-  log(p.name + ' strips ' + m.name + ' in the field: ' + parts + ' part' + (parts === 1 ? '' : 's') + ' back to the Workshop, +' + scrap + ' Supply.', 'p' + m.owner);
+  if (scrap) fxFloat(m.x, m.y, '+' + actWord(scrap), 'good');
+  log(p.name + ' strips ' + m.name + ' in the field: ' + parts + ' part' + (parts === 1 ? '' : 's') + ' back to the Workshop, +' + actWord(scrap) + ' next build.', 'p' + m.owner);
   S.mechs.splice(S.mechs.indexOf(m), 1);
   p.names.push(m.name); mark(m); S.active = null;
   advanceTurn();
@@ -1397,14 +1482,14 @@ function enterBase(m) {
   const g = actGuard(m); if (g) return fail(g);
   const p = S.players[m.owner];
   if (!inDeployZone(m)) return fail(m.name + ' must be next to your base to enter it.');
-  if (m.entrenched) return fail(m.name + ' must pack up before it can move.');
+  if (m.entrenched) return fail(m.name + ' is emplaced: pack up before it can move.');
   if (hangarFull(p)) return fail('The hangar is full.');
   if (p.hangar.length >= hangarMax(p)) dropBlank(p, p.hangar.find(isBlank));
   S.mechs.splice(S.mechs.indexOf(m), 1);
   log(m.name + ' returns to base from ' + coord(m.x, m.y) + '. Heat vented, ammunition restocked.', 'p' + m.owner);
   fx({ k: 'enter', uid: m.uid, x: m.x, y: m.y, owner: m.owner });
   mark(m);
-  m.x = null; m.y = null; m.plate = plateMax(m); m.heat = 0; m.entrenched = false; m.burn = 0; m.slow = 0; m.shock = 0; m.ap = 0; m.activated = true; m.braced = false; m.shutdown = false; m.shield = 0;
+  m.x = null; m.y = null; m.heat = 0; m.entrenched = false; m.burn = 0; m.slow = 0; m.shock = 0; m.ap = 0; m.activated = true; m.braced = false; m.shutdown = false; m.shield = 0;
   for (const { inst } of partsOf(m)) { const w = DEFS[inst.id].weapon; if (w && w.ammo) inst.ammo = w.ammo; }
   p.hangar.push(m);
   S.active = null;
@@ -1440,48 +1525,51 @@ function resolution() {
     if (m.burn > 0) { m.burn--; log(m.name + ' burns.', 'hit'); applyDamage(m, rollLocation(m), 1, true); }
   }
   for (const o of S.objectives) {
-    let m = mechAt(o.x, o.y);
-    // armies with zone control hold objectives from an adjacent tile, if no enemy stands as close
-    if (!m && o.type !== 'repair') {
-      const near = S.mechs.filter(q => trait(q.owner, 'control') && man(q.x, q.y, o.x, o.y) <= trait(q.owner, 'control'));
-      const rivals = q => S.mechs.some(e => e.owner !== q.owner && man(e.x, e.y, o.x, o.y) <= man(q.x, q.y, o.x, o.y));
-      m = near.find(q => !rivals(q)) || null;
-    }
+    const m = holderOf(o);
     if (!m) continue;
     if (o.type === 'repair') {
       const pi = mostDamaged(m);
       if (pi) { pi.hp = Math.min(DEFS[pi.id].hp, pi.hp + C.STATION_REPAIR); fxFloat(m.x, m.y, '+' + C.STATION_REPAIR + ' HP', 'good'); log('The repair station patches ' + m.name + "'s " + DEFS[pi.id].name + '.', 'p' + m.owner); }
       m.heat = Math.max(0, m.heat - 2);
     } else if (o.owner !== m.owner) {
-      o.owner = m.owner;
+      o.owner = m.owner; o.since = S.round;
       fx({ k: 'capture', x: o.x, y: o.y, owner: m.owner });
-      log(S.players[m.owner].name + ' captures the ' + OBJ_NAME[o.type] + ' at ' + coord(o.x, o.y) + '.', 'p' + m.owner);
+      log(S.players[m.owner].name + ' captures the ' + OBJ_NAME[o.type] + ' at ' + coord(o.x, o.y) + (m.x !== o.x || m.y !== o.y ? ', held by ' + m.name + ' from the next tile.' : '.'), 'p' + m.owner);
     }
   }
   for (const p of S.players) {
     if (p.base.hp <= 0) continue;
-    for (let shot = 0; shot < trait(p.id, 'turretShots'); shot++) {
+    // a Tesla base arcs to every enemy in range at once
+    const arc = trait(p.id, 'turretArc');
+    for (let shot = 0; shot < (arc ? 1 : trait(p.id, 'turretShots')); shot++) {
     const near = S.mechs.filter(m => m.owner !== p.id && man(m.x, m.y, p.base.x, p.base.y) <= C.TURRET_RANGE);
     if (!near.length) break;
     near.sort((a, b) => hpOf(a) - hpOf(b));
-    const tm = near[0];
+    for (const tm of arc ? near : [near[0]]) {
     fx({ k: 'shot', x0: p.base.x, y0: p.base.y, x1: tm.x, y1: tm.y, hit: true, cat: 'turret' });
     log(p.name + "'s base turret fires on " + tm.name + '.', 'p' + p.id);
     applyDamage(tm, rollLocation(tm), C.TURRET_DMG + trait(p.id, 'turretDmg'), false);
+    }
     }
   }
   const trailing = (S.players[0].vp || 0) === (S.players[1].vp || 0) ? null : ((S.players[0].vp || 0) < (S.players[1].vp || 0) ? 0 : 1);
   for (const p of S.players) {
     const bonus = p.id === trailing ? catchupOf(p) : 0;
-    p.supply += incomeOf(p) + bonus;
-    if (bonus) log(p.name + ' is behind on points: +' + bonus + ' Supply.', 'p' + p.id);
+    // kept so the next draw can show what came in
+    p.lastIncome = incomeOf(p) + bonus;
+    p.next = (p.next || 0) + p.lastIncome;
+    if (bonus) log(p.name + ' is behind on points: +' + actWord(bonus) + ' next build.', 'p' + p.id);
   }
   if (checkWin()) return;
   // victory points: one per depot or radar held at the end of each round, plus pressure on the enemy base
   for (const p of S.players) {
     let n = S.objectives.filter(o => o.owner === p.id && scores(o, p.id)).reduce((a, o) => a + objVp(o), 0);
+    // fortress armies score for ground held round after round, within the same cap as the objectives themselves
+    const fort = trait(p.id, 'fortify') && S.objectives.some(o => o.owner === p.id && o.type !== 'repair' && o.since != null && o.since < S.round) ? trait(p.id, 'fortify') : 0;
+    n += fort;
     if (C.VP_ROUND_CAP) n = Math.min(n, C.VP_ROUND_CAP);
     if (C.LEAD_GAP && S.round <= C.LEAD_UNTIL && (p.vp || 0) - (S.players[1 - p.id].vp || 0) >= C.LEAD_GAP) n = Math.min(n, C.LEAD_CAP);
+    if (fort && n) log(p.name + ' holds fortified ground: up to ' + fort + ' victory point more this round.', 'p' + p.id);
     if (p.salvage) { n += p.salvage; log(p.name + ' earns ' + p.salvage + ' victory point' + (p.salvage > 1 ? 's' : '') + ' for salvage.', 'p' + p.id); p.salvage = 0; }
     if (p.bounty) { n += p.bounty; log(p.name + ' earns ' + p.bounty + ' bounty point' + (p.bounty > 1 ? 's' : '') + ' for kills on the leader.', 'p' + p.id); p.bounty = 0; }
     // attrition armies score for wrecking the enemy force
@@ -1523,7 +1611,7 @@ const PERSONAS = {
   raider: { name: 'Raider', blurb: 'Spreads out to grab objectives and race on points.', w: { aggro: 0.35, objective: 1.8, siege: 0.6, caution: 0.9, focus: 0.5, cohesion: 0.05, swarm: 0.65, tech: 0.4, hold: 0.3, overwatch: 0.4 } },
   hunter: { name: 'Hunter', blurb: 'Moves as a pack and focuses fire to destroy mecha.', w: { aggro: 0.9, objective: 1.05, siege: 0.5, caution: 0.8, focus: 1.8, cohesion: 0.75, swarm: 0.4, tech: 0.6, hold: 0.2, overwatch: 0.6 } },
   // a gentle opponent for learning: slow to attack, rarely goes for the base, short on Supply, and never learns
-  recruit: { name: 'Recruit', easy: true, blurb: 'An easy opponent for learning: cautious, slow to attack, fields at most two mecha and is short on Supply.', w: { aggro: 0.2, objective: 0.8, siege: 0.15, caution: 1.2, focus: 0.2, cohesion: 0.5, swarm: 0.3, tech: 0.2, hold: 0.5, overwatch: 0.1 } },
+  recruit: { name: 'Recruit', easy: true, blurb: 'An easy opponent for learning: cautious, slow to attack, fields at most two mecha and builds with one action less.', w: { aggro: 0.2, objective: 0.8, siege: 0.15, caution: 1.2, focus: 0.2, cohesion: 0.5, swarm: 0.3, tech: 0.2, hold: 0.5, overwatch: 0.1 } },
   // the old single-minded AI, kept as a yardstick for testing
   classic: { name: 'Classic', hidden: true, w: { aggro: 0.5, objective: 1, siege: 1, caution: 0, focus: 0, cohesion: 0, swarm: 0.5, tech: 0.5, hold: 0, overwatch: 0.5 } }
 };
@@ -1738,6 +1826,9 @@ function aiGoal(m) {
   const cands = [], rng = aiMaxRange(m), armed = hasWeapon(m), aw = aiW(m.owner), defending = S.players[m.owner].ai && S.players[m.owner].ai.stance === 'defend';
   const own = S.players[m.owner].base;
   const siege = weaponsOf(m).some(wp => wp.w.siege && wp.inst.hp > 0);
+  // a fortress army scores by holding ground, not by kills: its mecha go for objectives (close enough to hold them)
+  // before they go hunting
+  const holder = trait(m.owner, 'fortify') > 0, ctl = trait(m.owner, 'control');
   for (const o of S.objectives) {
     const d = dTo(o.x, o.y);
     if (o.type === 'repair') { if (isDamaged(m)) cands.push({ x: o.x, y: o.y, cost: (d * 0.9 + 2) / (1 + aw.caution * 0.3), pref: 0 }); continue; }
@@ -1746,7 +1837,7 @@ function aiGoal(m) {
     const occ = mechAt(o.x, o.y);
     if (occ && occ !== m) continue;
     if (S.mechs.some(f => f !== m && f.owner === m.owner && man(f.x, f.y, o.x, o.y) < man(m.x, m.y, o.x, o.y))) continue;
-    cands.push({ x: o.x, y: o.y, cost: d / (0.5 + 0.5 * aw.objective) * 7 / Math.max(2, objWorth(o, m.owner)), pref: 0 });
+    cands.push({ x: o.x, y: o.y, cost: d / (0.5 + 0.5 * aw.objective) * 7 / Math.max(2, objWorth(o, m.owner)), pref: holder ? ctl : 0 });
   }
   const crateW = rule('crateVp', 0) ? 0.35 : 0.6;
   for (const c of S.crates || []) {
@@ -1759,7 +1850,7 @@ function aiGoal(m) {
       // wounded prey draws hunters; intruders near home draw defenders
       const prey = 1 + aw.focus * 0.5 * (1 - hpOf(e) / Math.max(1, maxHpOf(e)));
       const intruder = aiSieger(m.owner, e) ? 3 : defending && man(e.x, e.y, own.x, own.y) <= 4 ? 2 : 1;
-      cands.push({ x: e.x, y: e.y, cost: (dTo(e.x, e.y) * 1.1 - 1) / ((0.5 + aw.aggro) * prey * intruder), pref: rng });
+      cands.push({ x: e.x, y: e.y, cost: (dTo(e.x, e.y) * 1.1 - 1) / ((0.5 + aw.aggro) * prey * intruder) * (holder && intruder === 1 ? 2.5 : 1), pref: rng });
     }
     const b = BASE_POS[1 - m.owner];
     if (!defending) cands.push({ x: b.x, y: b.y, cost: dTo(b.x, b.y) * (siege ? 0.6 : Math.max(0.6, 1.3 - S.round * 0.035)) / (0.5 + 0.5 * aw.siege), pref: rng });
@@ -1769,8 +1860,9 @@ function aiGoal(m) {
   cands.sort((a, b) => a.cost - b.cost);
   return cands[0] || null;
 }
-function aiBestTile(m) {
-  const r = reachable(m), goal = aiGoal(m);
+// the best tile among those reachable (or the given ones, e.g. a phase jump's)
+function aiBestTile(m, tiles) {
+  const r = tiles || reachable(m), goal = aiGoal(m);
   const dm = goal ? distMap([[goal.x, goal.y]]) : null;
   const aw = aiW(m.owner), threat = aw.caution > 0 ? threatMap(m.owner) : null;
   const hpFrac = hpOf(m) / Math.max(1, maxHpOf(m));
@@ -1778,7 +1870,7 @@ function aiBestTile(m) {
   // the enemy base turret is certain damage at the end of the round, not a risk: know what it would do to this mech
   const foe = S.players[1 - m.owner], eb = BASE_POS[1 - m.owner];
   const turret = foe.base.hp > 0 ? (C.TURRET_DMG + trait(foe.id, 'turretDmg')) * trait(foe.id, 'turretShots') : 0;
-  const myHp = hpOf(m) + (m.plate || 0);
+  const myHp = hpOf(m) + (m.plate || 0), ctl = trait(m.owner, 'control');
   let best = null;
   for (const k in r) {
     const [x, y] = k.split(',').map(Number), stay = x === m.x && y === m.y;
@@ -1786,6 +1878,8 @@ function aiBestTile(m) {
     let v = 10 * (0.5 + aw.aggro) * av;
     const o = objAt(x, y);
     if (o && o.type !== 'repair' && o.owner !== m.owner) v += (1 + objWorth(o, m.owner)) * aw.objective;
+    // armies with zone control hold objectives from a distance: a tile within reach of one is nearly as good as standing on it
+    else if (ctl) for (const q of S.objectives) if (q.type !== 'repair' && q.owner !== m.owner && man(x, y, q.x, q.y) <= ctl) { v += 0.8 * (1 + objWorth(q, m.owner)) * aw.objective; break; }
     // look ahead: how much the enemy could pour into this tile next round, weighed by how much we can take
     if (threat) v -= aw.caution * 0.45 * (threat[k] || 0) * (1.6 - hpFrac);
     // never end a move where the turret would finish this mech, unless the base falls first; otherwise weigh the hit against what is left
@@ -1798,7 +1892,7 @@ function aiBestTile(m) {
     if (aw.cohesion > 0.05 || aw.cohesion < 0.3) { const near = allies.filter(f => man(f.x, f.y, x, y) <= 2).length; v += aw.cohesion * Math.min(2, near) * 1.2 - (aw.cohesion < 0.3 ? (0.3 - aw.cohesion) * 3 * allies.filter(f => man(f.x, f.y, x, y) <= 1).length : 0); }
     if (o && o.type === 'repair' && isDamaged(m)) v += 4;
     if (wreckAt(x, y)) v += 3;
-    if (crateAt(x, y)) v += 8 + 6 * rule('crateVp', 0) * aw.objective;
+    if (crateAt(x, y) || (ctl && (S.crates || []).some(q => man(q.x, q.y, x, y) <= ctl))) v += 8 + 6 * rule('crateVp', 0) * aw.objective;
     if (terrain(x, y) === 'ruins') v += 1.5;
     if (dm) v -= (k in dm) ? Math.max(0, dm[k] - goal.pref) : 99;
     if (stay) v += 0.01;
@@ -1843,8 +1937,27 @@ function aiCombatStep() {
       if (move(m, x, y).ok) return true;
     }
   }
+  // prototype tricks: overclock before a worthwhile shot if the heat allows; phase when it lands somewhere better
+  // than walking would; cloak when standing where the enemy can pour fire in
+  const trick = !m.tricked ? trickOf(m) : null, st0 = stats(m);
+  if (trick === 'overclock' && m.ap >= 1 && m.heat + 3 + 2 <= st0.heatCap && aiBestAttack(m) && overclock(m).ok) return true;
+  if (trick === 'phase' && m.moves === 0 && m.heat + 2 <= st0.heatCap) {
+    const walk = aiBestTile(m), pt = {};
+    phaseTiles(m).forEach(([x, y]) => { pt[K(x, y)] = 1; });
+    const jump = aiBestTile(m, pt);
+    if (jump && (!walk || jump.v > walk.v + 2) && phase(m, jump.x, jump.y).ok) return true;
+  }
+  if (trick === 'cloak' && m.ap >= 1 && !m.cloak) {
+    const th = threatMap(m.owner)[K(m.x, m.y)] || 0;
+    if (th >= hpOf(m) * 0.4 && cloak(m).ok) return true;
+  }
   const anchoredLegs = !!DEFS[m.slots.legs.id].entrench;
-  if (canEntrench(m) && (anchoredLegs || m.entrenched || weaponsOf(m).some(wp => wp.w.needsEntrench || mountOf(wp.def) === 'heavy'))) {
+  // a line mech that can dig in (Quad Walker) only does so where it holds ground: on or by an objective, or defending.
+  // Anywhere else it packs up and moves on, so the army does not turn into a row of turrets by its own base
+  const holding = (x, y) => S.objectives.some(o => o.type !== 'repair' && man(x, y, o.x, o.y) <= Math.max(0, trait(m.owner, 'control')));
+  const defending = S.players[m.owner].ai && S.players[m.owner].ai.stance === 'defend';
+  if (!anchoredLegs && m.entrenched && !holding(m.x, m.y) && !defending && !weaponsOf(m).some(wp => wp.w.needsEntrench) && unentrench(m).ok) return true;
+  if (canEntrench(m) && (anchoredLegs || m.entrenched || ((holding(m.x, m.y) || defending) && weaponsOf(m).some(wp => wp.w.needsEntrench || mountOf(wp.def) === 'heavy')))) {
     if (m.entrenched) {
       const atk = aiBestAttack(m);
       if (atk && fire(m, atk.key, atk.target, atk.part).ok) { m.idle = 0; return true; }
@@ -1911,6 +2024,8 @@ function aiDesign(p, m) {
   for (const { key, inst } of partsOf(m)) fixed[key] = inst;
   const iss = t => issuedTo(p).filter(id => DEFS[id].slot === t);
   const BAS = { torso: ['b_torso'].concat(iss('torso')), legs: ['b_legs'].concat(iss('legs')), arm: ['b_gun'].concat(iss('arm')) };
+  // artillery already in the force (on the field or in the hangar), not counting this mech
+  const arty = fieldMechs(p.id).concat(p.hangar).filter(x => x !== m && anchoredLegs(x)).length;
   let best = null;
   for (let t = 0; t < 300; t++) {
     const used = new Set(), pick = {};
@@ -1920,14 +2035,14 @@ function aiDesign(p, m) {
       const opts = pool[type].filter(c => !used.has(c.uid) && (!ok || ok(DEFS[c.id])));
       const bas = (BAS[type] || []).filter(id => !ok || ok(DEFS[id]));
       let i = Math.floor(rnd() * (opts.length + bas.length + (allowNone ? 1 : 0)));
-      if (i < opts.length) { used.add(opts[i].uid); cost += opts[i].paid ? 0 : DEFS[opts[i].id].cost; return { inst: opts[i], src: { uid: opts[i].uid } }; }
+      if (i < opts.length) { used.add(opts[i].uid); cost += buildCost(DEFS[opts[i].id], opts[i]); return { inst: opts[i], src: { uid: opts[i].uid } }; }
       i -= opts.length;
-      if (i < bas.length) { const id = bas[i]; cost += DEFS[id].cost; return { inst: { id, hp: DEFS[id].hp }, src: { basic: id } }; }
+      if (i < bas.length) { const id = bas[i]; cost += installCost({ basic: id }, p); return { inst: { id, hp: DEFS[id].hp }, src: { basic: id } }; }
       return null;
     };
     for (const key of ['torso', 'legs', 'armL', 'armR']) {
       if (fixed[key]) { tmp.slots[key] = fixed[key]; continue; }
-      const c = choose(slotType(key), key.startsWith('arm'), key.startsWith('arm') ? d => fitsMount(armMount(tmp, key), d) : null);
+      const c = choose(slotType(key), key.startsWith('arm'), key.startsWith('arm') ? d => fitsMount(armMount(tmp, key), d) && !(anchoredLegs(tmp) && shortGun(d)) : null);
       if (c) { tmp.slots[key] = c.inst; pick[key] = c.src; }
       if (key === 'torso' && tmp.slots.torso) tmp.slots.core = fixed.core && !pick.torso ? fixed.core : { id: 'r_' + tmp.slots.torso.id, hp: DEFS['r_' + tmp.slots.torso.id].hp };
     }
@@ -1943,7 +2058,8 @@ function aiDesign(p, m) {
     }
     const st = stats(tmp);
     if (st.size > st.carry || st.used > st.cap) continue;
-    if (cost > p.supply + 6) continue;
+    // a design it can pay for now: one it can only half pay for goes to war with an empty arm
+    if (cost > p.ep) continue;
     let fp = 0, heat = st.passiveHeat + st.moveHeat;
     for (const wp of weaponsOf(tmp)) {
       const w = wp.w;
@@ -1959,18 +2075,18 @@ function aiDesign(p, m) {
     score += (1 + 0.3 * aw.caution) * (0.5 * (td.hp + ((td.armor || 0) + st.armorAll) * 4 + st.shield * 2) + 0.2 * (DEFS[tmp.slots.legs.id].hp + DEFS[tmp.slots.core.id].hp));
     score += 1.5 * st.move * (0.6 + 0.4 * aw.objective + 0.2 * aw.aggro) + st.selfRepair * 2 + st.heatCap * 0.2 + st.plate * 1.5;
     score += (aw.tech - 0.5) * 3 * [tmp.slots.torso, tmp.slots.core, tmp.slots.legs, tmp.slots.armL, tmp.slots.armR].concat(tmp.slots.aux).filter(i => i && DEFS[i.id].special).length;
-    score -= 2.5 * Math.max(0, heat - st.cooling) + (0.35 + 0.4 * (aw.swarm - 0.5)) * cost;
+    score -= 2.5 * Math.max(0, heat - st.cooling) + 2.5 * (0.35 + 0.4 * (aw.swarm - 0.5)) * cost;
     const ws = weaponsOf(tmp), mode = DEFS[tmp.slots.legs.id].mode;
     const heavyW = ws.filter(wp => mountOf(wp.def) === 'heavy').length, meleeW = ws.filter(wp => wp.w.melee).length;
     score += (st.evasive || 0) * 0.25 + (st.meleeBonus || 0) * meleeW * 3 + (st.bulwark || 0) * 2;
-    score += mode === 'jump' ? 2 + aw.objective : mode === 'tracks' ? 1.5 : mode === 'stable' ? 1 + heavyW * 3 : mode === 'hover' ? 1.5 : mode === 'surefoot' ? 1 : 0;
-    // anchored mecha only earn their keep with long guns, since they fire from one spot
-    if (DEFS[tmp.slots.legs.id].entrench) { const longest = Math.max(0, ...weaponsOf(tmp).map(wp => wp.w.range || 0)); score -= weaponsOf(tmp).some(wp => wp.w.needsEntrench) ? 0 : longest >= 5 ? 12 : 30; }
+    score += mode === 'jump' ? 2 + aw.objective : mode === 'tracks' ? 1.5 :  mode === 'hover' ? 1.5 : mode === 'surefoot' ? 1 : 0;
+    // an army wants one artillery emplacement behind its line, and the rest line mechs that can take ground
+    if (DEFS[tmp.slots.legs.id].entrench) { if (arty) continue; score += 14; }
     if (!best || score > best.score) best = { score, pick };
   }
   return best && best.pick;
 }
-// the AI holds its events for the moment they pay: Supply when it is short, Overtime when out of actions with work to
+// the AI holds its events for the moment they pay: extra build actions when it is out of them with work to
 // do, extra cards when the Workshop runs thin, repairs when its mecha are hurt; anything still held when the Workshop
 // fills up is played rather than sold
 function aiEvents(p, all) {
@@ -1980,7 +2096,7 @@ function aiEvents(p, all) {
   for (const c of p.workshop.slice()) {
     const e = DEFS[c.id].event;
     if (!e) continue;
-    const now = all || (e.supply && p.supply < 8) || (e.ep && p.ep <= 1 && work) || (e.draw && p.workshop.length <= C.WORKSHOP_MAX - 4) || (e.repair && hurt >= 2);
+    const now = all || (e.ep && p.ep <= 1 && work) || (e.draw && p.workshop.length <= C.WORKSHOP_MAX - 4) || (e.repair && hurt >= 2);
     if (now) playTactic(p, c.uid);
   }
 }
@@ -1993,8 +2109,8 @@ function aiOutfit(p, m) {
   }
 }
 function aiBuild(p) {
-  // flush with supply and short on cards: buy one, then come back to building after the draw
-  if (C.REQ_COST && p.supply >= C.REQ_COST + 14 && p.workshop.length <= C.WORKSHOP_MAX - 3 && !canRequisition(p)) { requisition(p); return; }
+  // flush with build actions and short on cards: buy one, then come back to building after the draw
+  if (C.REQ_COST && p.ep >= C.REQ_COST + 6 && p.workshop.length <= C.WORKSHOP_MAX - 3 && !canRequisition(p)) { requisition(p); return; }
   for (const c of p.workshop.slice()) if (DEFS[c.id].slot === 'tactic') playTactic(p, c.uid);
   aiEvents(p, false);
   for (const m of p.hangar) for (const { key, inst } of partsOf(m)) {
@@ -2007,7 +2123,7 @@ function aiBuild(p) {
   const allReady = built.every(m => !issues(m).length && hasWeapon(m));
   ensureBlank(p);
   const spare = p.hangar.find(isBlank);
-  if (spare && allReady && total < fieldMax(p.id) + (p.supply >= 15 ? 3 : 1) + Math.round(2 * (aiW(p.id).swarm - 0.5)) && p.ep >= 2 && p.supply >= 5) aiOutfit(p, spare);
+  if (spare && allReady && total < fieldMax(p.id) + (p.ep >= 6 ? 3 : 1) + Math.round(2 * (aiW(p.id).swarm - 0.5)) && p.ep >= 3) aiOutfit(p, spare);
   // a full Workshop spends its held events before it sells anything
   if (p.workshop.length > C.WORKSHOP_MAX - 2) aiEvents(p, true);
   while (p.workshop.length > C.WORKSHOP_MAX - 2) {
@@ -2024,6 +2140,8 @@ function aiDeploy(p) {
   for (const m of p.hangar.slice()) {
     if (fieldMechs(p.id).length >= fieldMax(p.id)) break;
     if (issues(m).length || !hasWeapon(m)) continue;
+    // one emplacement on the field is enough: the other slots go to mecha that can move and hold ground
+    if (anchoredLegs(m) && fieldMechs(p.id).some(anchoredLegs)) continue;
     if (hpOf(m) < maxHpOf(m) * (0.5 + 0.15 * aiW(p.id).caution - 0.15 * (aiW(p.id).aggro - 0.5))) continue;
     const free = deployTiles(p.id).filter(([x, y]) => !mechAt(x, y));
     if (!free.length) break;
@@ -2056,8 +2174,10 @@ const api = {
   setRng(f) { rnd = f; },
   newGame, concede, terrain, baseAt, turretTiles, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
-  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
+  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, buildCost, actWord, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
+  LONG_RANGE, anchoredLegs, shortGun, TRICK, trickOf, trickGuard, overclock, phase, phaseTiles, cloak,
+  holderOf,
   activatable, actGuard, coreBlast, selfDestruct, fieldStrip, overwatch, overwatchCover, crateAt, canEntrench, digsIn, ENERGY_MELT, AIM, aimPreview, weaponLock, entrench, unentrench, reachable, validTargets, rangeTiles, hitChance, move, fire, brace, salvage, enterBase, endActivation, passAll,
   radarBonus, isDamaged, aiStep,
   clearFx() { if (S) S.fx = []; }
