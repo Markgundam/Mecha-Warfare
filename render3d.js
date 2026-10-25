@@ -291,6 +291,7 @@ function panelDetail(m, g, mat) {
 // plane and no pair of faces can z-fight. The distance is fixed rather than a percentage so small parts separate too.
 let JIT = 0;
 function jitter(g) {
+  if (g.userData.exact) return 1;
   if (!g.boundingSphere) g.computeBoundingSphere();
   const d = 0.0005 + 0.0035 * ((++JIT * 0.6180339887) % 1), x = d / (0.08 * Math.max(0.003, g.boundingSphere.radius));
   // growth stays under 15% on the smallest bolts, and never flattens out, so every part's offset stays its own
@@ -312,6 +313,63 @@ function mesh(g, mat, parent, pos, rot, opt) {
   return m;
 }
 const flat = { noOutline: true, noShadow: true };
+/* Curved parts. A gun is drawn the way a concept artist draws it: as a side profile, then given thickness.
+   profile(): a 2D outline in side view, points as [z, y] (z forward, y up), with ['q', cz, cy, z, y] for a
+   curve through a control point and ['c', c1z, c1y, c2z, c2y, z, y] for an S-curve; extruded w wide with
+   rounded bevels. turned(): a round part spun from [radius, z] pairs, back to front, like a lathe.
+   tube(): a round section swept along a 3D path, for hoses, cables and belts. */
+function profile(key, w, cmds, bevel) {
+  const b = bevel == null ? Math.min(0.006, w * 0.16) : bevel;
+  return geo('pf:' + key + ':' + w + ':' + b, () => {
+    const sh = new T.Shape();
+    cmds.forEach((c, i) => {
+      if (typeof c[0] === 'number') { if (i) sh.lineTo(c[0], c[1]); else sh.moveTo(c[0], c[1]); }
+      else if (c[0] === 'q') sh.quadraticCurveTo(c[1], c[2], c[3], c[4]);
+      else if (c[0] === 'c') sh.bezierCurveTo(c[1], c[2], c[3], c[4], c[5], c[6]);
+    });
+    const depth = Math.max(0.001, w - 2 * b);
+    const g = new T.ExtrudeGeometry(sh, { depth, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelSegments: 1, curveSegments: 32, steps: 1 });
+    g.rotateY(-Math.PI / 2);
+    g.translate(depth / 2, 0, 0);
+    g.computeVertexNormals(); g.userData.exact = true;
+    return g;
+  });
+}
+function turned(key, pts, seg) {
+  return geo('la:' + key, () => {
+    // outlines drawn front to back would turn the faces inward; spin them in one direction always
+    const ps = pts[pts.length - 1][1] < pts[0][1] ? pts.slice().reverse() : pts;
+    const g = new T.LatheGeometry(ps.map(([r, z]) => new T.Vector2(Math.max(0.0005, r), z)), seg || 36);
+    g.rotateX(Math.PI / 2);
+    g.computeVertexNormals(); g.userData.exact = true;
+    return g;
+  });
+}
+function slab(key, d, cmds, bevel) {
+  const b = bevel == null ? Math.min(0.006, d * 0.16) : bevel;
+  return geo('sl:' + key + ':' + d + ':' + b, () => {
+    const sh = new T.Shape();
+    cmds.forEach((c, i) => {
+      if (typeof c[0] === 'number') { if (i) sh.lineTo(c[0], c[1]); else sh.moveTo(c[0], c[1]); }
+      else if (c[0] === 'q') sh.quadraticCurveTo(c[1], c[2], c[3], c[4]);
+      else if (c[0] === 'c') sh.bezierCurveTo(c[1], c[2], c[3], c[4], c[5], c[6]);
+    });
+    const depth = Math.max(0.001, d - 2 * b);
+    const g = new T.ExtrudeGeometry(sh, { depth, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelSegments: 1, curveSegments: 24, steps: 1 });
+    g.translate(0, 0, -depth / 2);
+    g.computeVertexNormals(); g.userData.exact = true; return g;
+  });
+}
+function bend(key, g0, k) {
+  return geo('bd:' + key + ':' + k, () => {
+    const g = g0.clone(), a = g.attributes.position;
+    for (let i = 0; i < a.count; i++) a.setX(i, a.getX(i) - k * a.getZ(i) * a.getZ(i));
+    g.computeVertexNormals(); g.userData.exact = true; return g;
+  });
+}
+function tube(key, pts, r, seg) {
+  return geo('tu:' + key, () => { const g = new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(q => new T.Vector3(q[0], q[1], q[2]))), seg || 40, r, 10, false); g.userData.exact = true; return g; });
+}
 
 /* ================= particles ================= */
 function radialTex(soft) {
@@ -436,36 +494,38 @@ function buildLegs(R, g, id, tc, style, ghost) {
     R.kind = 'treads'; R.hipY = 0.34;
     for (const sx of [-1, 1]) {
       const x = sx * 0.2;
-      // large: the track loop, a long block with rounded ends
-      mesh(box(0.14, 0.18, 0.44), M(tc.dark), g, [x, 0.095, 0]);
-      for (const z of [-0.22, 0.22]) mesh(cyl(0.09, 0.09, 0.14, 12), M(tc.dark), g, [x, 0.095, z], [0, 0, Math.PI / 2]);
-      // medium: road wheels, the drive sprocket and the armoured fender with its side skirt
+      // large: the track loop seen from the side: a long run with a sloped glacis at the front and a shorter slope
+      // at the back, its ends rounded over the idler and the sprocket
+      mesh(profile('tr-track', 0.14, [[-0.2, 0.0], [0.17, 0.0], ['q', 0.24, 0.0, 0.26, 0.07], [0.22, 0.17], [-0.21, 0.18], ['q', -0.27, 0.16, -0.26, 0.08], ['q', -0.25, 0.0, -0.2, 0.0]], 0.012), M(tc.dark), g, [x, 0.0, 0]);
       if (!ghost) {
-        for (const z of [-0.14, -0.045, 0.045, 0.14]) mesh(cyl(0.045, 0.045, 0.135, 10), toon(tc.metal), g, [x, 0.06, z], [0, 0, Math.PI / 2], { noOutline: true });
-        mesh(cyl(0.05, 0.05, 0.152, 8), toon(tc.accent), g, [x, 0.1, 0.22], [0, 0, Math.PI / 2], { noOutline: true });
-        for (let i = 0; i < 7; i++) mesh(box(0.135, 0.014, 0.03), toon(INK), g, [x, 0.165, -0.18 + i * 0.06], null, flat);
+        // medium: road wheels and the drive sprocket on the outer face, and tread bars across the top run
+        for (const z of [-0.15, -0.05, 0.05, 0.15]) mesh(turned('tr-wheel', [[0.0, -0.02], [0.05, -0.02], [0.058, -0.012], [0.058, 0.012], [0.05, 0.02], [0.018, 0.028], [0.0, 0.028]], 28), toon(tc.metal), g, [x + sx * 0.062, 0.064, z], [0, sx * Math.PI / 2, 0], { noOutline: true });
+        mesh(turned('tr-sprocket', [[0.0, -0.02], [0.056, -0.02], [0.064, -0.01], [0.064, 0.01], [0.056, 0.02], [0.02, 0.03], [0.0, 0.03]], 12), toon(tc.accent), g, [x + sx * 0.062, 0.09, 0.21], [0, sx * Math.PI / 2, 0], { noOutline: true });
+        for (let i = 0; i < 8; i++) mesh(box(0.142, 0.012, 0.022), toon(INK), g, [x, 0.181, -0.17 + i * 0.05], null, flat);
       }
-      mesh(wedge(0.16, 0.05, 0.5, 0.95, 0.92), M(tc.main), g, [x, 0.2, 0]);
-      mesh(box(0.025, 0.09, 0.44), M(tc.main), g, [x + sx * 0.075, 0.14, 0]);
+      // the armoured fender over the top run and the side skirt hanging over the upper half of the wheels
+      mesh(profile('tr-fender', 0.16, [[-0.23, 0.2], [0.19, 0.2], [0.25, 0.17], [-0.25, 0.17]], 0.008), M(tc.main), g, [x, 0.0, 0]);
+      mesh(profile('tr-skirt', 0.016, [[-0.2, 0.2], [0.18, 0.2], [0.21, 0.15], [-0.2, 0.14]], 0.004), M(tc.main), g, [x + sx * 0.085, 0.0, 0]);
       // small: a hazard tab and bolts on each skirt
-      if (!ghost) { mesh(box(0.012, 0.03, 0.07), toon(tc.accent), g, [x + sx * 0.089, 0.15, 0.14], null, flat); rivets(g, toon(tc.dark), [[x + sx * 0.089, 0.16, -0.08], [x + sx * 0.089, 0.16, 0.0], [x + sx * 0.089, 0.16, -0.16]]); }
+      if (!ghost) { mesh(box(0.008, 0.026, 0.07), toon(tc.accent), g, [x + sx * 0.094, 0.175, 0.12], null, flat); rivets(g, toon(tc.dark), [[x + sx * 0.094, 0.18, -0.08], [x + sx * 0.094, 0.18, 0.0], [x + sx * 0.094, 0.18, -0.16]]); }
     }
     // the hull deck between the tracks, sloped at the front
-    mesh(box(0.28, 0.07, 0.4), M(tc.second), g, [0, 0.15, -0.02]);
-    mesh(wedge(0.28, 0.07, 0.1, 1, 0.3), M(tc.second), g, [0, 0.15, 0.22], [-0.6, 0, 0]);
+    mesh(profile('tr-deck', 0.28, [[-0.22, 0.12], [0.16, 0.12], [0.26, 0.15], [0.2, 0.19], [-0.22, 0.19]], 0.01), M(tc.second), g);
     if (!ghost) vents(g, toon(tc.dark), 3, 0.14, 0.022, [0, 0.19, -0.14], [-Math.PI / 2, 0, 0]);
     // the waist pedestal on its turret ring
-    mesh(cyl(0.13, 0.15, 0.04, 14), M(tc.dark), g, [0, 0.2, 0]);
-    mesh(wedge(0.26, 0.09, 0.22, 0.8, 0.8), M(tc.accent), g, [0, 0.265, 0]);
+    mesh(turned('tr-ring', [[0.0, 0.19], [0.15, 0.19], [0.15, 0.21], [0.13, 0.23], [0.0, 0.23]], 32), M(tc.dark), g, null, [-Math.PI / 2, 0, 0]);
+    mesh(turned('tr-ped', [[0.0, 0.22], [0.11, 0.22], [0.11, 0.25], [0.09, 0.27], [0.09, 0.33], [0.1, 0.34], [0.1, 0.36], [0.0, 0.36]], 32), M(tc.second), g, null, [-Math.PI / 2, 0, 0]);
     return;
   }
   if (id === 'l_hover') {
     R.kind = 'hover'; R.hipY = 0.35;
-    mesh(cyl(0.11, 0.17, 0.2, 10), M(tc.main), g, [0, 0.22, 0]);
-    mesh(cyl(0.18, 0.18, 0.035, 10), M(tc.second), g, [0, 0.12, 0]);
+    mesh(turned('hv-bell', [[0.0, 0.36], [0.11, 0.36], [0.125, 0.32], [0.152, 0.22], [0.188, 0.14], [0.205, 0.11], [0.205, 0.1], [0.0, 0.1]], 40), M(tc.main), g, null, [-Math.PI / 2, 0, 0]);
+    mesh(turned('hv-hem', [[0.0, 0.07], [0.205, 0.07], [0.212, 0.085], [0.205, 0.105], [0.0, 0.105]], 40), M(tc.dark), g, null, [-Math.PI / 2, 0, 0]);
+    mesh(turned('hv-waist', [[0.0, 0.33], [0.118, 0.33], [0.122, 0.345], [0.116, 0.37], [0.0, 0.37]], 40), M(tc.second), g, null, [-Math.PI / 2, 0, 0]);
     if (!ghost) {
-      for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; mesh(wedge(0.025, 0.09, 0.08, 0.5, 0.6), toon(tc.dark), g, [Math.cos(a) * 0.16, 0.18, Math.sin(a) * 0.16], [0, -a, 0]); }
-      for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; mesh(sph(0.011, 6), glow(tc.glow), g, [Math.cos(a) * 0.182, 0.12, Math.sin(a) * 0.182], null, flat); }
+      // armour seams running down the bell, and thruster nozzles round the underside
+      for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + Math.PI / 8; const sg = new T.Group(); sg.rotation.y = -a; g.add(sg); mesh(box(0.006, 0.19, 0.006), toon(INK), sg, [0, 0.215, 0.166], [-0.34, 0, 0], flat); }
+      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; mesh(turned('hv-noz', [[0.0, 0.0], [0.022, 0.0], [0.018, 0.03], [0.0, 0.03]], 16), toon(tc.dark), g, [Math.cos(a) * 0.13, 0.04, Math.sin(a) * 0.13], [Math.PI / 2, 0, 0]); mesh(sph(0.012, 8), glow(tc.glow), g, [Math.cos(a) * 0.13, 0.04, Math.sin(a) * 0.13], null, flat); }
       const d = new T.Mesh(new T.CircleGeometry(0.17, 16), glow(tc.glow, 0.55)); d.rotation.x = -Math.PI / 2; d.position.y = 0.04; g.add(d); R.hoverGlow = d;
     }
     return;
@@ -475,10 +535,10 @@ function buildLegs(R, g, id, tc, style, ghost) {
     // thick thighs, ball knees and broad armoured shin plates on blocky feet. Each leg is rigged hip (yaw) > thigh > knee > ankle
     // so IK can plant the feet and walk it like a heavy spider
     R.kind = 'quad'; R.hipY = 0.4;
-    mesh(box(0.26, 0.12, 0.26), M(tc.second), g, [0, 0.34, 0]);
-    mesh(box(0.2, 0.05, 0.2), M(tc.main), g, [0, 0.42, 0]);
+    mesh(turned('qd-hub', [[0.0, 0.28], [0.16, 0.28], [0.185, 0.31], [0.185, 0.37], [0.16, 0.4], [0.0, 0.4]], 8), M(tc.second), g, null, [-Math.PI / 2, Math.PI / 8, 0]);
+    mesh(turned('qd-top', [[0.0, 0.4], [0.13, 0.4], [0.13, 0.42], [0.11, 0.445], [0.0, 0.445]], 8), M(tc.main), g, null, [-Math.PI / 2, Math.PI / 8, 0]);
     mesh(cyl(0.085, 0.095, 0.035, 18), M(tc.dark), g, [0, 0.46, 0]);
-    if (!ghost) { for (const r2 of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) vents(g, toon(tc.dark), 3, 0.08, 0.022, [Math.sin(r2) * 0.132, 0.34, Math.cos(r2) * 0.132], [0, r2, 0]); }
+    if (!ghost) { for (const r2 of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) vents(g, toon(tc.dark), 3, 0.08, 0.022, [Math.sin(r2) * 0.172, 0.34, Math.cos(r2) * 0.172], [0, r2, 0]); }
     const LF = 0.24, LT = 0.42, HY = 0.34;
     R.quad = { LF, LT, hy: HY, sole: 0.03, stride: 0.2, lift: 0.08, legs: [] };
     for (const [sx, sz] of [[-1, 1], [1, 1], [1, -1], [-1, -1]]) {
@@ -489,18 +549,37 @@ function buildLegs(R, g, id, tc, style, ghost) {
       if (!ghost) for (const x of [-1, 1]) { mesh(cyl(0.045, 0.045, 0.012, 18), toon(tc.main), coxa, [x * 0.048, 0, 0.02], [0, 0, Math.PI / 2], flat); mesh(cyl(0.014, 0.014, 0.014, 12), toon(tc.dark), coxa, [x * 0.05, 0, 0.02], [0, 0, Math.PI / 2], flat); }
       // thigh: the thick block from the hip out to the knee
       const femur = new T.Group(); coxa.add(femur);
-      mesh(box(0.1, 0.09, LF * 0.82), M(tc.main), femur, [0, 0, LF * 0.5]);
+      mesh(profile('qd-thigh', 0.1, [[0.0, 0.05], [0.04, 0.06], [LF - 0.03, 0.04], [LF + 0.005, 0.0], [LF - 0.03, -0.04], [0.04, -0.05], [0.0, -0.04]], 0.01), M(tc.main), femur);
+      if (!ghost) mesh(profile('qd-thighp', 0.07, [[0.05, 0.058], [LF - 0.05, 0.042], [LF - 0.06, 0.056], [0.06, 0.07]], 0.004), toon(tc.second), femur);
       // knee: a ball joint with a side cap
       const tibia = new T.Group(); tibia.position.z = LF; femur.add(tibia);
       mesh(sph(0.06, 16), M(tc.dark), tibia, [0, 0, 0]);
       if (!ghost) mesh(cyl(0.035, 0.035, 0.012, 16), toon(tc.second), tibia, [0.06, 0, 0], [0, 0, Math.PI / 2], flat);
       // shin: a broad armoured plate, wider at the knee, with a grid of vent holes on its outer face
-      mesh(wedge(0.14, LT, 0.13, 1.25, 1.15), M(tc.second), tibia, [0, 0, LT * 0.5], [-Math.PI / 2, 0, 0]);
-      mesh(wedge(0.12, 0.24, 0.03, 1.2, 1), M(tc.main), tibia, [0, 0.075, 0.13], [-Math.PI / 2, 0, 0]);
+      // the shin tapers down into a turned ankle sleeve, so the foot hangs from a joint and not from a slab end
+      mesh(profile('qd-shin', 0.12, [[0.0, 0.05], [0.07, 0.075], [0.2, 0.06], [LT - 0.17, 0.04], [LT - 0.13, 0.03], [LT - 0.13, -0.03], [LT - 0.17, -0.04], [0.07, -0.05], [0.0, -0.05]], 0.01), M(tc.second), tibia);
+      mesh(turned('qd-lshin', [[0.0, LT - 0.15], [0.05, LT - 0.15], [0.046, LT - 0.12], [0.042, LT - 0.04], [0.0, LT - 0.03]], 16), M(tc.dark), tibia);
+      mesh(turned('qd-sleeve', [[0.0, LT - 0.11], [0.054, LT - 0.11], [0.058, LT - 0.095], [0.054, LT - 0.07], [0.0, LT - 0.07]], 16), M(tc.main), tibia);
+      mesh(profile('qd-shinp', 0.1, [[0.06, 0.07], [0.22, 0.056], [0.21, 0.074], [0.08, 0.088]], 0.004), M(tc.main), tibia);
       if (!ghost) for (const x of [-0.022, 0, 0.022]) for (const zz of [0.08, 0.055]) mesh(cyl(0.007, 0.007, 0.01, 8), toon(tc.dark), tibia, [x, 0.092, zz], null, flat);
       // foot: a blocky pad that stays flat on the ground
       const ankle = new T.Group(); ankle.position.z = LT; tibia.add(ankle);
-      mesh(box(0.15, 0.06, 0.16), M(tc.dark), ankle, [0, 0, 0.02]);
+      const foot = new T.Group(); foot.scale.setScalar(0.825); foot.position.y = 0.03 * (0.825 - 1); ankle.add(foot);
+      // a mech foot after hard-surface robot feet: the ankle rides on a raised hub, and three articulated toes reach
+      // down from it, two splayed forward and one behind. Each toe is two chamfered plates on a hinge pin, the outer
+      // one lying flat on the ground, with a piston running from the hub to the hinge
+      mesh(sph(0.04, 14), M(tc.dark), foot);
+      mesh(turned('qd-fhub', [[0.0, -0.012], [0.04, -0.012], [0.05, 0.0], [0.05, 0.022], [0.04, 0.034], [0.0, 0.034]], 12), M(tc.second), foot, null, [-Math.PI / 2, 0, 0]);
+      for (const [a, len] of [[0.34, 1], [-0.34, 1], [Math.PI, 0.7]]) {
+        const toe = new T.Group(); toe.rotation.y = a; toe.scale.set(1, 1, len); foot.add(toe);
+        mesh(profile('qd-toe1', 0.07, [[0.02, 0.026], [0.072, 0.008], [0.086, -0.006], [0.076, -0.02], [0.03, -0.006], [0.016, 0.008]], 0.006), M(tc.main), toe);
+        mesh(profile('qd-toe2', 0.084, [[0.064, -0.004], [0.128, -0.01], [0.148, -0.018], [0.148, -0.03], [0.06, -0.03], [0.056, -0.016]], 0.006), M(tc.second), toe);
+        mesh(profile('qd-toe3', 0.068, [[0.09, -0.004], [0.13, -0.008], [0.14, -0.014], [0.09, -0.008]], 0.003), M(tc.main), toe);
+        if (!ghost) {
+          mesh(cyl(0.013, 0.013, 0.094, 12), M(tc.dark), toe, [0, -0.014, 0.074], [0, 0, Math.PI / 2]);
+          mesh(tube('qd-piston', [[0, 0.03, 0.01], [0, 0.016, 0.07]], 0.006, 2), toon(tc.metal), toe);
+        }
+      }
       R.quad.legs.push({ coxa, femur, tibia, ankle, hx, hz, fx: hx + sx * 0.19, fz: hz + sz * 0.19 });
     }
     quadStep({}, R, 0, 0);
@@ -514,17 +593,45 @@ function buildLegs(R, g, id, tc, style, ghost) {
   for (const sx of [-1, 1]) {
     const hip = new T.Group(); hip.position.set(sx * (style === 'assault' ? 0.105 : 0.09) * Math.max(1, k * 0.95), 0.42, 0); g.add(hip); R.legs.push(hip);
     if (style === 'assault') hip.rotation.z = sx * 0.07;   // a planted, slightly wide stance
+    const as = style === 'assault', kk = k.toFixed(3);
     // large: thigh
-    mesh(wedge(0.085 * k, 0.2, 0.1 * k, heavy ? 1.1 : 1.15, 1.05), M(tc.main), hip, [0, -0.1, 0]);
+    if (exp) mesh(profile('ex-thigh' + kk, 0.08 * k, [[-0.04 * k, 0.02], [0.038 * k, 0.02], ['q', 0.05 * k, -0.09, 0.04 * k, -0.19], [-0.04 * k, -0.19], ['q', -0.05 * k, -0.09, -0.04 * k, 0.02]], 0.01), M(tc.main), hip);
+    else if (heavy) mesh(profile('ar-thigh' + kk, 0.1 * k, [[-0.05 * k, 0.02], [0.05 * k, 0.02], [0.062 * k, -0.02], [0.056 * k, -0.18], [0.042 * k, -0.205], [-0.046 * k, -0.205], [-0.062 * k, -0.17], [-0.062 * k, -0.02]], 0.01), M(tc.main), hip);
+    else if (as) mesh(profile('as-thigh' + kk, 0.085 * k, [[-0.045 * k, 0.02], [0.04 * k, 0.02], ['q', 0.056 * k, -0.08, 0.046 * k, -0.18], [0.036 * k, -0.205], [-0.04 * k, -0.205], ['q', -0.056 * k, -0.1, -0.045 * k, 0.02]], 0.01), M(tc.main), hip);
+    else mesh(wedge(0.085 * k, 0.2, 0.1 * k, heavy ? 1.1 : 1.15, 1.05), M(tc.main), hip, [0, -0.1, 0]);
     // small: hip joint and piston
     if (!ghost) { mesh(cyl(0.035 * k, 0.035 * k, 0.03, 10), toon(tc.dark), hip, [sx * 0.05 * k, -0.01, 0], [0, 0, Math.PI / 2]); mesh(cyl(0.008, 0.008, 0.16, 6), toon(tc.metal), hip, [0, -0.1, -0.055 * k], null, flat); }
     const knee = new T.Group(); knee.position.y = -0.2; hip.add(knee); hip.userData.knee = knee;
     // the ankle joint: the foot hangs from it so IK can keep it flat on the ground or roll it
     const ankle = new T.Group(); ankle.position.y = -0.2; knee.add(ankle); hip.userData.ankle = ankle;
     // medium: knee guard, shaped per army
-    if (exp) { if (!ghost) mesh(sph(0.03, 10), glow(tc.glow), knee, [0, 0, 0.02], null, flat); }
+    if (exp) { mesh(sph(0.036 * k, 12), M(tc.dark), knee); mesh(profile('ex-knee' + kk, 0.07 * k, [[0.02 * k, 0.03], [0.048 * k, 0.024], ['q', 0.066 * k, -0.01, 0.05 * k, -0.05], [0.02 * k, -0.05]], 0.006), M(tc.second), knee); if (!ghost) mesh(sph(0.008, 8), glow(tc.glow), knee, [0, -0.01, 0.062 * k], null, flat); }
+    else if (heavy) { mesh(sph(0.04 * k, 12), M(tc.dark), knee); mesh(slab('ar-knee' + kk, 0.04, [[-0.046 * k, 0.045], [0.046 * k, 0.045], [0.058 * k, 0.0], [0.042 * k, -0.055], [-0.042 * k, -0.055], [-0.058 * k, 0.0]], 0.008), M(tc.accent), knee, [0, 0, 0.066 * k]); if (!ghost) rivets(knee, toon(tc.dark), [[0, -0.005, 0.09 * k]]); }
+    else if (as) { mesh(sph(0.036 * k, 12), M(tc.dark), knee); mesh(profile('as-knee' + kk, 0.078 * k, [[0.016 * k, 0.04], [0.05 * k, 0.034], ['q', 0.08 * k, 0.0, 0.064 * k, -0.05], [0.034 * k, -0.062], [0.018 * k, -0.02]], 0.008), M(tc.main), knee); }
     else mesh(wedge(0.08 * k, 0.07, 0.05, heavy ? 1 : 0.6, 1, heavy ? 0 : 0.015), M(heavy ? tc.accent : tc.second), knee, [0, 0.0, 0.055 * k]);
     // large: shin, wide at the calf, narrow at the ankle (or a block for heavy armies)
+    if (as) {
+      // a shin that runs straight down the front and swells into a calf at the back, a slotted front plate,
+      // calf vents, and a long wedge foot with a toe cap in the second colour
+      mesh(profile('as-shin' + kk, 0.1 * k, [[0.036 * k, -0.01], [0.05 * k, -0.06], [0.046 * k, -0.2], [-0.036 * k, -0.212], ['q', -0.074 * k, -0.13, -0.066 * k, -0.06], ['q', -0.058 * k, -0.005, -0.036 * k, -0.01]], 0.01), M(tc.main), knee);
+      mesh(profile('as-shpl' + kk, 0.06 * k, [[0.05 * k, -0.07], [0.058 * k, -0.08], [0.054 * k, -0.17], [0.046 * k, -0.17]], 0.003), M(tc.second), knee);
+      if (!ghost) vents(knee, toon(tc.dark), 3, 0.05 * k, 0.022, [0, -0.13, -0.07 * k]);
+      mesh(profile('as-foot' + kk, 0.12 * k, [[-0.055 * k, 0.014], [0.035 * k, 0.014], ['q', 0.07 * k, 0.008, 0.12 * k, -0.014], [0.136 * k, -0.03], [-0.066 * k, -0.03], ['q', -0.072 * k, -0.01, -0.055 * k, 0.014]], 0.008), M(tc.main), ankle);
+      mesh(profile('as-toe' + kk, 0.124 * k, [[0.084 * k, 0.003], ['q', 0.11 * k, -0.004, 0.128 * k, -0.017], [0.14 * k, -0.031], [0.084 * k, -0.031]], 0.006), M(tc.second), ankle);
+    } else if (exp) {
+      // the Zaku's bell calf: a turned shin that flares out wide toward the ankle, a band where it starts to flare,
+      // and a rounded foot
+      mesh(turned('ex-calf' + kk, [[0.0, 0.0], [0.04 * k, 0.0], [0.044 * k, -0.06], [0.058 * k, -0.13], [0.072 * k, -0.18], [0.074 * k, -0.2], [0.0, -0.2]], 32), M(tc.main), knee, [0, 0, -0.008], [-Math.PI / 2, 0, 0]);
+      mesh(turned('ex-cband' + kk, [[0.0, -0.06], [0.047 * k, -0.06], [0.05 * k, -0.07], [0.047 * k, -0.08], [0.0, -0.08]], 32), M(tc.second), knee, [0, 0, -0.008], [-Math.PI / 2, 0, 0]);
+      mesh(profile('ex-foot' + kk, 0.11 * k, [[-0.06 * k, 0.014], [0.04 * k, 0.014], ['q', 0.11 * k, 0.012, 0.12 * k, -0.03], [-0.07 * k, -0.03], ['q', -0.075 * k, -0.01, -0.06 * k, 0.014]], 0.008), M(tc.dark), ankle);
+    } else if (heavy) {
+      // a thick shin with a plated front, and a wide foot with a brass toe plate
+      mesh(profile('ar-shin' + kk, 0.11 * k, [[0.046 * k, 0.0], [0.062 * k, -0.04], [0.058 * k, -0.19], [0.046 * k, -0.212], [-0.05 * k, -0.212], [-0.064 * k, -0.17], [-0.064 * k, -0.03], [-0.046 * k, 0.0]], 0.01), M(tc.second), knee);
+      mesh(profile('ar-shpl' + kk, 0.084 * k, [[0.058 * k, -0.06], [0.072 * k, -0.07], [0.068 * k, -0.17], [0.056 * k, -0.18]], 0.004), M(tc.main), knee);
+      if (!ghost) vents(knee, toon(tc.dark), 3, 0.06 * k, 0.022, [0, -0.13, -0.066 * k]);
+      mesh(profile('ar-foot' + kk, 0.16 * k, [[-0.07 * k, 0.022], [0.05 * k, 0.022], [0.1 * k, 0.0], [0.13 * k, -0.04], [-0.082 * k, -0.04], [-0.088 * k, -0.01]], 0.01), M(tc.dark), ankle);
+      mesh(profile('ar-toe' + kk, 0.166 * k, [[0.078 * k, 0.012], [0.1 * k, 0.002], [0.132 * k, -0.041], [0.078 * k, -0.041]], 0.006), M(tc.accent), ankle);
+    } else {
     mesh(wedge(0.1 * k, 0.21, 0.115 * k, heavy ? 0.95 : 1.25, heavy ? 0.95 : 1.2), M(heavy ? tc.second : tc.main), knee, [0, -0.105, 0]);
     // medium: shin plate; small: vents
     mesh(wedge(0.07 * k, 0.12, 0.025, 1.1, 1), M(exp ? tc.second : heavy ? tc.main : tc.second), knee, [0, -0.09, 0.062 * k]);
@@ -533,12 +640,13 @@ function buildLegs(R, g, id, tc, style, ghost) {
     mesh(wedge(heavy ? 0.16 * k : 0.12 * k, heavy ? 0.07 : 0.05, heavy ? 0.24 * k : 0.19 * k, 0.8, 0.8), M(heavy ? tc.dark : tc.accent), ankle, [0, -0.005, 0.025]);
     if (heavy && !ghost) { mesh(cyl(0.058 * k, 0.058 * k, 0.03, 6), M(tc.second), knee, [0, -0.01, 0.07 * k], [Math.PI / 2, Math.PI / 6, 0]); mesh(cyl(0.022 * k, 0.022 * k, 0.034, 12), toon(tc.dark), knee, [0, -0.01, 0.075 * k], [Math.PI / 2, 0, 0], flat); }
     if (!ghost) { mesh(box(0.06 * k, 0.02, 0.03), toon(tc.trim), ankle, [0, -0.01, 0.12 * k], null, flat); mesh(cone(0.015, 0.05, 4), toon(tc.dark), ankle, [0, 0, -0.08 * k], [-Math.PI / 2, 0, 0], flat); }
+    }
     if (id === 'l_boost' && !ghost) {
       mesh(wedge(0.05, 0.1, 0.05, 0.7, 0.7), toon(tc.dark), knee, [0, -0.1, -0.075], [0.3, 0, 0]);
       const f = new T.Mesh(cone(0.024, 0.1, 8), glow(tc.thruster, 0.8)); f.position.set(0, -0.17, -0.1); f.rotation.x = -Math.PI / 2 - 0.3; knee.add(f); R.boosters.push(f);
     }
     // reinforced legs: armour skirts on the thighs, big knee pads and clawed feet
-    if (id === 'l_biped' && !ghost) {
+    if (id === 'l_biped' && !ghost && !as && !heavy && !exp) {
       mesh(wedge(0.03, 0.17, 0.12 * k, 0.8, 1), M(tc.second), hip, [sx * 0.058 * k, -0.09, 0]);
       mesh(cyl(0.048 * k, 0.048 * k, 0.035, 10), M(heavy ? tc.accent : tc.trim), knee, [0, 0, 0.07 * k], [Math.PI / 2, 0, 0]);
       for (const tx of [-1, 0, 1]) mesh(cone(0.016, 0.06, 4), toon(tc.dark), ankle, [tx * 0.035 * k, -0.015, 0.14 * k], [Math.PI / 2, 0, 0], flat);
@@ -670,156 +778,292 @@ function buildWeapon(p, id, tc, sx) {
   // small, shared: a sight block on top of most guns
   const sight = (zz, yy) => mesh(box(0.016, 0.018, 0.04), toon(tc.trim), p, [0, yy, zz], null, flat);
   switch (id) {
-    case 'b_gun':
-      // autocannon, the kit rifle: a dark receiver and stock, a grey barrel shroud, a grey drum magazine
-      // under the front, orange muzzle and stock caps
-      mesh(box(0.056, 0.07, 0.22), toon(KIT.body), p, [0, 0.01, 0.06]);
-      mesh(box(0.05, 0.05, 0.08), toon(KIT.body), p, [0, 0.0, -0.08]);
-      mesh(box(0.052, 0.054, 0.016), toon(KIT.orange), p, [0, 0.0, -0.124]);
-      mesh(cyl(0.024, 0.024, 0.15, 14), toon(KIT.grey), p, [0, 0.016, 0.24], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.026, 0.026, 0.03, 14), toon(KIT.orange), p, [0, 0.016, 0.325], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.036, 0.036, 0.05, 14), toon(KIT.grey), p, [0, -0.045, 0.14], [0, 0, Math.PI / 2]);
-      mesh(box(0.03, 0.022, 0.06), toon(KIT.light), p, [0, 0.055, 0.03]);
-      z = 0.35; y = 0.016; break;
-    case 'w_smg':
-      // twin SMGs: two stubby dark guns, grey magazines hanging below, orange muzzles
-      for (const x of [-0.03, 0.03]) {
-        mesh(box(0.034, 0.048, 0.11), toon(KIT.body), p, [x, 0, 0.04]);
-        mesh(cyl(0.011, 0.011, 0.05, 10), toon(KIT.grey), p, [x, 0.008, 0.12], [Math.PI / 2, 0, 0]);
-        mesh(cyl(0.013, 0.013, 0.014, 10), toon(KIT.orange), p, [x, 0.008, 0.15], [Math.PI / 2, 0, 0]);
-        mesh(box(0.02, 0.1, 0.024), toon(KIT.grey), p, [x, -0.07, 0.07], [0.2, 0, 0]);
-      }
-      z = 0.16; y = 0.008; break;
-    case 'w_scatter':
-      // scatter cannon, the kit's stubby drum gun: a fat grey drum body, a dark top rail, an orange pump grip
-      // and a flared muzzle
-      mesh(cyl(0.05, 0.05, 0.15, 16), toon(KIT.grey), p, [0, 0.0, 0.07], [Math.PI / 2, 0, 0]);
-      mesh(box(0.04, 0.025, 0.17), toon(KIT.body), p, [0, 0.055, 0.06]);
-      mesh(cyl(0.064, 0.034, 0.06, 16), toon(KIT.body), p, [0, 0.0, 0.17], [Math.PI / 2, 0, 0]);
-      mesh(tor(0.06, 0.008), toon(KIT.orange), p, [0, 0.0, 0.2], null, flat);
-      mesh(box(0.03, 0.05, 0.04), toon(KIT.orange), p, [0, -0.06, 0.13], [0.2, 0, 0]);
-      z = 0.21; y = 0.0; break;
-    case 'w_gatling': {
-      // gatling: a fat motor housing, a big spinning barrel cluster and a side ammo drum
-      mesh(cyl(0.05, 0.05, 0.12, 12), toon(KIT.body), p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.055, 0.055, 0.04, 12), toon(KIT.orange), p, [0.075, -0.01, 0.02], [0, 0, Math.PI / 2]);
-      mesh(box(0.012, 0.012, 0.08), toon(tc.trim), p, [0.045, -0.01, 0.06], null, flat);
-      const cl = new T.Group(); cl.position.z = 0.17; p.add(cl); p.userData.spin = cl;
-      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mesh(cyl(0.011, 0.011, 0.2, 6), D2, cl, [Math.cos(a) * 0.03, Math.sin(a) * 0.03, 0], [Math.PI / 2, 0, 0], { noOutline: true }); }
-      for (const zz of [-0.04, 0.08]) mesh(cyl(0.042, 0.042, 0.014, 10), D, cl, [0, 0, zz], [Math.PI / 2, 0, 0], flat);
-      z = 0.28; break;
+    case 'b_gun': {
+      // the receiver: a long body that steps down at the front into the handguard
+      mesh(profile('ac-rcv', 0.05, [[-0.08, 0.026], [0.07, 0.026], ['q', 0.1, 0.026, 0.1, 0.006], [0.1, -0.026], [-0.06, -0.026], ['q', -0.08, -0.026, -0.08, -0.006]]), toon(KIT.body), p);
+      // the top rail and a hooded sight
+      mesh(profile('ac-rail', 0.034, [[-0.06, 0.026], [0.06, 0.026], [0.064, 0.04], [-0.056, 0.04]]), toon(KIT.grey), p);
+      for (let i = 0; i < 6; i++) mesh(box(0.036, 0.004, 0.006), toon(INK), p, [0, 0.042, -0.045 + i * 0.019], null, flat);
+      mesh(profile('ac-sight', 0.024, [[-0.01, 0.04], [0.03, 0.04], ['q', 0.034, 0.064, 0.012, 0.064], [-0.006, 0.062]]), toon(KIT.light), p);
+      mesh(cyl(0.007, 0.007, 0.006, 12), glow(tc.eye), p, [0, 0.054, 0.034], [Math.PI / 2, 0, 0], flat);
+      // the stock: a swept skeleton stock with a butt pad
+      mesh(profile('ac-stock', 0.04, [[-0.08, 0.022], ['q', -0.14, 0.024, -0.19, 0.016], [-0.205, -0.034], ['q', -0.17, -0.044, -0.15, -0.024], ['q', -0.115, -0.006, -0.08, -0.02]]), toon(KIT.body), p);
+      mesh(profile('ac-pad', 0.042, [[-0.19, 0.018], [-0.205, 0.016], [-0.218, -0.034], [-0.205, -0.036]]), toon(KIT.orange), p);
+      // the pistol grip, raked back
+      mesh(profile('ac-grip', 0.028, [[-0.05, -0.026], [-0.018, -0.026], ['q', -0.022, -0.06, -0.04, -0.1], [-0.07, -0.098], ['q', -0.054, -0.06, -0.05, -0.026]]), toon(KIT.body), p);
+      // the banana magazine, one smooth curve
+      mesh(profile('ac-mag', 0.026, [[0.0, -0.026], [0.038, -0.026], ['c', 0.044, -0.07, 0.062, -0.104, 0.092, -0.128], [0.064, -0.146], ['c', 0.038, -0.122, 0.016, -0.084, 0.0, -0.026]]), toon(KIT.grey), p);
+      mesh(profile('ac-magb', 0.028, [[0.066, -0.118], [0.09, -0.13], [0.078, -0.144], [0.06, -0.138]]), toon(KIT.orange), p);
+      // the handguard, vented, then the turned barrel with a gas tube over it and a flared, ported brake
+      mesh(profile('ac-hg', 0.042, [[0.1, 0.02], [0.2, 0.016], ['q', 0.214, 0.0, 0.2, -0.016], [0.1, -0.02]]), toon(KIT.grey), p);
+      for (const zz of [0.12, 0.14, 0.16, 0.18]) mesh(box(0.044, 0.005, 0.009), toon(INK), p, [0, 0.0, zz], null, flat);
+      mesh(turned('ac-brl', [[0.0, 0.2], [0.012, 0.2], [0.012, 0.29], [0.0145, 0.295], [0.0145, 0.31], [0.011, 0.315], [0.011, 0.4], [0.0, 0.4]]), D2, p);
+      mesh(turned('ac-gas', [[0.0, 0.2], [0.0062, 0.2], [0.0062, 0.33], [0.0, 0.335]]), toon(KIT.grey), p, [0, 0.021, 0]);
+      mesh(box(0.016, 0.022, 0.01), toon(KIT.body), p, [0, 0.011, 0.33], null, flat);
+      mesh(turned('ac-brk', [[0.0, 0.395], [0.016, 0.395], [0.019, 0.41], [0.019, 0.44], [0.016, 0.45], [0.0, 0.45]]), toon(KIT.body), p);
+      for (const x of [-1, 1]) for (const zz of [0.415, 0.432]) mesh(box(0.006, 0.02, 0.009), toon(INK), p, [x * 0.0185, 0, zz], null, flat);
+      mesh(turned('ac-ring', [[0.0, 0.448], [0.017, 0.448], [0.017, 0.456], [0.0, 0.456]]), toon(KIT.orange), p);
+      z = 0.46; y = 0; break;
     }
-    case 'w_rail':
-      // heavy rail cannon, the kit bazooka: a long dark upper body over a full-length grey tube, orange caps at
-      // both ends, a red sight panel on top and a foregrip
-      mesh(cyl(0.034, 0.034, 0.48, 16), toon(KIT.grey), p, [0, 0.0, 0.16], [Math.PI / 2, 0, 0]);
-      for (const zz of [-0.085, 0.405]) mesh(cyl(0.038, 0.038, 0.03, 16), toon(KIT.orange), p, [0, 0.0, zz], [Math.PI / 2, 0, 0]);
-      mesh(box(0.05, 0.05, 0.3), toon(KIT.body), p, [0, 0.05, 0.12]);
-      mesh(box(0.054, 0.034, 0.07), toon(KIT.red), p, [0, 0.065, -0.02]);
-      mesh(box(0.034, 0.024, 0.05), toon(KIT.light), p, [0, 0.09, 0.16]);
-      mesh(box(0.022, 0.05, 0.026), toon(KIT.body), p, [0, -0.055, 0.22], [0.25, 0, 0]);
-      z = 0.42; y = 0.0; break;
-    case 'w_laser':
-      // beam rifle: body, an offset box sensor with its lens, collimator coils on the barrel,
-      // an energy-cap magazine at the rear, a foregrip and a glowing emitter
-      mesh(wedge(0.052, 0.07, 0.2, 0.85, 0.9), toon(KIT.body), p, [0, 0, 0.06]);
-      mesh(box(0.036, 0.03, 0.08), toon(KIT.light), p, [-0.03, 0.05, 0.05]);
-      mesh(cyl(0.011, 0.011, 0.01, 10), glow(tc.eye), p, [-0.03, 0.05, 0.092], [Math.PI / 2, 0, 0], flat);
-      mesh(box(0.04, 0.05, 0.05), toon(KIT.grey), p, [0, -0.012, -0.06]);
-      mesh(box(0.022, 0.05, 0.03), D2, p, [0, -0.05, 0.11], [0.25, 0, 0]);
-      mesh(cyl(0.014, 0.014, 0.16, 12), D2, p, [0, 0.008, 0.23], [Math.PI / 2, 0, 0]);
-      for (const zz of [0.18, 0.22, 0.26]) mesh(cyl(0.02, 0.02, 0.012, 12), D, p, [0, 0.008, zz], [Math.PI / 2, 0, 0], flat);
-      mesh(cyl(0.022, 0.016, 0.03, 12), toon(KIT.orange), p, [0, 0.008, 0.31], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.011, 0.011, 0.012, 10), glow(FX_COL.energy), p, [0, 0.008, 0.327], [Math.PI / 2, 0, 0], flat);
-      z = 0.34; y = 0.008; break;
-    case 'w_lance':
-      mesh(cyl(0.013, 0.026, 0.46, 8), toon(KIT.grey), p, [0, 0, 0.21], [Math.PI / 2, 0, 0]);
-      mesh(box(0.05, 0.05, 0.09), toon(KIT.body), p, [0, 0, 0.02]);
-      mesh(cyl(0.016, 0.016, 0.02, 10), toon(KIT.orange), p, [0, 0, 0.44], [Math.PI / 2, 0, 0]);
-      for (const zz of [0.1, 0.22, 0.34]) mesh(tor(0.03, 0.006), glow(FX_COL.energy), p, [0, 0, zz], null, flat);
-      z = 0.46; break;
-    case 'w_arc':
-      mesh(cyl(0.032, 0.032, 0.13, 8), D, p, [0, 0, 0.05], [Math.PI / 2, 0, 0]);
-      for (const zz of [0.04, 0.09]) mesh(tor(0.038, 0.008), glow(0xcfe8ff), p, [0, 0, zz], null, flat);
-      for (const x of [-0.02, 0.02]) mesh(wedge(0.01, 0.01, 0.08, 1, 1), toon(tc.trim), p, [x, 0, 0.15]);
-      z = 0.18; break;
-    case 'w_blade':
-      // beam saber: a ribbed hilt with a pommel and an emitter guard, a white-hot core inside the glowing blade
-      mesh(cyl(0.017, 0.017, 0.09, 12), D2, p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
-      for (const zz of [0.0, 0.025, 0.05]) mesh(cyl(0.02, 0.02, 0.008, 12), toon(tc.metal), p, [0, 0, zz], [Math.PI / 2, 0, 0], flat);
-      mesh(sph(0.02, 10), toon(tc.second), p, [0, 0, -0.02]);
-      mesh(cyl(0.028, 0.02, 0.025, 12), toon(tc.trim), p, [0, 0, 0.085], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.006, 0.009, 0.33, 10), glow(0xfff6fb), p, [0, 0, 0.26], [Math.PI / 2, 0, 0], flat);
-      mesh(cyl(0.014, 0.018, 0.34, 10), glow(FX_COL.melee, 0.8), p, [0, 0, 0.26], [Math.PI / 2, 0, 0], flat);
-      mesh(cyl(0.026, 0.03, 0.35, 10), glow(FX_COL.melee, 0.3), p, [0, 0, 0.26], [Math.PI / 2, 0, 0], flat);
-      z = 0.42; break;
-    case 'w_ram': {
-      mesh(cyl(0.052, 0.052, 0.07, 10), D, p, [0, 0, 0.02], [Math.PI / 2, 0, 0]);
-      mesh(tor(0.05, 0.01), toon(tc.trim), p, [0, 0, 0.05], null, flat);
-      const dr = mesh(cone(0.056, 0.19, 8), toon(0x9aa0a8), p, [0, 0, 0.15], [Math.PI / 2, 0, 0]); p.userData.spin = dr;
+    case 'w_smg': {
+      mesh(profile('sm-brk', 0.11, [[-0.03, 0.026], [0.06, 0.026], ['q', 0.07, 0.026, 0.07, 0.034], [0.06, 0.04], [-0.03, 0.04]], 0.003), toon(KIT.grey), p);
+      for (const x of [-0.034, 0.034]) {
+        mesh(profile('sm-rcv', 0.034, [[-0.05, 0.026], [0.07, 0.026], ['q', 0.09, 0.026, 0.09, 0.008], [0.09, -0.018], [-0.03, -0.022], ['q', -0.05, -0.022, -0.05, 0.0]]), toon(KIT.body), p, [x, 0, 0]);
+        mesh(profile('sm-jkt', 0.03, [[0.09, 0.016], [0.15, 0.014], ['q', 0.158, 0.006, 0.15, -0.006], [0.09, -0.01]]), toon(KIT.light), p, [x, 0, 0]);
+        for (const zz of [0.105, 0.12, 0.135]) mesh(box(0.032, 0.005, 0.007), toon(INK), p, [x, 0.012, zz], null, flat);
+        mesh(turned('sm-brl', [[0.0, 0.15], [0.009, 0.15], [0.009, 0.18], [0.012, 0.183], [0.012, 0.195], [0.0, 0.195]]), D2, p, [x, 0.004, 0]);
+        mesh(turned('sm-mz', [[0.0, 0.19], [0.0125, 0.19], [0.0125, 0.198], [0.0, 0.198]]), toon(KIT.orange), p, [x, 0.004, 0]);
+        mesh(profile('sm-grip', 0.024, [[-0.03, -0.02], [-0.006, -0.02], ['q', -0.01, -0.05, -0.022, -0.075], [-0.044, -0.073], ['q', -0.034, -0.05, -0.03, -0.02]]), D2, p, [x, 0, 0]);
+        mesh(profile('sm-mag', 0.02, [[0.02, -0.018], [0.042, -0.018], ['q', 0.05, -0.06, 0.07, -0.088], [0.05, -0.098], ['q', 0.032, -0.064, 0.02, -0.018]]), toon(KIT.grey), p, [x, 0, 0]);
+        mesh(box(0.022, 0.008, 0.024), toon(KIT.orange), p, [x, -0.092, 0.06], [0.6, 0, 0], flat);
+      }
+      z = 0.2; y = 0.004; break;
+    }
+    case 'w_scatter': {
+      mesh(profile('sc-rcv', 0.074, [[-0.08, 0.0], ['q', -0.08, 0.04, -0.05, 0.04], [0.07, 0.04], [0.08, 0.02], [0.08, -0.03], [-0.04, -0.034], ['q', -0.08, -0.034, -0.08, 0.0]]), toon(KIT.body), p);
+      mesh(profile('sc-top', 0.078, [[-0.05, 0.04], [0.06, 0.04], [0.054, 0.054], [-0.044, 0.054]], 0.004), toon(KIT.grey), p);
+      mesh(profile('sc-grip', 0.03, [[-0.06, -0.03], [-0.03, -0.032], ['q', -0.034, -0.065, -0.05, -0.1], [-0.08, -0.098], ['q', -0.064, -0.065, -0.06, -0.03]]), toon(KIT.body), p);
+      mesh(turned('sc-brl', [[0.0, 0.07], [0.03, 0.07], [0.03, 0.22], [0.0, 0.22]]), D2, p, [0, 0.012, 0]);
+      mesh(profile('sc-shield', 0.072, [[0.07, 0.03], [0.22, 0.028], ['q', 0.232, 0.028, 0.232, 0.04], [0.22, 0.056], [0.07, 0.058]]), toon(KIT.light), p);
+      for (const zz of [0.1, 0.13, 0.16, 0.19]) mesh(box(0.074, 0.006, 0.012), toon(INK), p, [0, 0.057, zz], null, flat);
+      mesh(turned('sc-tubemag', [[0.0, 0.06], [0.016, 0.06], [0.016, 0.21], [0.012, 0.218], [0.0, 0.218]]), toon(KIT.grey), p, [0, -0.03, 0]);
+      mesh(profile('sc-pump', 0.05, [[0.12, -0.016], [0.2, -0.016], ['q', 0.21, -0.03, 0.2, -0.05], [0.12, -0.05], ['q', 0.11, -0.03, 0.12, -0.016]]), toon(KIT.body), p);
+      for (const zz of [0.135, 0.15, 0.165, 0.18]) mesh(box(0.052, 0.034, 0.004), toon(INK), p, [0, -0.033, zz], null, flat);
+      mesh(box(0.052, 0.008, 0.08), toon(KIT.orange), p, [0, -0.05, 0.16], null, flat);
+      mesh(turned('sc-mz', [[0.0, 0.215], [0.033, 0.215], [0.048, 0.25], [0.05, 0.262], [0.036, 0.262], [0.03, 0.24], [0.0, 0.24]]), toon(KIT.body), p, [0, 0.012, 0]);
+      mesh(turned('sc-mzr', [[0.0, 0.258], [0.051, 0.258], [0.051, 0.266], [0.0, 0.266]]), toon(KIT.orange), p, [0, 0.012, 0]);
+      z = 0.27; y = 0.012; break;
+    }
+    case 'w_gatling': {
+      mesh(profile('gt-body', 0.1, [[-0.06, 0.0], ['q', -0.06, 0.05, -0.02, 0.05], [0.07, 0.05], ['q', 0.09, 0.05, 0.09, 0.03], [0.09, -0.03], ['q', 0.09, -0.05, 0.07, -0.05], [-0.02, -0.05], ['q', -0.06, -0.05, -0.06, 0.0]]), toon(KIT.body), p);
+      for (const zz of [-0.02, 0.0, 0.02, 0.04]) mesh(box(0.104, 0.005, 0.01), toon(INK), p, [0, 0.03, zz], null, flat);
+      mesh(box(0.104, 0.014, 0.04), toon(KIT.orange), p, [0, -0.036, -0.03], null, flat);
+      // the ammo drum on the outside, and the belt chute curving up into the housing
+      mesh(turned('gt-drum', [[0.0, -0.035], [0.05, -0.035], [0.055, -0.025], [0.055, 0.025], [0.05, 0.035], [0.0, 0.035]]), toon(KIT.grey), p, [0.09, -0.02, -0.01], [0, Math.PI / 2, 0]);
+      mesh(turned('gt-hub', [[0.0, -0.038], [0.02, -0.038], [0.02, 0.038], [0.0, 0.038]]), toon(KIT.body), p, [0.09, -0.02, -0.01], [0, Math.PI / 2, 0]);
+      mesh(tube('gt-chute', [[0.08, 0.02, 0.02], [0.075, 0.05, 0.05], [0.05, 0.055, 0.08], [0.03, 0.04, 0.09]], 0.012, 24), toon(KIT.light), p);
+      // the heat shroud: a curved hood over the barrels, slotted on top
+      mesh(profile('gt-shroud', 0.084, [[0.09, 0.048], [0.27, 0.042], ['q', 0.29, 0.042, 0.29, 0.032], [0.29, 0.028], [0.09, 0.034]]), toon(KIT.grey), p);
+      for (const zz of [0.13, 0.17, 0.21, 0.25]) mesh(box(0.086, 0.005, 0.012), toon(INK), p, [0, 0.046, zz], null, flat);
+      const cl = new T.Group(); cl.position.z = 0.17; p.add(cl); p.userData.spin = cl;
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mesh(turned('gt-brl', [[0.0, -0.08], [0.011, -0.08], [0.011, 0.12], [0.014, 0.125], [0.014, 0.14], [0.009, 0.14], [0.0, 0.135]]), D2, cl, [Math.cos(a) * 0.028, Math.sin(a) * 0.028, 0], null, { noOutline: true }); }
+      mesh(turned('gt-axle', [[0.0, -0.08], [0.013, -0.08], [0.013, 0.13], [0.0, 0.13]]), toon(KIT.body), cl, [0, 0, 0], null, flat);
+      for (const zz of [-0.05, 0.03, 0.11]) mesh(turned('gt-clamp', [[0.0, -0.008], [0.042, -0.008], [0.046, 0.0], [0.042, 0.008], [0.0, 0.008]], 6), toon(KIT.light), cl, [0, 0, zz], null, flat);
+      z = 0.31; break;
+    }
+    case 'w_rail': {
+      // the receiver: a humped, finned housing that runs back into a capacitor pack
+      mesh(profile('rc-rcv', 0.056, [[-0.17, 0.0], ['q', -0.17, 0.04, -0.12, 0.042], [0.02, 0.042], ['q', 0.06, 0.042, 0.08, 0.02], [0.08, -0.03], [-0.05, -0.034], ['q', -0.17, -0.036, -0.17, 0.0]]), toon(KIT.body), p);
+      for (let i = 0; i < 6; i++) mesh(profile('rc-fin', 0.06, [[0, 0], [0.012, 0], [0.016, 0.012], [0.004, 0.012]], 0.002), toon(KIT.grey), p, [0, 0.04, -0.1 + i * 0.024]);
+      for (const zz of [-0.155, -0.14, -0.125]) mesh(box(0.058, 0.03, 0.005), glow(FX_COL.energy), p, [0, 0.0, zz], null, flat);
+      mesh(profile('rc-grip', 0.028, [[-0.04, -0.03], [-0.012, -0.03], ['q', -0.016, -0.06, -0.03, -0.092], [-0.058, -0.09], ['q', -0.044, -0.06, -0.04, -0.03]]), toon(KIT.body), p);
+      mesh(box(0.058, 0.01, 0.03), toon(KIT.orange), p, [0, -0.026, 0.05], null, flat);
+      // the scope: a turned tube with a flared objective, on a riser
+      mesh(turned('rc-scope', [[0.0, -0.07], [0.012, -0.07], [0.012, 0.02], [0.016, 0.04], [0.016, 0.07], [0.0, 0.07]]), toon(KIT.light), p, [0, 0.074, 0]);
+      mesh(profile('rc-riser', 0.016, [[-0.02, 0.042], [0.02, 0.042], [0.012, 0.064], [-0.012, 0.064]], 0.002), toon(KIT.body), p);
+      mesh(cyl(0.012, 0.012, 0.004, 12), glow(tc.eye), p, [0, 0.074, 0.071], [Math.PI / 2, 0, 0], flat);
+      // the rail barrel: a long tapering upper rail and a slimmer lower rail, the charge line glowing between
+      mesh(profile('rc-up', 0.026, [[0.08, 0.026], [0.54, 0.02], ['q', 0.56, 0.02, 0.56, 0.008], [0.56, 0.0], [0.08, 0.002]]), D2, p);
+      mesh(profile('rc-lo', 0.02, [[0.08, -0.012], [0.53, -0.012], ['q', 0.55, -0.012, 0.55, -0.02], [0.55, -0.028], [0.08, -0.03]]), toon(KIT.grey), p);
+      mesh(box(0.006, 0.01, 0.46), glow(FX_COL.energy), p, [0, -0.006, 0.31], null, flat);
+      for (const zz of [0.17, 0.31, 0.45]) mesh(profile('rc-band', 0.036, [[-0.007, 0.032], [0.007, 0.032], [0.009, -0.036], [-0.009, -0.036]], 0.003), toon(KIT.body), p, [0, 0, zz]);
+      mesh(box(0.03, 0.01, 0.03), toon(KIT.orange), p, [0, 0.026, 0.545], null, flat);
+      z = 0.57; y = 0.0; break;
+    }
+    case 'w_laser': {
+      mesh(profile('lr-body', 0.054, [[-0.08, 0.03], [0.1, 0.034], ['q', 0.13, 0.034, 0.14, 0.014], [0.14, -0.01], [0.04, -0.022], ['q', 0.0, -0.03, -0.04, -0.03], [-0.08, -0.02]]), toon(KIT.body), p);
+      mesh(profile('lr-top', 0.058, [[-0.06, 0.03], [0.09, 0.034], [0.1, 0.048], [-0.04, 0.046]]), toon(KIT.light), p);
+      mesh(profile('lr-grip', 0.028, [[-0.03, -0.028], [0.0, -0.03], ['q', -0.004, -0.06, -0.02, -0.095], [-0.048, -0.092], ['q', -0.034, -0.06, -0.03, -0.028]]), D2, p);
+      // the energy cap, a capsule at the rear with its charge window
+      mesh(turned('lr-cap', [[0.0, -0.17], [0.018, -0.165], [0.026, -0.15], [0.026, -0.095], [0.018, -0.08], [0.0, -0.075]]), toon(KIT.grey), p, [0, 0.0, 0]);
+      mesh(box(0.012, 0.024, 0.05), glow(FX_COL.energy), p, [0.024, 0.0, -0.122], null, flat);
+      mesh(box(0.056, 0.012, 0.016), toon(KIT.orange), p, [0, -0.022, -0.075], null, flat);
+      // the sensor scope, offset to the side
+      mesh(turned('lr-scope', [[0.0, -0.03], [0.014, -0.03], [0.016, 0.0], [0.016, 0.05], [0.019, 0.06], [0.0, 0.062]]), toon(KIT.light), p, [-0.038, 0.058, 0]);
+      mesh(cyl(0.015, 0.015, 0.004, 12), glow(tc.eye), p, [-0.038, 0.058, 0.064], [Math.PI / 2, 0, 0], flat);
+      // the barrel: collimator rings, then a flared emitter
+      mesh(turned('lr-brl', [[0.0, 0.13], [0.016, 0.13], [0.016, 0.33], [0.0, 0.33]]), D2, p, [0, 0.008, 0]);
+      for (const zz of [0.18, 0.215, 0.25, 0.285]) mesh(turned('lr-ring', [[0.0, -0.004], [0.024, -0.004], [0.026, 0.0], [0.024, 0.004], [0.0, 0.004]]), toon(KIT.grey), p, [0, 0.008, zz], null, flat);
+      mesh(turned('lr-emit', [[0.0, 0.32], [0.017, 0.32], [0.026, 0.345], [0.026, 0.36], [0.012, 0.36], [0.0, 0.35]]), toon(KIT.orange), p, [0, 0.008, 0]);
+      mesh(cyl(0.011, 0.011, 0.006, 12), glow(FX_COL.energy), p, [0, 0.008, 0.358], [Math.PI / 2, 0, 0], flat);
+      z = 0.37; y = 0.008; break;
+    }
+    case 'w_lance': {
+      mesh(profile('pl-house', 0.07, [[-0.09, 0.0], ['q', -0.09, 0.036, -0.05, 0.036], [0.06, 0.03], ['q', 0.09, 0.028, 0.09, 0.0], ['q', 0.09, -0.028, 0.06, -0.03], [-0.05, -0.036], ['q', -0.09, -0.036, -0.09, 0.0]]), toon(KIT.body), p);
+      for (const x of [-1, 1]) {
+        mesh(turned('pl-cap', [[0.0, -0.07], [0.014, -0.07], [0.02, -0.06], [0.02, 0.04], [0.014, 0.05], [0.0, 0.05]]), toon(KIT.grey), p, [x * 0.046, -0.01, 0]);
+        mesh(box(0.006, 0.026, 0.08), glow(0xc8a0ff), p, [x * 0.066, -0.01, -0.01], null, flat);
+      }
+      mesh(turned('pl-noz', [[0.0, -0.13], [0.03, -0.13], [0.022, -0.1], [0.018, -0.085], [0.0, -0.085]]), toon(INK), p);
+      mesh(box(0.074, 0.012, 0.04), toon(KIT.orange), p, [0, 0.036, -0.03], null, flat);
+      mesh(turned('pl-lance', [[0.0, 0.08], [0.028, 0.08], [0.026, 0.2], [0.02, 0.36], [0.014, 0.5], [0.0, 0.5]]), toon(KIT.grey), p);
+      for (const zz of [0.15, 0.26, 0.37]) {
+        mesh(turned('pl-ring' + zz, [[0.0, -0.012], [0.04 - zz * 0.03, -0.012], [0.044 - zz * 0.03, 0.0], [0.04 - zz * 0.03, 0.012], [0.0, 0.012]]), toon(KIT.body), p, [0, 0, zz], null, flat);
+        mesh(tor(0.036 - zz * 0.03, 0.006), glow(0xc8a0ff), p, [0, 0, zz + 0.014], null, flat);
+      }
+      mesh(turned('pl-tip', [[0.0, 0.49], [0.016, 0.49], [0.0, 0.55]]), toon(KIT.orange), p);
+      mesh(sph(0.012, 10), glow(0xe8d0ff), p, [0, 0, 0.555], null, flat);
+      z = 0.56; break;
+    }
+    case 'w_arc': {
+      mesh(profile('ar-house', 0.07, [[-0.05, 0.0], ['q', -0.05, 0.034, -0.02, 0.034], [0.05, 0.032], ['q', 0.07, 0.03, 0.07, 0.0], ['q', 0.07, -0.03, 0.05, -0.032], [-0.02, -0.034], ['q', -0.05, -0.034, -0.05, 0.0]]), toon(KIT.body), p);
+      mesh(box(0.05, 0.02, 0.06), glow(0xcfe8ff, 0.9), p, [0, 0.03, 0.01], null, flat);
+      for (const x of [-1, 1]) vents(p, toon(INK), 3, 0.04, 0.016, [x * 0.036, 0, -0.005], [0, Math.PI / 2, 0]);
+      mesh(turned('ar-ins', [[0.0, 0.07], [0.03, 0.07], [0.033, 0.076], [0.022, 0.082], [0.03, 0.088], [0.033, 0.094], [0.022, 0.1], [0.03, 0.106], [0.033, 0.112], [0.022, 0.118], [0.0, 0.118]]), toon(0xe8ecf0), p);
+      mesh(turned('ar-core', [[0.0, 0.11], [0.012, 0.11], [0.012, 0.19], [0.006, 0.2], [0.0, 0.2]]), D2, p);
+      for (const yy of [-1, 1]) {
+        mesh(tube('ar-prong' + yy, [[0, yy * 0.012, 0.12], [0, yy * 0.03, 0.16], [0, yy * 0.036, 0.2], [0, yy * 0.026, 0.235]], 0.006, 24), toon(KIT.grey), p);
+        mesh(sph(0.013, 10), glow(0xcfe8ff), p, [0, yy * 0.026, 0.238], null, flat);
+      }
+      mesh(box(0.072, 0.012, 0.03), toon(KIT.orange), p, [0, -0.032, -0.025], null, flat);
       z = 0.24; break;
+    }
+    case 'w_blade': {
+      mesh(profile('bl-house', 0.046, [[-0.06, 0.0], ['q', -0.06, 0.026, -0.03, 0.028], [0.0, 0.024], ['q', 0.02, 0.02, 0.02, 0.0], ['q', 0.02, -0.02, 0.0, -0.024], [-0.03, -0.028], ['q', -0.06, -0.026, -0.06, 0.0]]), toon(KIT.body), p);
+      mesh(box(0.006, 0.016, 0.05), glow(FX_COL.melee), p, [0.023, 0, -0.02], null, flat);
+      mesh(turned('bl-hilt', [[0.0, 0.0], [0.014, 0.0], [0.015, 0.006], [0.015, 0.1], [0.0, 0.1]]), toon(KIT.light), p);
+      for (const zz of [0.03, 0.045, 0.06, 0.075]) mesh(turned('bl-groove', [[0.0, -0.002], [0.0155, -0.002], [0.0155, 0.002], [0.0, 0.002]], 24), toon(INK), p, [0, 0, zz], null, flat);
+      mesh(turned('bl-emit', [[0.0, 0.098], [0.016, 0.098], [0.019, 0.112], [0.019, 0.12], [0.0, 0.12]]), toon(KIT.grey), p);
+      mesh(turned('bl-band', [[0.0, 0.01], [0.0158, 0.01], [0.0158, 0.02], [0.0, 0.02]], 24), toon(KIT.orange), p, null, null, flat);
+      mesh(turned('bl-core', [[0.0, 0.118], [0.004, 0.13], [0.006, 0.32], [0.004, 0.5], [0.0, 0.56]], 16), glow(0xfff6fb, 0.95), p, null, null, flat);
+      mesh(turned('bl-mid', [[0.0, 0.116], [0.009, 0.13], [0.012, 0.32], [0.008, 0.5], [0.0, 0.57]], 20), glow(FX_COL.melee, 0.75), p, null, null, flat);
+      mesh(turned('bl-out', [[0.0, 0.114], [0.016, 0.13], [0.021, 0.32], [0.014, 0.5], [0.0, 0.58]], 24), glow(FX_COL.melee, 0.28), p, null, null, flat);
+      z = 0.56; break;
+    }
+    case 'w_ram': {
+      mesh(profile('rm-house', 0.1, [[-0.06, 0.0], ['q', -0.06, 0.046, -0.02, 0.046], [0.03, 0.044], ['q', 0.05, 0.042, 0.05, 0.0], ['q', 0.05, -0.042, 0.03, -0.044], [-0.02, -0.046], ['q', -0.06, -0.046, -0.06, 0.0]]), toon(KIT.body), p);
+      for (const x of [-1, 1]) vents(p, toon(INK), 3, 0.06, 0.02, [x * 0.051, 0, -0.01], [0, Math.PI / 2, 0]);
+      mesh(box(0.104, 0.014, 0.05), toon(KIT.orange), p, [0, 0.046, -0.02], null, flat);
+      for (const x of [-1, 1]) {
+        mesh(turned('rm-pist', [[0.0, 0.02], [0.013, 0.02], [0.013, 0.08], [0.0, 0.08]], 20), toon(KIT.light), p, [x * 0.034, 0.03, 0]);
+        mesh(turned('rm-rod', [[0.0, 0.08], [0.008, 0.08], [0.008, 0.12], [0.0, 0.12]], 16), toon(INK), p, [x * 0.034, 0.03, 0]);
+      }
+      mesh(turned('rm-collar', [[0.0, 0.04], [0.05, 0.04], [0.064, 0.052], [0.064, 0.072], [0.058, 0.082], [0.0, 0.082]]), toon(KIT.grey), p);
+      mesh(turned('rm-ring', [[0.0, -0.004], [0.0655, -0.004], [0.0655, 0.004], [0.0, 0.004]], 32), toon(KIT.orange), p, [0, 0, 0.062], null, flat);
+      const dr = new T.Group(); dr.position.z = 0.08; p.add(dr); p.userData.spin = dr;
+      mesh(turned('rm-bit', [[0.0, 0.0], [0.054, 0.0], [0.052, 0.03], [0.04, 0.1], [0.024, 0.18], [0.008, 0.24], [0.0, 0.255]], 36), toon(0x9aa0a8), dr);
+      for (const ph of [0, 2.094, 4.189]) {
+        const pts = [];
+        for (let i = 0; i <= 36; i++) { const k = i / 36, zz = 0.012 + k * 0.226, r = 0.054 - k * 0.05, a = ph + k * Math.PI * 5; pts.push([Math.cos(a) * r, Math.sin(a) * r, zz]); }
+        mesh(tube('rm-flute' + ph, pts, 0.008 - 0.004 * 0, 140), toon(KIT.body), dr);
+      }
+      z = 0.34; break;
     }
     case 'w_shield': {
       const sp = new T.Group(); sp.position.set(sx * 0.07, -0.02, -0.03); p.add(sp);
-      // a layered tower shield: the main plate, an armoured rim, a second plate and a centre emblem
-      mesh(wedge(0.028, 0.29, 0.21, 1, 0.8), toon(tc.main), sp);
-      mesh(wedge(0.034, 0.3, 0.025, 1, 0.8), toon(tc.accent), sp, [0, 0, 0.1]);
-      mesh(wedge(0.034, 0.3, 0.025, 1, 0.8), toon(tc.accent), sp, [0, 0, -0.1]);
-      mesh(box(0.034, 0.17, 0.12), toon(tc.second), sp, [0, -0.04, 0]);
-      mesh(cyl(0.035, 0.035, 0.038, 6), toon(tc.trim), sp, [0, 0.07, 0], [0, 0, Math.PI / 2]);
-      mesh(cyl(0.018, 0.018, 0.042, 6), toon(tc.dark), sp, [0, 0.07, 0], [0, 0, Math.PI / 2], flat);
-      rivets(sp, toon(tc.dark), [[sx * 0.016, 0.12, 0.07], [sx * 0.016, 0.12, -0.07], [sx * 0.016, -0.12, 0.06], [sx * 0.016, -0.12, -0.06]].map(q => [q[0], q[1], q[2]]));
+      const flip = [0, sx < 0 ? Math.PI : 0, 0];
+      const outline = (k) => [[-0.07 * k, 0.17 * k], [0.07 * k, 0.17 * k], [0.1 * k, 0.13 * k], [0.1 * k, -0.1 * k], [0.0, -0.19 * k], [-0.1 * k, -0.1 * k], [-0.1 * k, 0.13 * k]];
+      mesh(bend('sh-plate', profile('sh-plate', 0.024, outline(1), 0.006), 2.4), toon(tc.main), sp, null, flip);
+      mesh(bend('sh-rim', profile('sh-rim', 0.024, outline(1.07), 0.005), 2.4), toon(KIT.light), sp, [-sx * 0.006, 0, 0], flip);
+      mesh(bend('sh-cap', profile('sh-cap', 0.03, [[-0.07, 0.17], [0.07, 0.17], [0.1, 0.13], [0.1, 0.1], [-0.1, 0.1], [-0.1, 0.13]], 0.005), 2.4), toon(KIT.light), sp, [sx * 0.002, 0, 0], flip);
+      mesh(box(0.008, 0.02, 0.05), glow(FX_COL.energy), sp, [sx * 0.018, 0.135, 0.0], null, flat);
+      mesh(bend('sh-star', profile('sh-star', 0.008, [[0.0, 0.07], [0.012, 0.022], [0.06, 0.01], [0.012, -0.002], [0.0, -0.12], [-0.012, -0.002], [-0.06, 0.01], [-0.012, 0.022]], 0.002), 2.4), toon(KIT.orange), sp, [sx * 0.014, 0.0, 0], flip, flat);
+      mesh(box(0.03, 0.06, 0.05), toon(tc.dark), sp, [-sx * 0.024, 0.0, 0.0]);
+      rivets(sp, toon(tc.dark), [[sx * 0.014, 0.08, 0.07], [sx * 0.014, 0.08, -0.07], [sx * 0.006, -0.09, 0.075], [sx * 0.006, -0.09, -0.075]]);
       z = 0.05; break;
     }
-    case 'w_repair':
-      mesh(box(0.045, 0.045, 0.13), D, p, [0, 0, 0.05]);
-      for (const x of [-1, 1]) mesh(box(0.012, 0.012, 0.075), toon(tc.trim), p, [x * 0.019, 0, 0.13], [0, x * 0.4, 0]);
-      mesh(sph(0.015, 8), glow(FX_COL.support), p, [0, 0, 0.15], null, flat); z = 0.16; break;
-    case 'w_missile':
-      // missile rack: an armoured box, a grid of recessed tubes with warheads inside, a hinged lid and side vents
-      mesh(box(0.15, 0.11, 0.16), toon(tc.second), p, [0, 0, 0]);
-      mesh(box(0.13, 0.09, 0.012), D2, p, [0, 0, 0.078], null, flat);
-      for (const x of [-0.04, 0, 0.04]) for (const yy of [-0.022, 0.022]) {
-        mesh(cyl(0.016, 0.016, 0.03, 12), toon(INK), p, [x, yy, 0.072], [Math.PI / 2, 0, 0], flat);
-        mesh(sph(0.009, 8), toon(0xb8453a), p, [x, yy, 0.07], null, flat);
-      }
-      mesh(box(0.155, 0.014, 0.17), toon(tc.main), p, [0, 0.066, -0.005], [-0.12, 0, 0]);
-      for (const sx2 of [-1, 1]) vents(p, D2, 3, 0.07, 0.02, [sx2 * 0.077, 0, -0.01], [0, Math.PI / 2, 0]);
-      mesh(box(0.05, 0.03, 0.04), toon(tc.trim), p, [0, -0.06, -0.04], null, flat);
-      z = 0.09; break;
-    case 'w_howitzer': {
-      mesh(wedge(0.09, 0.08, 0.12, 0.85, 0.85), toon(tc.second), p, [0, 0, 0]);
-      const b = new T.Group(); b.position.set(0, 0.02, 0.03); b.rotation.x = -0.25; p.add(b);
-      // a breech block, recoil cylinders either side of the barrel and a slotted muzzle brake
-      mesh(box(0.07, 0.06, 0.07), toon(tc.main), b, [0, 0, 0.0]);
-      mesh(cyl(0.027, 0.031, 0.37, 14), D, b, [0, 0, 0.18], [Math.PI / 2, 0, 0]);
-      for (const x of [-0.034, 0.034]) mesh(cyl(0.011, 0.011, 0.16, 10), toon(tc.metal), b, [x, -0.012, 0.1], [Math.PI / 2, 0, 0]);
-      mesh(box(0.06, 0.052, 0.06), D2, b, [0, 0, 0.35]);
-      for (const x of [-1, 1]) mesh(box(0.008, 0.03, 0.04), toon(INK), b, [x * 0.031, 0, 0.35], null, flat);
-      mesh(box(0.012, 0.03, 0.12), toon(tc.trim), b, [0.03, 0.03, 0.06], null, flat);
-      b.add(mu); mu.position.set(0, 0, 0.38); return mu;
+    case 'w_repair': {
+      mesh(profile('rp-body', 0.06, [[-0.03, 0.0], ['q', -0.03, 0.028, 0.0, 0.028], [0.07, 0.026], ['q', 0.09, 0.024, 0.09, 0.0], ['q', 0.09, -0.024, 0.07, -0.026], [0.0, -0.028], ['q', -0.03, -0.028, -0.03, 0.0]]), toon(KIT.body), p);
+      for (const x of [-1, 1]) vents(p, toon(INK), 3, 0.06, 0.016, [x * 0.031, 0, 0.03], [0, Math.PI / 2, 0]);
+      mesh(box(0.062, 0.012, 0.05), toon(KIT.orange), p, [0, 0.028, 0.0], null, flat);
+      mesh(turned('rp-collar', [[0.0, 0.084], [0.02, 0.084], [0.022, 0.092], [0.016, 0.1], [0.0, 0.1]]), toon(KIT.grey), p, [0, 0.01, 0]);
+      mesh(tube('rp-neck', [[0, 0.01, 0.095], [0, 0.03, 0.12], [0, 0.04, 0.16], [0, 0.03, 0.19]], 0.008, 32), toon(KIT.grey), p);
+      mesh(turned('rp-noz', [[0.0, 0.0], [0.011, 0.0], [0.009, 0.025], [0.005, 0.04], [0.0, 0.04]], 20), toon(0xc87a3a), p, [0, 0.03, 0.19], [0.4, 0, 0]);
+      mesh(sph(0.009, 10), glow(FX_COL.support), p, [0, 0.0125, 0.232], null, flat);
+      mesh(tube('rp-hose', [[0.026, 0.0, -0.02], [0.04, 0.02, 0.04], [0.02, 0.036, 0.11], [0.006, 0.042, 0.15]], 0.005, 28), toon(INK), p);
+      for (const x of [-1, 1]) mesh(tube('rp-clamp' + x, [[x * 0.016, -0.016, 0.08], [x * 0.02, -0.022, 0.11], [x * 0.012, -0.024, 0.14], [x * 0.005, -0.018, 0.155]], 0.005, 20), toon(KIT.light), p);
+      z = 0.232; y = 0.012; break;
     }
-    case 's_inferno':
-      mesh(wedge(0.065, 0.075, 0.16, 0.85, 0.9), D, p, [0, 0, 0.05]);
-      mesh(cyl(0.032, 0.032, 0.11, 10), toon(0xe9892c), p, [0, -0.058, 0.05], [Math.PI / 2, 0, 0]);
-      mesh(cone(0.034, 0.065, 8), D2, p, [0, 0.01, 0.17], [-Math.PI / 2, 0, 0]);
-      mesh(sph(0.012, 6), glow(0xff7a2a), p, [0, 0.01, 0.2], null, flat);
-      z = 0.21; y = 0.01; break;
-    case 's_cryo':
-      mesh(cyl(0.015, 0.019, 0.31, 8), toon(0xd8e2ea), p, [0, 0, 0.14], [Math.PI / 2, 0, 0]);
-      mesh(box(0.05, 0.05, 0.08), D, p, [0, 0, 0.02]);
-      mesh(oct(0.042), glow(FX_COL.cryo), p, [0, 0, 0.33], null, flat); z = 0.36; break;
-    case 's_emp':
-      mesh(cyl(0.032, 0.032, 0.09, 8), D, p, [0, 0, 0.03], [Math.PI / 2, 0, 0]);
-      mesh(cyl(0.078, 0.02, 0.045, 12), toon(0xd8e2ea), p, [0, 0, 0.09], [-Math.PI / 2, 0, 0]);
-      mesh(sph(0.019, 8), glow(FX_COL.energy), p, [0, 0, 0.1], null, flat);
-      mesh(tor(0.06, 0.006), glow(FX_COL.energy), p, [0, 0, 0.1], null, flat); z = 0.12; break;
-    case 's_railgun':
-      mesh(wedge(0.1, 0.09, 0.15, 0.85, 0.85), D, p, [0, 0, 0]);
-      for (const x of [-0.032, 0.032]) mesh(box(0.017, 0.032, 0.62), D2, p, [x, 0.01, 0.35]);
-      for (const zz of [0.12, 0.24, 0.36, 0.48]) mesh(cyl(0.016, 0.016, 0.075, 8), glow(FX_COL.energy), p, [0, 0.04, zz], [0, 0, Math.PI / 2], flat);
-      mesh(box(0.11, 0.02, 0.04), toon(tc.trim), p, [0, 0.055, 0.02], null, flat);
-      z = 0.67; y = 0.01; break;
+    case 'w_missile': {
+      mesh(profile('ms-pod', 0.16, [[-0.08, -0.06], [-0.08, 0.03], ['q', -0.08, 0.065, -0.045, 0.065], [0.05, 0.065], [0.085, 0.045], [0.085, -0.045], [0.05, -0.065], [-0.06, -0.065], ['q', -0.08, -0.065, -0.08, -0.06]]), toon(tc.second), p);
+      mesh(box(0.14, 0.1, 0.01), toon(KIT.body), p, [0, 0, 0.083], null, flat);
+      for (const x of [-0.042, 0, 0.042]) for (const yy of [-0.032, 0, 0.032]) {
+        mesh(turned('ms-tube', [[0.0, -0.01], [0.015, -0.01], [0.015, 0.006], [0.017, 0.01], [0.0, 0.01]]), toon(INK), p, [x, yy, 0.085], null, flat);
+        mesh(turned('ms-war', [[0.0, -0.01], [0.011, -0.01], [0.011, 0.0], [0.006, 0.012], [0.0, 0.016]]), toon(0xd8503f), p, [x, yy, 0.088], null, flat);
+      }
+      for (const x of [-1, 1]) mesh(profile('ms-door', 0.012, [[0, -0.06], [0.07, -0.05], [0.07, 0.05], [0, 0.06]], 0.003), toon(tc.main), p, [x * 0.085, 0, 0.085], [0, x * 0.55, 0]);
+      for (const x of [-1, 1]) vents(p, toon(INK), 4, 0.05, 0.018, [x * 0.081, 0, -0.03], [0, Math.PI / 2, 0]);
+      mesh(box(0.164, 0.016, 0.04), toon(KIT.orange), p, [0, -0.058, -0.04], null, flat);
+      mesh(profile('ms-sens', 0.05, [[-0.04, 0.065], [0.02, 0.065], ['q', 0.03, 0.065, 0.03, 0.08], [0.02, 0.092], [-0.03, 0.092]]), toon(KIT.light), p, [0.04, 0, 0]);
+      mesh(cyl(0.01, 0.01, 0.006, 12), glow(tc.eye), p, [0.04, 0.08, 0.031], [Math.PI / 2, 0, 0], flat);
+      z = 0.1; break;
+    }
+    case 'w_howitzer': {
+      mesh(turned('hw-ring', [[0.0, -0.016], [0.07, -0.016], [0.076, -0.006], [0.076, 0.006], [0.07, 0.016], [0.0, 0.016]]), toon(KIT.body), p, [0, -0.045, 0], [-Math.PI / 2, 0, 0]);
+      mesh(profile('hw-mount', 0.11, [[-0.07, -0.04], [-0.07, 0.01], ['q', -0.07, 0.05, -0.03, 0.05], [0.04, 0.05], [0.07, 0.02], [0.07, -0.04]]), toon(tc.second), p);
+      for (const x of [-1, 1]) vents(p, toon(INK), 3, 0.06, 0.02, [x * 0.056, 0.005, -0.01], [0, Math.PI / 2, 0]);
+      mesh(profile('hw-load', 0.05, [[-0.06, -0.03], [0.02, -0.03], [0.02, 0.03], ['q', 0.02, 0.04, 0.01, 0.04], [-0.05, 0.04], ['q', -0.06, 0.04, -0.06, 0.03]]), toon(KIT.grey), p, [-0.075, 0, 0]);
+      mesh(box(0.052, 0.012, 0.06), toon(KIT.orange), p, [-0.075, 0.036, -0.02], null, flat);
+      const b = new T.Group(); b.position.set(0, 0.025, 0.03); b.rotation.x = -0.25; p.add(b);
+      mesh(profile('hw-breech', 0.08, [[-0.05, -0.035], [-0.05, 0.025], ['q', -0.05, 0.04, -0.035, 0.04], [0.05, 0.035], [0.05, -0.035]]), toon(tc.main), b);
+      mesh(turned('hw-brl', [[0.0, 0.04], [0.032, 0.04], [0.032, 0.07], [0.028, 0.075], [0.028, 0.34], [0.0, 0.34]]), D, b);
+      for (const zz of [0.1, 0.14, 0.18, 0.22]) mesh(turned('hw-rib', [[0.0, -0.005], [0.035, -0.005], [0.037, 0.0], [0.035, 0.005], [0.0, 0.005]]), toon(KIT.body), b, [0, 0, zz], null, flat);
+      for (const x of [-0.042, 0.042]) mesh(turned('hw-recoil', [[0.0, 0.03], [0.012, 0.03], [0.012, 0.15], [0.008, 0.155], [0.008, 0.21], [0.0, 0.21]]), toon(KIT.light), b, [x, -0.016, 0]);
+      mesh(turned('hw-brake', [[0.0, 0.33], [0.034, 0.33], [0.038, 0.345], [0.038, 0.41], [0.032, 0.42], [0.0, 0.42]]), toon(KIT.body), b);
+      for (const x of [-1, 1]) for (const zz of [0.355, 0.375, 0.395]) mesh(box(0.008, 0.032, 0.012), toon(INK), b, [x * 0.037, 0, zz], null, flat);
+      mesh(box(0.012, 0.03, 0.12), toon(tc.trim), b, [0.036, 0.034, 0.08], null, flat);
+      b.add(mu); mu.position.set(0, 0, 0.43); return mu;
+    }
+    case 's_inferno': {
+      mesh(profile('in-body', 0.072, [[-0.04, 0.0], ['q', -0.04, 0.05, 0.0, 0.05], [0.09, 0.046], ['q', 0.12, 0.044, 0.12, 0.02], [0.12, -0.016], [0.0, -0.024], ['q', -0.04, -0.024, -0.04, 0.0]]), toon(KIT.body), p);
+      for (const x of [-1, 1]) {
+        mesh(turned('in-tank', [[0.0, -0.04], [0.012, -0.036], [0.02, -0.028], [0.023, -0.016], [0.023, 0.09], [0.02, 0.102], [0.012, 0.11], [0.0, 0.114]], 24), toon(0xe9892c), p, [x * 0.024, -0.052, 0]);
+        for (const zz of [0.0, 0.06]) mesh(turned('in-band', [[0.0, -0.006], [0.0245, -0.006], [0.0245, 0.006], [0.0, 0.006]], 24), toon(INK), p, [x * 0.024, -0.052, zz], null, flat);
+      }
+      mesh(turned('in-gauge', [[0.0, -0.004], [0.017, -0.004], [0.017, 0.006], [0.0, 0.006]], 20), toon(KIT.light), p, [0.036, 0.034, 0.02], [0, Math.PI / 2, 0]);
+      mesh(box(0.003, 0.012, 0.002), toon(0xd8503f), p, [0.043, 0.037, 0.02], [0, 0, -0.6], flat);
+      mesh(tube('in-hose', [[0.0, -0.06, 0.08], [0.0, -0.05, 0.13], [0.0, -0.02, 0.15], [0.0, 0.0, 0.16]], 0.008, 20), toon(INK), p);
+      mesh(turned('in-noz', [[0.0, 0.11], [0.026, 0.11], [0.022, 0.16], [0.018, 0.25], [0.0, 0.25]]), D2, p, [0, 0.012, 0]);
+      for (const zz of [0.14, 0.165, 0.19, 0.215]) mesh(turned('in-fin', [[0.0, -0.004], [0.034, -0.004], [0.036, 0.0], [0.034, 0.004], [0.0, 0.004]], 24), toon(KIT.grey), p, [0, 0.012, zz], null, flat);
+      mesh(turned('in-tip', [[0.0, 0.245], [0.02, 0.245], [0.03, 0.27], [0.032, 0.28], [0.022, 0.28], [0.0, 0.272]]), toon(KIT.orange), p, [0, 0.012, 0]);
+      mesh(sph(0.011, 10), glow(0xff7a2a), p, [0, 0.036, 0.275], null, flat);
+      z = 0.29; y = 0.012; break;
+    }
+    case 's_cryo': {
+      mesh(profile('cr-body', 0.064, [[-0.06, 0.0], ['q', -0.06, 0.034, -0.03, 0.034], [0.05, 0.03], ['q', 0.07, 0.028, 0.07, 0.0], ['q', 0.07, -0.026, 0.05, -0.028], [-0.03, -0.032], ['q', -0.06, -0.032, -0.06, 0.0]]), toon(KIT.body), p);
+      mesh(box(0.066, 0.012, 0.03), toon(KIT.orange), p, [0, -0.03, -0.03], null, flat);
+      for (const x of [-1, 1]) {
+        mesh(turned('cr-glass', [[0.0, -0.05], [0.017, -0.05], [0.017, 0.05], [0.0, 0.05]], 24), glow(FX_COL.cryo, 0.75), p, [x * 0.024, 0.044, 0], null, flat);
+        for (const zz of [-0.056, 0.056]) mesh(turned('cr-capc', [[0.0, -0.008], [0.019, -0.008], [0.02, 0.0], [0.019, 0.008], [0.0, 0.008]], 24), toon(INK), p, [x * 0.024, 0.044, zz]);
+      }
+      mesh(turned('cr-brl', [[0.0, 0.06], [0.022, 0.06], [0.02, 0.23], [0.0, 0.23]]), toon(KIT.grey), p);
+      for (const zz of [0.09, 0.11, 0.13, 0.15, 0.17]) mesh(turned('cr-fin', [[0.0, -0.004], [0.04, -0.004], [0.042, 0.0], [0.04, 0.004], [0.0, 0.004]], 32), toon(KIT.light), p, [0, 0, zz]);
+      mesh(turned('cr-cham', [[0.0, 0.22], [0.026, 0.22], [0.026, 0.29], [0.0, 0.29]], 28), glow(FX_COL.cryo, 0.8), p, null, null, flat);
+      for (const zz of [0.215, 0.295]) mesh(turned('cr-band', [[0.0, -0.007], [0.029, -0.007], [0.03, 0.0], [0.029, 0.007], [0.0, 0.007]], 28), toon(INK), p, [0, 0, zz]);
+      for (let i = 0; i < 3; i++) {
+        const g = new T.Group(); g.position.set(0, 0, 0.3); g.rotation.z = i / 3 * Math.PI * 2; p.add(g);
+        mesh(tube('cr-prong', [[0, 0.022, 0.0], [0, 0.03, 0.03], [0, 0.022, 0.06], [0, 0.012, 0.075]], 0.005, 16), toon(KIT.grey), g);
+      }
+      mesh(sph(0.016, 14), glow(0xe8fbff), p, [0, 0, 0.365], null, flat);
+      z = 0.38; break;
+    }
+    case 's_emp': {
+      mesh(profile('em-body', 0.072, [[-0.05, 0.0], ['q', -0.05, 0.034, -0.02, 0.034], [0.03, 0.032], ['q', 0.05, 0.03, 0.05, 0.0], ['q', 0.05, -0.03, 0.03, -0.032], [-0.02, -0.034], ['q', -0.05, -0.034, -0.05, 0.0]]), toon(KIT.body), p);
+      for (const x of [-1, 1]) vents(p, toon(INK), 3, 0.04, 0.016, [x * 0.036, 0, -0.005], [0, Math.PI / 2, 0]);
+      mesh(box(0.074, 0.012, 0.03), toon(KIT.orange), p, [0, 0.034, -0.025], null, flat);
+      mesh(turned('em-drum', [[0.0, 0.03], [0.04, 0.03], [0.046, 0.04], [0.046, 0.13], [0.0, 0.13]], 40), toon(KIT.grey), p);
+      for (const zz of [0.055, 0.08, 0.105]) mesh(turned('em-coil', [[0.0, -0.007], [0.048, -0.007], [0.05, 0.0], [0.048, 0.007], [0.0, 0.007]], 40), toon(0xc87a3a), p, [0, 0, zz]);
+      for (const zz of [0.0675, 0.0925]) mesh(turned('em-gap', [[0.0, -0.0035], [0.0475, -0.0035], [0.0475, 0.0035], [0.0, 0.0035]], 40), glow(FX_COL.energy), p, [0, 0, zz], null, flat);
+      mesh(turned('em-dish', [[0.0, 0.135], [0.03, 0.13], [0.05, 0.126], [0.054, 0.134], [0.034, 0.142], [0.0, 0.146]], 40), toon(KIT.light), p);
+      for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + Math.PI / 4; mesh(turned('em-prong', [[0.0, 0.12], [0.006, 0.12], [0.004, 0.17], [0.0, 0.176]], 12), toon(KIT.grey), p, [Math.cos(a) * 0.044, Math.sin(a) * 0.044, 0]); }
+      mesh(sph(0.022, 16), glow(FX_COL.energy), p, [0, 0, 0.145], null, flat);
+      z = 0.16; break;
+    }
+    case 's_railgun': {
+      mesh(profile('rg-breech', 0.12, [[-0.1, -0.02], ['q', -0.1, 0.05, -0.05, 0.056], [0.06, 0.05], ['q', 0.1, 0.048, 0.1, 0.02], [0.1, -0.04], ['q', 0.1, -0.056, 0.07, -0.056], [-0.07, -0.056], ['q', -0.1, -0.056, -0.1, -0.02]]), toon(KIT.body), p);
+      for (const x of [-1, 1]) vents(p, toon(INK), 4, 0.07, 0.016, [x * 0.061, 0, -0.01], [0, Math.PI / 2, 0]);
+      mesh(profile('rg-hump', 0.07, [[-0.06, 0.05], ['q', -0.06, 0.1, -0.02, 0.1], [0.02, 0.1], ['q', 0.05, 0.1, 0.05, 0.05]]), toon(KIT.grey), p);
+      for (const zz of [-0.03, -0.01, 0.01]) mesh(box(0.072, 0.008, 0.006), glow(FX_COL.energy), p, [0, 0.094, zz], null, flat);
+      mesh(box(0.124, 0.014, 0.05), toon(KIT.orange), p, [0, 0.05, -0.075], null, flat);
+      mesh(profile('rg-ur', 0.05, [[0.08, 0.05], [0.6, 0.04], ['q', 0.67, 0.04, 0.69, 0.022], [0.69, 0.012], [0.08, 0.012]]), D2, p);
+      mesh(profile('rg-lr', 0.05, [[0.08, -0.012], [0.69, -0.012], [0.69, -0.022], ['q', 0.67, -0.036, 0.6, -0.038], [0.08, -0.046]]), D2, p);
+      mesh(box(0.03, 0.022, 0.6), glow(FX_COL.energy), p, [0, 0, 0.39], null, flat);
+      for (let i = 0; i < 10; i++) mesh(profile('rg-fin', 0.074, [[-0.003, 0.058], [0.003, 0.058], [0.003, -0.062], [-0.003, -0.062]], 0.0015), toon(i % 3 === 2 ? KIT.orange : KIT.grey), p, [0, 0, 0.11 + i * 0.022]);
+      for (const zz of [0.4, 0.54]) mesh(profile('rg-yoke', 0.066, [[-0.016, 0.052], [0.016, 0.052], ['q', 0.022, 0.052, 0.022, 0.04], [0.022, -0.044], ['q', 0.022, -0.056, 0.016, -0.056], [-0.016, -0.056], ['q', -0.022, -0.056, -0.022, -0.044], [-0.022, 0.04], ['q', -0.022, 0.052, -0.016, 0.052]], 0.005), toon(KIT.body), p, [0, 0, zz]);
+      for (const yy of [0.028, -0.03]) mesh(box(0.052, 0.012, 0.03), toon(KIT.orange), p, [0, yy + (yy > 0 ? 0.005 : -0.005), 0.67], null, flat);
+      for (const x of [-1, 1]) mesh(tube('rg-cable' + x, [[x * 0.05, -0.044, 0.04], [x * 0.044, -0.054, 0.14], [x * 0.036, -0.05, 0.3], [x * 0.03, -0.046, 0.38]], 0.008, 32), toon(INK), p);
+      z = 0.69; y = 0; break;
+    }
     default:
       mesh(box(0.05, 0.06, 0.15), D, p, [0, 0, 0.06]);
   }
@@ -830,49 +1074,152 @@ function buildWeapon(p, id, tc, sx) {
 function buildAux(bp, id, pos, tc) {
   const g = new T.Group(); g.position.set(pos[0], pos[1], pos[2]); bp.add(g);
   const D = toon(tc.metal), D2 = toon(tc.dark);
+  const U = [-Math.PI / 2, 0, 0], X = [0, Math.PI / 2, 0], Z = [0, Math.PI, 0];   // turned parts: up, sideways, facing back
   switch (id) {
-    case 'a_cool': mesh(box(0.075, 0.075, 0.055), D, g); for (let i = 0; i < 3; i++) mesh(box(0.077, 0.008, 0.057), toon(tc.trim), g, [0, -0.025 + i * 0.025, 0], null, flat); break;
-    case 'a_sink': for (let i = 0; i < 4; i++) mesh(box(0.085, 0.012, 0.055), D2, g, [0, -0.03 + i * 0.02, 0]); mesh(box(0.02, 0.08, 0.06), D, g); break;
-    case 'a_plate': mesh(wedge(0.095, 0.085, 0.035, 0.85, 1), toon(tc.second), g); mesh(box(0.055, 0.02, 0.037), toon(tc.trim), g, null, null, flat); break;
-    case 'a_bulwark': mesh(wedge(0.11, 0.1, 0.045, 0.85, 1), toon(tc.main), g); mesh(box(0.1, 0.03, 0.05), toon(tc.accent), g, [0, -0.02, 0]); rivets(g, D2, [[-0.035, 0.03, 0.025], [0.035, 0.03, 0.025]]); break;
-    case 'a_relay': mesh(cyl(0.02, 0.03, 0.06, 6), D, g); mesh(tor(0.04, 0.006), glow(tc.glow), g, [0, 0.04, 0], [Math.PI / 2, 0, 0], flat); mesh(sph(0.012, 6), glow(tc.glow), g, [0, 0.07, 0], null, flat); break;
-    case 'a_jump': for (const x of [-0.022, 0.022]) { mesh(cyl(0.021, 0.027, 0.085, 8), D, g, [x, 0, 0]); mesh(cone(0.019, 0.055, 8), glow(tc.thruster, 0.7), g, [x, -0.065, 0], [Math.PI, 0, 0], flat); } break;
-    case 'a_apu': mesh(cyl(0.032, 0.032, 0.085, 10), D, g); mesh(cyl(0.033, 0.033, 0.016, 10), glow(0x9dff8a), g, [0, 0.01, 0], null, flat); break;
-    case 'a_nano': mesh(box(0.055, 0.055, 0.045), D, g); mesh(sph(0.023, 8), glow(0x7dffb2), g, [0, 0.032, 0], null, flat); break;
-    case 'a_servo': for (const x of [-0.022, 0.022]) mesh(cyl(0.011, 0.011, 0.095, 6), toon(0xb8bec6), g, [x, 0, 0]); break;
-    case 'a_shield': mesh(cyl(0.042, 0.042, 0.022, 12), D, g, [0, 0, 0], [Math.PI / 2, 0, 0]); mesh(tor(0.047, 0.007), glow(0x8fdcff), g, [0, 0, -0.013], null, flat); break;
-    case 'a_over': for (const x of [-0.022, 0.022]) mesh(cyl(0.015, 0.015, 0.075, 8), glow(0xff4a4a), g, [x, 0, 0], null, flat); mesh(box(0.065, 0.022, 0.045), D, g, [0, -0.045, 0]); break;
+    // Cooling System: a chamfered housing with a round fan shroud on its back face, fan blades and a hub
+    case 'a_cool':
+      mesh(slab('ax-coolh', 0.05, [[-0.04, 0.04], [0.04, 0.04], [0.045, 0.03], [0.045, -0.03], [0.04, -0.04], [-0.04, -0.04], [-0.045, -0.03], [-0.045, 0.03]], 0.006), D, g);
+      mesh(turned('ax-shroud', [[0.026, 0.0], [0.036, 0.0], [0.036, 0.012], [0.03, 0.016], [0.026, 0.016]], 32), toon(tc.trim), g, [0, 0, -0.024], Z);
+      for (let i = 0; i < 6; i++) mesh(box(0.006, 0.026, 0.004), D2, g, [Math.cos(i * 1.047) * 0.014, Math.sin(i * 1.047) * 0.014, -0.03], [0, 0.4, i * 1.047 + Math.PI / 2], flat);
+      mesh(turned('ax-hub', [[0.0, 0.0], [0.008, 0.0], [0.006, 0.01], [0.0, 0.012]], 16), toon(tc.trim), g, [0, 0, -0.026], Z);
+      break;
+    // Heat Sink: a base block carrying a stack of thin chamfered fins, capped at each end in the trim colour
+    case 'a_sink':
+      mesh(slab('ax-sinkb', 0.05, [[-0.045, -0.02], [0.045, -0.02], [0.045, -0.04], [-0.045, -0.04]], 0.005), D, g);
+      for (let i = 0; i < 6; i++) mesh(profile('ax-fin', 0.006, [[-0.024, -0.02], [0.024, -0.02], [0.02, 0.04], [-0.02, 0.04]], 0.0015), D2, g, [-0.035 + i * 0.014, 0, 0]);
+      for (const x of [-1, 1]) mesh(profile('ax-sinkc', 0.008, [[-0.026, -0.04], [0.026, -0.04], [0.022, 0.045], [-0.022, 0.045]], 0.002), toon(tc.trim), g, [x * 0.048, 0, 0]);
+      break;
+    // Armor Plating: a chamfered hexagonal add-on plate with a trim stripe and four bolts
+    case 'a_plate':
+      mesh(slab('ax-plate', 0.03, [[-0.034, 0.045], [0.034, 0.045], [0.05, 0.0], [0.034, -0.045], [-0.034, -0.045], [-0.05, 0.0]], 0.007), toon(tc.second), g);
+      mesh(box(0.07, 0.012, 0.004), toon(tc.trim), g, [0, 0.0, -0.016], null, flat);
+      rivets(g, D2, [[-0.025, 0.03, -0.016], [0.025, 0.03, -0.016], [-0.025, -0.03, -0.016], [0.025, -0.03, -0.016]]);
+      break;
+    // Bulwark Plating: two layered slabs, the outer one smaller, with an accent band and heavy bolts
+    case 'a_bulwark':
+      mesh(slab('ax-bulw1', 0.03, [[-0.05, 0.05], [0.05, 0.05], [0.058, 0.03], [0.058, -0.04], [0.045, -0.055], [-0.045, -0.055], [-0.058, -0.04], [-0.058, 0.03]], 0.007), toon(tc.main), g);
+      mesh(slab('ax-bulw2', 0.02, [[-0.036, 0.036], [0.036, 0.036], [0.044, 0.02], [0.044, -0.03], [-0.044, -0.03], [-0.044, 0.02]], 0.005), toon(tc.second), g, [0, 0, -0.022]);
+      mesh(box(0.1, 0.014, 0.004), toon(tc.accent), g, [0, -0.044, -0.016], null, flat);
+      rivets(g, D2, [[-0.032, 0.024, -0.033], [0.032, 0.024, -0.033], [-0.032, -0.02, -0.033], [0.032, -0.02, -0.033]]);
+      break;
+    // Quantum Relay: a turned base, a mast, a small dish turned up and back, a glowing ring and tip
+    case 'a_relay':
+      mesh(turned('ax-rbase', [[0.0, -0.04], [0.028, -0.04], [0.03, -0.03], [0.02, -0.015], [0.0, -0.012]], 8), D, g, null, U);
+      mesh(turned('ax-mast', [[0.0, -0.015], [0.006, -0.015], [0.004, 0.07], [0.0, 0.07]], 12), D2, g, null, U);
+      mesh(turned('ax-dish', [[0.0, 0.0], [0.006, 0.0], [0.022, 0.008], [0.03, 0.018], [0.026, 0.02], [0.0, 0.008]], 24), D, g, [0, 0.02, -0.006], [Math.PI * 0.75, 0, 0]);
+      mesh(tor(0.016, 0.004), glow(tc.glow), g, [0, 0.05, 0], [Math.PI / 2, 0, 0], flat);
+      mesh(sph(0.009, 10), glow(tc.glow), g, [0, 0.074, 0], null, flat);
+      break;
+    // Jump Booster: twin thruster pods, each a turned capsule ending in a dark bell nozzle with a glow inside
+    case 'a_jump':
+      for (const x of [-0.024, 0.024]) {
+        mesh(turned('ax-jpod', [[0.0, -0.035], [0.018, -0.03], [0.023, -0.015], [0.023, 0.03], [0.016, 0.045], [0.0, 0.048]], 20), D, g, [x, 0, 0], U);
+        mesh(turned('ax-jbell', [[0.0, -0.035], [0.014, -0.035], [0.022, -0.06], [0.026, -0.068], [0.02, -0.066], [0.012, -0.045], [0.0, -0.045]], 20), D2, g, [x, 0, 0], U);
+        mesh(cone(0.017, 0.04, 12), glow(tc.thruster, 0.7), g, [x, -0.07, 0], [Math.PI, 0, 0], flat);
+      }
+      mesh(box(0.072, 0.012, 0.03), toon(tc.trim), g, [0, 0.02, 0], null, flat);
+      break;
+    // Auxiliary Power Unit: a power cell lying on its side, ribbed, with domed end caps and a glowing window band
+    case 'a_apu':
+      mesh(turned('ax-cell', [[0.0, -0.055], [0.018, -0.052], [0.028, -0.042], [0.03, -0.03], [0.03, 0.03], [0.028, 0.042], [0.018, 0.052], [0.0, 0.055]], 24), D, g, null, X);
+      for (const x of [-0.03, 0.03]) mesh(turned('ax-rib', [[0.0, -0.004], [0.033, -0.004], [0.034, 0.0], [0.033, 0.004], [0.0, 0.004]], 24), D2, g, [x, 0, 0], X);
+      mesh(turned('ax-win', [[0.0, -0.014], [0.0315, -0.014], [0.0315, 0.014], [0.0, 0.014]], 24), glow(0x9dff8a), g, null, X, flat);
+      break;
+    // Nano-Repair Module: a chamfered base with a glass dome of glowing nanites on top
+    case 'a_nano':
+      mesh(slab('ax-nanob', 0.05, [[-0.03, 0.0], [0.03, 0.0], [0.035, -0.01], [0.035, -0.035], [-0.035, -0.035], [-0.035, -0.01]], 0.005), D, g);
+      mesh(turned('ax-dome', [[0.0, 0.0], [0.024, 0.0], [0.024, 0.01], [0.02, 0.026], [0.01, 0.034], [0.0, 0.036]], 24), glow(0x7dffb2, 0.75), g, null, U, flat);
+      mesh(turned('ax-domer', [[0.0, -0.004], [0.027, -0.004], [0.027, 0.004], [0.0, 0.004]], 24), D2, g, null, U);
+      break;
+    // Servo Struts: two hydraulic rams, each a turned cylinder with a polished rod and eye ends
+    case 'a_servo':
+      for (const x of [-0.022, 0.022]) {
+        mesh(turned('ax-ram', [[0.0, -0.05], [0.012, -0.05], [0.013, -0.044], [0.013, 0.01], [0.0, 0.01]], 16), D, g, [x, 0, 0], U);
+        mesh(turned('ax-rod', [[0.0, 0.0], [0.006, 0.0], [0.006, 0.045], [0.0, 0.045]], 12), toon(0xb8bec6), g, [x, 0, 0], U);
+        for (const y of [-0.052, 0.048]) mesh(tor(0.007, 0.003), D2, g, [x, y, 0], [0, Math.PI / 2, 0], flat);
+      }
+      break;
+    // Shield Generator: a chamfered emitter disc facing back, a glowing ring set into it and a lens in the middle
+    case 'a_shield':
+      mesh(turned('ax-sdisc', [[0.0, 0.0], [0.04, 0.0], [0.046, 0.008], [0.046, 0.016], [0.036, 0.024], [0.0, 0.024]], 36), D, g, [0, 0, 0.012], Z);
+      mesh(turned('ax-sring', [[0.024, 0.0], [0.034, 0.0], [0.034, 0.004], [0.024, 0.004]], 36), glow(0x8fdcff), g, [0, 0, -0.012], Z, flat);
+      mesh(turned('ax-lens', [[0.0, 0.0], [0.012, 0.0], [0.008, 0.008], [0.0, 0.01]], 16), glow(0xd8f2ff), g, [0, 0, -0.012], Z, flat);
+      break;
+    // Overcharger: a chamfered block carrying two glass capacitor tubes of red light in dark caps
+    case 'a_over':
+      mesh(slab('ax-overb', 0.045, [[-0.035, -0.035], [0.035, -0.035], [0.04, -0.045], [0.04, -0.06], [-0.04, -0.06], [-0.04, -0.045]], 0.005), D, g);
+      for (const x of [-0.02, 0.02]) {
+        mesh(turned('ax-cap', [[0.0, -0.035], [0.016, -0.035], [0.016, 0.03], [0.0, 0.03]], 16), glow(0xff4a4a, 0.85), g, [x, 0, 0], U, flat);
+        for (const y of [-0.038, 0.032]) mesh(turned('ax-capend', [[0.0, -0.005], [0.018, -0.005], [0.019, 0.0], [0.018, 0.005], [0.0, 0.005]], 16), D2, g, [x, y, 0], U);
+      }
+      break;
     default: mesh(box(0.065, 0.065, 0.045), D, g);
   }
   return g;
 }
 
-function shoulderArmor(sh, sx, tc, style, k) {
-  if (style === 'assault') {
-    // large: swept pauldron; medium: red flare; small: yellow fin and black trim
-    mesh(wedge(0.1 * k, 0.075 * k, 0.12 * k, 0.75, 0.85, -0.01), toon(tc.main), sh, [sx * 0.015, 0.02, 0], [0, 0, sx * -0.3]);
-    mesh(wedge(0.05 * k, 0.05 * k, 0.13 * k, 0.6, 0.9), toon(tc.second), sh, [sx * 0.06 * k, 0.04, 0], [0, 0, sx * -0.55]);
-    mesh(cone(0.016, 0.07, 4), toon(tc.trim), sh, [sx * 0.035, 0.1, -0.02], [0, 0, sx * -0.2], flat);
-    mesh(box(0.012, 0.01, 0.1 * k), toon(tc.accent), sh, [sx * 0.06 * k, 0.005, 0], [0, 0, sx * -0.3], flat);
-  } else if (style === 'armored') {
-    // large: a ball joint and an arched pauldron of three heavy plates curving over it
-    mesh(sph(0.075 * k, 18), toon(tc.dark), sh, [sx * 0.03, 0.01, 0]);
-    mesh(cyl(0.052 * k, 0.052 * k, 0.02, 18), toon(tc.second), sh, [sx * (0.03 + 0.072 * k), 0.01, 0], [0, 0, Math.PI / 2]);
-    mesh(box(0.012, 0.012, 0.07 * k), toon(INK), sh, [sx * (0.03 + 0.083 * k), 0.01, 0], [0.6, 0, 0], flat);
-    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mesh(cyl(0.007, 0.007, 0.008, 6), toon(tc.metal), sh, [sx * (0.03 + 0.083 * k), 0.01 + Math.cos(a) * 0.038 * k, Math.sin(a) * 0.038 * k], [0, 0, Math.PI / 2], flat); }
-    const R0 = 0.11 * k;
-    for (const [i, a] of [[0, 0.15], [1, 0.75], [2, 1.35]]) {
-      // each plate a little shorter than the one beneath it, so where they overlap their end faces never share a plane
-      const plate = mesh(box(0.11 * k, 0.06 * k, (0.24 - i * 0.016) * k), toon(i === 1 ? tc.second : tc.main), sh, [sx * (0.03 + (R0 + 0.012 * k) * Math.sin(a)), 0.01 + (R0 + 0.012 * k) * Math.cos(a), 0], [0, 0, -sx * a]);
-      rivets(plate, toon(tc.dark), [[-0.03 * k, 0.017 * k, 0.07 * k], [0.03 * k, 0.017 * k, -0.07 * k]].map(q => [q[0], q[1], q[2]]));
-    }
-    mesh(box(0.1 * k, 0.012, 0.02), toon(tc.accent), sh, [sx * (0.03 + R0 * Math.sin(0.15)), 0.01 + R0 + 0.02 * k, 0.09 * k], [0, 0, -sx * 0.15], flat);
+/* Shoulders belong to the weapon, not the chassis: each arm slot is one module (shoulder, arm and weapon) and the
+   chassis only offers a bare socket. The weapon's family picks the shoulder's shape; the doctrine still paints it. */
+const SHOULDER = { b_gun: 'gun', w_smg: 'gun', w_scatter: 'gun', w_rail: 'gun', w_gatling: 'rotary', w_laser: 'energy', w_lance: 'energy', w_arc: 'energy', s_emp: 'energy', s_cryo: 'energy', w_missile: 'mount', w_howitzer: 'mount', s_railgun: 'mount', w_blade: 'melee', w_ram: 'melee', w_shield: 'guard', w_repair: 'tool', s_inferno: 'tool' };
+// the chassis' socket: a dark collar the arm module plugs into, all that is left when the arm is gone
+function shoulderSocket(sh, sx, tc, k) {
+  // the socket sits in the chest side: a chamfered flange in the hull colour set into the armour, a dark collar
+  // standing a little proud of it, and the empty bore where the arm module locks in
+  const kk = k.toFixed(3), r = [0, sx * Math.PI / 2, 0];
+  mesh(turned('sock-fl' + kk, [[0.0, -0.075], [0.05 * k, -0.075], [0.056 * k, -0.06], [0.056 * k, -0.035], [0.046 * k, -0.025], [0.0, -0.025]], 24), toon(tc.second), sh, null, r);
+  mesh(turned('sock-col' + kk, [[0.0, -0.03], [0.036 * k, -0.03], [0.038 * k, -0.006], [0.032 * k, 0.0], [0.0, 0.0]], 24), toon(tc.dark), sh, null, r);
+  mesh(turned('sock-bore' + kk, [[0.0, -0.004], [0.02 * k, -0.004], [0.02 * k, 0.002], [0.0, 0.002]], 16), toon(INK), sh, null, r, flat);
+}
+function armShoulder(sh, sx, tc, style, id, k) {
+  const fam = SHOULDER[id] || 'gun', wt = (DEFS()[id] && DEFS()[id].wt) || 2;
+  k *= Math.min(1.25, 0.9 + wt * 0.04);
+  const kk = k.toFixed(3), cx = sx * 0.032 * k;
+  if (fam === 'gun') {
+    // a rifleman's shoulder, after the RX-78-2: a big rounded block standing proud of the chest, a raised panel on
+    // its outer face and a dark seam where it opens over the arm
+    mesh(profile('sh-gun' + kk, 0.11 * k, [[-0.058 * k, 0.062 * k], [0.058 * k, 0.062 * k], ['q', 0.078 * k, 0.062 * k, 0.078 * k, 0.04 * k], [0.072 * k, -0.07 * k], [-0.072 * k, -0.07 * k], [-0.078 * k, 0.04 * k], ['q', -0.078 * k, 0.062 * k, -0.058 * k, 0.062 * k]], 0.014 * k), toon(tc.main), sh, [cx, 0.0, 0]);
+    mesh(profile('sh-gunp' + kk, 0.012, [[-0.05 * k, 0.04 * k], [0.05 * k, 0.04 * k], [0.046 * k, -0.05 * k], [-0.046 * k, -0.05 * k]], 0.003), toon(tc.second), sh, [cx + sx * 0.056 * k, 0.0, 0]);
+    mesh(box(0.11 * k, 0.008, 0.15 * k), toon(INK), sh, [cx, -0.058 * k, 0], null, flat);
+  } else if (fam === 'rotary') {
+    // a gunner's shoulder: a drum housing with chamfered rims under a hood, and an ammo box on the back feeding it
+    mesh(turned('sh-rdrum' + kk, [[0.0, -0.05 * k], [0.066 * k, -0.05 * k], [0.08 * k, -0.036 * k], [0.08 * k, 0.036 * k], [0.066 * k, 0.05 * k], [0.0, 0.05 * k]], 36), toon(tc.dark), sh, [cx, 0.0, 0], [0, Math.PI / 2, 0]);
+    mesh(profile('sh-rhood' + kk, 0.12 * k, [[-0.09 * k, 0.03 * k], [-0.07 * k, 0.09 * k], [0.07 * k, 0.09 * k], [0.09 * k, 0.03 * k], [0.08 * k, 0.0], [-0.08 * k, 0.0]], 0.01), toon(tc.main), sh, [cx, 0.02 * k, 0]);
+    mesh(slab('sh-ammo' + kk, 0.07 * k, [[-0.04 * k, 0.05 * k], [0.04 * k, 0.05 * k], [0.04 * k, -0.04 * k], [-0.04 * k, -0.04 * k]], 0.008), toon(tc.second), sh, [cx, 0.02 * k, -0.11 * k]);
+    for (let i = 0; i < 3; i++) mesh(box(0.084 * k, 0.006, 0.006), toon(INK), sh, [cx, (0.0 + i * 0.025) * k, -0.146 * k], null, flat);
+    mesh(tube('sh-feed' + kk + sx, [[cx, -0.01 * k, -0.08 * k], [cx + sx * 0.03 * k, -0.04 * k, -0.06 * k], [cx + sx * 0.05 * k, -0.06 * k, -0.02 * k]], 0.012 * k, 16), toon(INK), sh);
+  } else if (fam === 'energy') {
+    // a capacitor shoulder: a domed cowl, a tall fin with a glowing edge standing off the top, and a ring of light
+    // round the arm root where the power runs down to the weapon
+    mesh(profile('sh-ecowl' + kk, 0.1 * k, [[-0.072 * k, 0.0], ['q', -0.072 * k, 0.074 * k, 0.0, 0.078 * k], ['q', 0.072 * k, 0.074 * k, 0.072 * k, 0.0], [0.062 * k, -0.06 * k], [-0.062 * k, -0.06 * k]], 0.012), toon(tc.main), sh, [cx, 0.0, 0]);
+    mesh(profile('sh-efin' + kk, 0.016, [[-0.05 * k, 0.05 * k], [0.03 * k, 0.05 * k], [0.0, 0.16 * k], [-0.04 * k, 0.15 * k]], 0.004), toon(tc.second), sh, [cx + sx * 0.03 * k, 0.0, 0], [0, 0, sx * -0.3]);
+    mesh(box(0.005, 0.1 * k, 0.005), glow(tc.glow || tc.eye), sh, [cx + sx * 0.062 * k, 0.1 * k, -0.01 * k], [0, 0, sx * -0.3], flat);
+    mesh(tor(0.052 * k, 0.005), glow(tc.glow || tc.eye), sh, [cx + sx * 0.02 * k, -0.04 * k, 0], [0, Math.PI / 2, 0], flat);
+  } else if (fam === 'mount') {
+    // a weapons mount: no pauldron, a low armoured saddle across the shoulder carrying a turret ring for the launcher
+    // that sits on top, braced down the outside
+    mesh(profile('sh-saddle' + kk, 0.12 * k, [[-0.08 * k, 0.05 * k], [0.08 * k, 0.05 * k], [0.09 * k, 0.03 * k], [0.07 * k, -0.04 * k], [-0.07 * k, -0.04 * k], [-0.09 * k, 0.03 * k]], 0.01), toon(tc.main), sh, [cx, 0.0, 0]);
+    mesh(turned('sh-ring' + kk, [[0.0, 0.0], [0.05 * k, 0.0], [0.05 * k, 0.012 * k], [0.04 * k, 0.02 * k], [0.0, 0.02 * k]], 32), toon(tc.dark), sh, [sx * 0.01, 0.05 * k, -0.02], [-Math.PI / 2, 0, 0]);
+    mesh(profile('sh-brace' + kk, 0.014, [[-0.05 * k, 0.04 * k], [0.05 * k, 0.04 * k], [0.03 * k, -0.08 * k], [-0.03 * k, -0.08 * k]], 0.004), toon(tc.second), sh, [cx + sx * 0.062 * k, 0.0, 0]);
+    mesh(box(0.09 * k, 0.01, 0.12 * k), toon(tc.accent), sh, [cx, 0.052 * k, 0.06 * k], null, flat);
+  } else if (fam === 'melee') {
+    // a duellist's pauldron: two swept plates raked up and back with a horn standing off the outer edge
+    mesh(profile('sh-mel1' + kk, 0.12 * k, [[-0.085 * k, -0.03 * k], [0.075 * k, -0.03 * k], [0.095 * k, 0.03 * k], [0.03 * k, 0.09 * k], [-0.085 * k, 0.07 * k]], 0.01), toon(tc.main), sh, [cx, 0.0, 0], [0, 0, sx * -0.25]);
+    mesh(profile('sh-mel2' + kk, 0.06 * k, [[-0.07 * k, 0.0], [0.05 * k, 0.0], [0.07 * k, 0.04 * k], [0.02 * k, 0.08 * k], [-0.07 * k, 0.06 * k]], 0.006), toon(tc.second), sh, [cx + sx * 0.05 * k, 0.0, 0], [0, 0, sx * -0.45]);
+    mesh(turned('sh-horn' + kk, [[0.0, 0.0], [0.016 * k, 0.0], [0.0, 0.09 * k]], 12), toon(tc.trim), sh, [cx + sx * 0.06 * k, 0.07 * k, -0.02 * k], [-Math.PI / 2 + 0.3, sx * 0.6, 0]);
+  } else if (fam === 'guard') {
+    // a shield-bearer's shoulder, after the Dreadnought: a heavy drum housing chamfered at both rims, a bolted round
+    // plate on its outer face, and a domed armour cap with a brass edge strip
+    mesh(turned('sh-gdrum' + kk, [[0.0, -0.055 * k], [0.072 * k, -0.055 * k], [0.09 * k, -0.037 * k], [0.09 * k, 0.037 * k], [0.072 * k, 0.055 * k], [0.0, 0.055 * k]], 40), toon(tc.dark), sh, [cx, 0.0, 0], [0, Math.PI / 2, 0]);
+    mesh(turned('sh-gplate' + kk, [[0.0, 0.0], [0.06 * k, 0.0], [0.06 * k, 0.008], [0.05 * k, 0.016], [0.0, 0.016]], 40), toon(tc.second), sh, [cx + sx * 0.054 * k, 0.0, 0], [0, sx * Math.PI / 2, 0]);
+    for (let i = 0; i < 8; i++) { const a2 = i / 8 * Math.PI * 2; mesh(cyl(0.006, 0.006, 0.008, 6), toon(tc.metal), sh, [cx + sx * 0.072 * k, Math.cos(a2) * 0.046 * k, Math.sin(a2) * 0.046 * k], [0, 0, Math.PI / 2], flat); }
+    mesh(profile('sh-gcap' + kk, 0.15 * k, [[-0.12 * k, 0.03 * k], ['q', -0.11 * k, 0.13 * k, 0.0, 0.135 * k], ['q', 0.11 * k, 0.13 * k, 0.12 * k, 0.03 * k], [0.1 * k, 0.0], [-0.1 * k, 0.0]], 0.012), toon(tc.main), sh, [cx + sx * 0.01 * k, 0.03 * k, 0]);
+    mesh(profile('sh-gstrip' + kk, 0.155 * k, [[-0.122 * k, 0.03 * k], [0.122 * k, 0.03 * k], [0.104 * k, 0.012 * k], [-0.104 * k, 0.012 * k]], 0.004), toon(tc.accent), sh, [cx + sx * 0.01 * k, 0.03 * k, 0]);
   } else {
-    // large: smooth cowl; medium: tall fin; small: glowing edge
-    mesh(sph(0.065 * k, 10), toon(tc.main), sh, [sx * 0.015, 0.02, 0]);
-    mesh(wedge(0.018, 0.16, 0.07, 0.4, 0.6), toon(tc.second), sh, [sx * 0.07, 0.1, -0.04], [0, 0, sx * -0.35]);
-    mesh(box(0.005, 0.13, 0.005), glow(tc.glow), sh, [sx * 0.08, 0.1, -0.003], [0, 0, sx * -0.35], flat);
-    mesh(tor(0.06 * k, 0.005), glow(tc.glow), sh, [sx * 0.03, 0.02, 0], [0, Math.PI / 2, 0], flat);
+    // a utility shoulder: a squat block in hazard stripes with a warning light and a feed hose running down the back
+    mesh(profile('sh-tool' + kk, 0.1 * k, [[-0.06 * k, 0.055 * k], [0.06 * k, 0.055 * k], [0.072 * k, 0.03 * k], [0.068 * k, -0.06 * k], [-0.068 * k, -0.06 * k], [-0.072 * k, 0.03 * k]], 0.01), toon(tc.main), sh, [cx, 0.0, 0]);
+    for (let i = 0; i < 4; i++) mesh(box(0.012, 0.03 * k, 0.026 * k), toon(i % 2 ? INK : KIT.orange), sh, [cx + sx * 0.051 * k, -0.01 * k, (-0.045 + i * 0.03) * k], [0.6, 0, 0], flat);
+    mesh(sph(0.012 * k, 10), glow(KIT.orange), sh, [cx, 0.066 * k, -0.03 * k], null, flat);
+    mesh(tube('sh-hose' + kk + sx, [[cx, 0.04 * k, -0.06 * k], [cx + sx * 0.02 * k, 0.0, -0.09 * k], [cx + sx * 0.03 * k, -0.07 * k, -0.06 * k]], 0.009 * k, 16), toon(INK), sh);
   }
 }
 
@@ -896,67 +1243,88 @@ function buildHead(hd, tc, style) {
     vents(hd, toon(tc.dark), 4, 0.07, 0.011, [0, 0.074, 0.02], [-0.6, 0, 0]);
     mesh(cyl(0.006, 0.006, 0.08, 5), toon(INK), hd, [0.055, 0.1, -0.04]);
   } else {
-    // large: ovoid sensor head; medium: crest fin and collar; small: mono-eye on its rail, whiskers
-    mesh(sph(0.06, 14), toon(tc.main), hd, [0, 0.05, 0]);
-    mesh(box(0.11, 0.028, 0.032), toon(tc.dark), hd, [0, 0.05, 0.046]);
-    mesh(wedge(0.014, 0.07, 0.08, 0.3, 0.5), toon(tc.second), hd, [0, 0.115, -0.01]);
-    mesh(tor(0.06, 0.008), toon(tc.accent), hd, [0, 0.0, 0], [Math.PI / 2, 0, 0], flat);
-    for (const sx of [-1, 1]) mesh(cyl(0.003, 0.003, 0.06, 4), glow(tc.glow), hd, [sx * 0.05, 0.08, 0.02], [0, 0, sx * 0.6], flat);
-    return mesh(sph(0.013, 8), glow(tc.eye), hd, [0, 0.05, 0.064], null, flat);
+    // after the Zaku II: a domed helmet with a dark visor slot running round it, the mono-eye riding a rail inside the
+    // slot, a crest fin on top and two cheek pipes running down to the collar
+    mesh(turned('ex-dome', [[0.0, -0.012], [0.058, -0.012], [0.064, 0.012], [0.062, 0.05], [0.05, 0.08], [0.026, 0.096], [0.0, 0.1]], 36), toon(tc.main), hd, [0, 0.0, 0], [-Math.PI / 2, 0, 0]);
+    mesh(turned('ex-visor', [[0.055, 0.028], [0.066, 0.03], [0.066, 0.054], [0.055, 0.056]], 36), toon(tc.dark), hd, [0, 0.0, 0], [-Math.PI / 2, 0, 0]);
+    mesh(profile('ex-crest', 0.012, [[-0.05, 0.09], [0.0, 0.112], [0.036, 0.1], [-0.02, 0.082]], 0.003), toon(tc.second), hd);
+    for (const sx of [-1, 1]) mesh(tube('ex-cheek' + sx, [[sx * 0.03, 0.0, 0.05], [sx * 0.05, -0.02, 0.04], [sx * 0.06, -0.04, 0.02]], 0.008, 12), toon(tc.dark), hd);
+    return mesh(sph(0.012, 10), glow(tc.eye), hd, [0, 0.042, 0.064], null, flat);
   }
   return null;
 }
 
-function buildChest(frame, tc, style, fid, w, h, dp, cy) {
-  const big = fid === 't_heavy' || fid === 't_fortress' || fid === 's_frame';
+function buildChest(frame, tc, style, fid, w, h, dp, cy, legKind) {
   // waist: a medium joint block under every chest
-  mesh(wedge(w * 0.5, 0.09, dp * 0.75, 1.2, 1.1), toon(tc.dark), frame, [0, 0.045, 0]);
+  if (style !== 'armored') mesh(wedge(w * 0.5, 0.09, dp * 0.75, 1.2, 1.1), toon(tc.dark), frame, [0, 0.045, 0]);
   if (style === 'assault') {
-    // large: V-shaped chest, broad at the shoulders and narrow at the waist
-    mesh(wedge(w * 0.62, h, dp, 1.45, 1.1), toon(tc.main), frame, [0, cy, 0]);
-    // medium: red chest plates and black collar
-    for (const sx of [-1, 1]) mesh(wedge(w * 0.4, h * 0.55, dp * 0.22, 1.2, 1), toon(tc.second), frame, [sx * w * 0.2, cy + h * 0.14, dp * 0.5], [0, 0, sx * 0.18]);
-    mesh(box(w * 0.42, h * 0.16, dp * 0.6), toon(tc.accent), frame, [0, cy + h * 0.48, -dp * 0.05]);
-    // small: yellow intakes, vents and a centre stripe
-    for (const sx of [-1, 1]) vents(frame, toon(tc.trim), 3, w * 0.14, 0.02, [sx * w * 0.3, cy - h * 0.2, dp * 0.47]);
-    mesh(box(w * 0.08, h * 0.5, 0.012), toon(tc.accent), frame, [0, cy + h * 0.05, dp * 0.6], null, flat);
-    // Gundam skirt armour: two front plates and a side plate each side, hanging from the waist over the hips
+    // after the RX-78-2: a broad upper chest with rounded shoulders that tucks in under the pecs, a raised chest
+    // block in the second colour with two yellow vent grilles, a narrow dark abdomen with the cockpit hatch, a
+    // waist belt with its buckle, and the front and side skirts over the hips
+    const K = [w, h, dp].map(v => v.toFixed(3)).join();
+    mesh(slab('as-chest' + K, dp, [[-w * 0.4, h * 0.5], [w * 0.4, h * 0.5], ['q', w * 0.5, h * 0.5, w * 0.5, h * 0.38], [w * 0.46, h * 0.02], ['q', w * 0.44, -h * 0.12, w * 0.3, -h * 0.12], [-w * 0.3, -h * 0.12], ['q', -w * 0.44, -h * 0.12, -w * 0.46, h * 0.02], [-w * 0.5, h * 0.38], ['q', -w * 0.5, h * 0.5, -w * 0.4, h * 0.5]], 0.012), toon(tc.main), frame, [0, cy, 0]);
+    mesh(slab('as-plate' + K, 0.04, [[-w * 0.34, h * 0.44], [w * 0.34, h * 0.44], ['q', w * 0.43, h * 0.44, w * 0.42, h * 0.32], [w * 0.37, h * 0.04], ['q', w * 0.35, -h * 0.05, w * 0.25, -h * 0.05], [-w * 0.25, -h * 0.05], ['q', -w * 0.35, -h * 0.05, -w * 0.37, h * 0.04], [-w * 0.42, h * 0.32], ['q', -w * 0.43, h * 0.44, -w * 0.34, h * 0.44]], 0.008), toon(tc.second), frame, [0, cy, dp * 0.5]);
     for (const sx of [-1, 1]) {
-      mesh(wedge(w * 0.32, h * 0.5, dp * 0.14, 1.15, 1), toon(tc.main), frame, [sx * w * 0.19, -h * 0.12, dp * 0.42], [0.12, 0, 0]);
-      mesh(box(w * 0.2, h * 0.07, dp * 0.15), toon(tc.second), frame, [sx * w * 0.19, -h * 0.3, dp * 0.47], null, flat);
-      mesh(wedge(dp * 0.14, h * 0.48, dp * 0.6, 1, 1.1), toon(tc.main), frame, [sx * w * 0.5, -h * 0.1, 0], [0, 0, sx * -0.12]);
+      mesh(slab('as-vent' + K, 0.016, [[-w * 0.1, h * 0.1], [w * 0.1, h * 0.1], [w * 0.09, -h * 0.1], [-w * 0.1, -h * 0.1]], 0.003), toon(tc.trim), frame, [sx * w * 0.19, cy + h * 0.24, dp * 0.5 + 0.022]);
+      for (let i = 0; i < 4; i++) mesh(box(w * 0.16, 0.007, 0.006), toon(INK), frame, [sx * w * 0.19, cy + h * 0.165 + i * h * 0.05, dp * 0.5 + 0.031], null, flat);
+    }
+    mesh(slab('as-abs' + K, dp * 0.78, [[-w * 0.3, -h * 0.08], [w * 0.3, -h * 0.08], [w * 0.24, -h * 0.5], [-w * 0.24, -h * 0.5]], 0.01), toon(tc.accent), frame, [0, cy, 0]);
+    mesh(slab('as-hatch' + K, 0.026, [[-w * 0.12, -h * 0.14], [w * 0.12, -h * 0.14], ['q', w * 0.13, -h * 0.38, 0, -h * 0.43], ['q', -w * 0.13, -h * 0.38, -w * 0.12, -h * 0.14]], 0.006), toon(tc.second), frame, [0, cy, dp * 0.39]);
+    mesh(slab('as-belt' + K, dp * 0.86, [[-w * 0.33, 0.05], [w * 0.33, 0.05], ['q', w * 0.36, 0.05, w * 0.36, 0.03], [w * 0.33, 0.0], [-w * 0.33, 0.0], [-w * 0.36, 0.03], ['q', -w * 0.36, 0.05, -w * 0.33, 0.05]], 0.008), toon(tc.main), frame, [0, 0.035, 0]);
+    mesh(slab('as-buckle' + K, 0.02, [[-w * 0.07, 0.045], [w * 0.07, 0.045], [0, -0.005]], 0.004), toon(tc.trim), frame, [0, 0.035, dp * 0.44]);
+    for (const sx of [-1, 1]) {
+      mesh(slab('as-skirt' + K, 0.03, [[-w * 0.14, 0], [w * 0.14, 0], [w * 0.13, -h * 0.42], ['q', w * 0.1, -h * 0.5, 0, -h * 0.5], [-w * 0.13, -h * 0.42]], 0.006), toon(tc.main), frame, [sx * w * 0.17, 0.04, dp * 0.42], [0.12, 0, 0]);
+      mesh(box(w * 0.1, h * 0.1, 0.012), toon(tc.trim), frame, [sx * w * 0.17, 0.04 - h * 0.2, dp * 0.42 + 0.034], [0.12, 0, 0], flat);
+      mesh(profile('as-sskirt' + K, 0.03, [[-dp * 0.3, 0], [dp * 0.3, 0], [dp * 0.26, -h * 0.4], ['q', 0, -h * 0.46, -dp * 0.22, -h * 0.4]], 0.006), toon(tc.main), frame, [sx * w * 0.4, 0.04, 0], [0, 0, sx * -0.12]);
     }
   } else if (style === 'armored') {
-    // large: a thick block with a belly plate
-    mesh(wedge(w, h, dp, 0.92, 0.92), toon(tc.main), frame, [0, cy, 0]);
-    mesh(wedge(w * 0.8, h * 0.3, dp * 0.9, 1.1, 1), toon(tc.second), frame, [0, cy - h * 0.4, 0.01]);
-    // medium: glacis slab across the chest, side bulkheads
-    mesh(wedge(w * 0.9, h * 0.5, dp * 0.22, 0.85, 0.6, -0.01), toon(tc.second), frame, [0, cy + h * 0.15, dp * 0.5]);
-    for (const sx of [-1, 1]) mesh(box(w * 0.08, h * 0.8, dp * 0.9), toon(tc.second), frame, [sx * w * 0.52, cy, 0]);
+    // after the Dreadnought: a hull with its corners cut off, wider at the shoulders than the waist, an armoured
+    // cowl across the top, bulkheads down each side and, on the front, the tall sarcophagus: an arched plate set in
+    // a brass frame with a dark inset down its middle
+    const K = [w, h, dp].map(v => v.toFixed(3)).join();
+    mesh(slab('ar-hull' + K, dp, [[-w * 0.42, h * 0.5], [w * 0.42, h * 0.5], [w * 0.5, h * 0.4], [w * 0.5, -h * 0.1], [w * 0.4, -h * 0.5], [-w * 0.4, -h * 0.5], [-w * 0.5, -h * 0.1], [-w * 0.5, h * 0.4]], 0.014), toon(tc.main), frame, [0, cy, 0]);
+    // the pelvis, after the Dreadnought: a ribbed waist joint under the hull, a chamfered pelvis block over the hip
+    // joints, and two armoured tassets hanging over the front of the thighs, trimmed in brass
+    mesh(turned('ar-joint' + K, [[0.0, 0.03], [w * 0.22, 0.03], [w * 0.25, 0.045], [w * 0.22, 0.06], [w * 0.25, 0.075], [w * 0.22, 0.09], [0.0, 0.09]], 24), toon(tc.dark), frame, null, [-Math.PI / 2, 0, 0]);
+    mesh(slab('ar-pelvis' + K, dp * 0.72, [[-w * 0.3, 0.05], [w * 0.3, 0.05], [w * 0.36, 0.01], [w * 0.33, -0.04], [-w * 0.33, -0.04], [-w * 0.36, 0.01]], 0.012), toon(tc.second), frame);
+    // tassets only where there are thighs to cover: tracks and a hover skirt carry the hull on a turret neck instead
+    if (legKind !== 'treads' && legKind !== 'hover') for (const sx of [-1, 1]) {
+      const ts = new T.Group(); ts.position.set(sx * w * 0.19, 0.04, dp * 0.36); ts.rotation.x = 0.14; frame.add(ts);
+      mesh(slab('ar-tasset' + K, 0.03, [[-w * 0.15, 0.0], [w * 0.15, 0.0], [w * 0.15, -h * 0.34], [w * 0.1, -h * 0.42], [-w * 0.1, -h * 0.42], [-w * 0.15, -h * 0.34]], 0.008), toon(tc.main), ts);
+      mesh(slab('ar-tstrip' + K, 0.034, [[-w * 0.15, -h * 0.34], [w * 0.15, -h * 0.34], [w * 0.1, -h * 0.42], [-w * 0.1, -h * 0.42]], 0.004), toon(tc.accent), ts);
+      rivets(ts, toon(tc.dark), [[-w * 0.09, -h * 0.08, 0.018], [w * 0.09, -h * 0.08, 0.018]]);
+    }
+    mesh(slab('ar-cowl' + K, dp * 1.06, [[-w * 0.36, h * 0.58], [w * 0.36, h * 0.58], [w * 0.44, h * 0.46], [-w * 0.44, h * 0.46]], 0.012), toon(tc.second), frame, [0, cy, 0]);
+    for (const sx of [-1, 1]) mesh(profile('ar-bulk' + K, w * 0.09, [[-dp * 0.45, h * 0.4], [dp * 0.4, h * 0.4], [dp * 0.52, h * 0.28], [dp * 0.52, -h * 0.28], [dp * 0.4, -h * 0.42], [-dp * 0.45, -h * 0.42]], 0.01), toon(tc.second), frame, [sx * w * 0.5, cy, 0]);
+    const sar = k => [[-w * 0.2 * k, h * 0.28 * k], ['q', -w * 0.2 * k, h * 0.46 * k, 0, h * 0.48 * k], ['q', w * 0.2 * k, h * 0.46 * k, w * 0.2 * k, h * 0.28 * k], [w * 0.2 * k, -h * 0.3 * k], [0, -h * 0.46 * k], [-w * 0.2 * k, -h * 0.3 * k]];
+    mesh(slab('ar-sarf' + K, 0.03, sar(1.0), 0.008), toon(tc.accent), frame, [0, cy, dp * 0.5 + 0.008]);
+    mesh(slab('ar-sarp' + K, 0.03, sar(0.84), 0.008), toon(tc.second), frame, [0, cy, dp * 0.5 + 0.02]);
+    mesh(slab('ar-sari' + K, 0.02, [[-w * 0.07, h * 0.3], [w * 0.07, h * 0.3], [w * 0.07, -h * 0.24], [0, -h * 0.3], [-w * 0.07, -h * 0.24]], 0.004), toon(tc.dark), frame, [0, cy, dp * 0.5 + 0.034]);
+    mesh(box(w * 0.1, 0.012, 0.01), glow(tc.eye), frame, [0, cy + h * 0.24, dp * 0.5 + 0.046], null, flat);
     // small: hazard stripes, rivets, unit number plate
-    for (let i = 0; i < 4; i++) mesh(box(w * 0.08, h * 0.08, 0.012), toon(i % 2 ? tc.dark : tc.accent), frame, [-w * 0.3 + i * w * 0.08, cy - h * 0.32, dp * 0.47], [0, 0, 0.6], flat);
-    rivets(frame, toon(tc.dark), [[-w * 0.38, cy + h * 0.32, dp * 0.6], [w * 0.38, cy + h * 0.32, dp * 0.6], [-w * 0.38, cy - h * 0.02, dp * 0.6], [w * 0.38, cy - h * 0.02, dp * 0.6]]);
-    // dreadnought hull: a tall trapezoid sarcophagus plate, a vent grille above it and a grille under the belly
-    mesh(wedge(w * 0.62, h * 0.78, dp * 0.12, 0.72, 1), toon(tc.main), frame, [0, cy + h * 0.02, dp * 0.66]);
-    mesh(wedge(w * 0.42, h * 0.3, dp * 0.06, 0.7, 1), toon(tc.second), frame, [0, cy - h * 0.14, dp * 0.74]);
-    vents(frame, toon(tc.dark), 5, w * 0.3, h * 0.05, [0, cy + h * 0.3, dp * 0.73]);
-    for (let i = 0; i < 5; i++) mesh(box(0.012, h * 0.16, dp * 0.3), toon(tc.dark), frame, [(-2 + i) * w * 0.1, cy - h * 0.55, dp * 0.36], null, flat);
-    mesh(box(w * 0.18, h * 0.12, 0.012), toon(tc.trim), frame, [w * 0.22, cy - h * 0.32, dp * 0.47], null, flat);
+    for (let i = 0; i < 4; i++) mesh(box(w * 0.06, h * 0.08, 0.012), toon(i % 2 ? tc.dark : tc.accent), frame, [-w * 0.39 + i * w * 0.06, cy - h * 0.3, dp * 0.5], [0, 0, 0.6], flat);
+    rivets(frame, toon(tc.dark), [[-w * 0.32, cy + h * 0.32, dp * 0.5], [w * 0.32, cy + h * 0.32, dp * 0.5], [-w * 0.32, cy - h * 0.02, dp * 0.5], [w * 0.32, cy - h * 0.02, dp * 0.5]]);
+    mesh(box(w * 0.14, h * 0.1, 0.012), toon(tc.trim), frame, [w * 0.32, cy - h * 0.3, dp * 0.5], null, flat);
   } else {
-    // large: a sculpted, rounded shell, wider at the chest
-    const shell = mesh(sph(w * 0.5, 14), toon(tc.main), frame, [0, cy + h * 0.05, 0]); shell.scale.set(1, h / w * 1.05, dp / w * 1.1);
-    mesh(cyl(w * 0.2, w * 0.3, h * 0.35, 8), toon(tc.dark), frame, [0, cy - h * 0.36, 0]);
-    // medium: rib plates sweeping round the chest
-    for (const sx of [-1, 1]) mesh(wedge(w * 0.36, h * 0.18, dp * 0.25, 0.6, 1), toon(tc.second), frame, [sx * w * 0.2, cy - h * 0.08, dp * 0.36], [0, sx * 0.4, sx * 0.25]);
-    // medium: violet cowl and a silver collar ring
-    mesh(wedge(w * 0.75, h * 0.3, dp * 0.4, 0.7, 0.8), toon(tc.second), frame, [0, cy + h * 0.32, dp * 0.25]);
-    mesh(tor(w * 0.22, 0.012), toon(tc.accent), frame, [0, cy + h * 0.5, 0], [Math.PI / 2, 0, 0], flat);
-    // small: glowing seams and sensor dots
-    for (const sx of [-1, 1]) mesh(box(w * 0.04, h * 0.8, 0.01), glow(tc.glow), frame, [sx * w * 0.22, cy, dp * 0.42], [0, 0, -sx * 0.2], flat);
-    for (const sx of [-1, 0, 1]) mesh(sph(0.009, 6), glow(tc.glow), frame, [sx * w * 0.12, cy - h * 0.34, dp * 0.4], null, flat);
+    // after the Zaku II: a rounded hull that bulges at the chest, a chest plate in the second colour, a high collar
+    // the head sits down inside, power pipes curving from the collar round to the chest sides, a turned dark waist
+    // and a flared skirt
+    const K = [w, h, dp].map(v => v.toFixed(3)).join();
+    mesh(slab('ex-hull' + K, dp, [[-w * 0.3, h * 0.5], [w * 0.3, h * 0.5], ['q', w * 0.5, h * 0.48, w * 0.5, h * 0.15], ['q', w * 0.48, -h * 0.3, w * 0.3, -h * 0.42], [-w * 0.3, -h * 0.42], ['q', -w * 0.48, -h * 0.3, -w * 0.5, h * 0.15], ['q', -w * 0.5, h * 0.48, -w * 0.3, h * 0.5]], 0.014), toon(tc.main), frame, [0, cy, 0]);
+    mesh(slab('ex-plate' + K, 0.03, [[-w * 0.3, h * 0.36], [w * 0.3, h * 0.36], ['q', w * 0.42, h * 0.16, w * 0.28, -h * 0.22], [-w * 0.28, -h * 0.22], ['q', -w * 0.42, h * 0.16, -w * 0.3, h * 0.36]], 0.008), toon(tc.second), frame, [0, cy, dp * 0.5 + 0.004]);
+    mesh(turned('ex-collar' + K, [[w * 0.18, 0.0], [w * 0.34, 0.0], [w * 0.38, h * 0.14], [w * 0.33, h * 0.3], [w * 0.24, h * 0.3]], 36), toon(tc.second), frame, [0, cy + h * 0.44, 0], [-Math.PI / 2, 0, 0]);
+    for (const sx of [-1, 1]) {
+      const pipe = [[sx * w * 0.16, cy + h * 0.6, dp * 0.3], [sx * w * 0.34, cy + h * 0.46, dp * 0.66], [sx * w * 0.47, cy + h * 0.14, dp * 0.54], [sx * w * 0.5, cy - h * 0.12, dp * 0.2]];
+      mesh(tube('ex-pipe' + K + sx, pipe, 0.016, 32), toon(tc.dark), frame);
+      // ribbed like a hose: rings along the pipe
+      const cv = new T.CatmullRomCurve3(pipe.map(q => new T.Vector3(q[0], q[1], q[2])));
+      for (let i = 1; i < 8; i++) { const t = i / 8, pt = cv.getPoint(t), tg = cv.getTangent(t); const r = mesh(tor(0.018, 0.004), toon(tc.metal), frame, [pt.x, pt.y, pt.z], null, flat); r.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), tg); }
+    }
+    mesh(turned('ex-waist' + K, [[0.0, 0.0], [w * 0.26, 0.0], [w * 0.3, h * 0.05], [w * 0.3, h * 0.2], [w * 0.24, h * 0.25], [0.0, h * 0.25]], 32), toon(tc.dark), frame, [0, 0.03, 0], [-Math.PI / 2, 0, 0]);
+    mesh(slab('ex-skirt' + K, 0.03, [[-w * 0.3, 0], [w * 0.3, 0], [w * 0.38, -h * 0.34], ['q', 0, -h * 0.42, -w * 0.38, -h * 0.34]], 0.006), toon(tc.main), frame, [0, 0.07, dp * 0.4], [0.16, 0, 0]);
+    for (const sx of [-1, 1]) mesh(profile('ex-sskirt' + K, 0.03, [[-dp * 0.3, 0], [dp * 0.3, 0], [dp * 0.34, -h * 0.36], ['q', 0, -h * 0.42, -dp * 0.3, -h * 0.36]], 0.006), toon(tc.main), frame, [sx * w * 0.42, 0.07, 0], [0, 0, sx * -0.16]);
+    for (const sx of [-1, 1]) mesh(sph(0.009, 8), glow(tc.glow), frame, [sx * w * 0.12, cy - h * 0.14, dp * 0.5 + 0.022], null, flat);
   }
-  // heavier frames add a second layer of plate
-  if (big) mesh(wedge(w * 0.9, h * 0.26, dp * 0.18, 0.9, 1), toon(style === 'armored' ? tc.accent : tc.second), frame, [0, cy - h * 0.26, dp * 0.58]);
   if (fid === 't_skirm' || fid === 't_light') mesh(box(w * 0.5, 0.012, dp * 0.4), toon(tc.trim), frame, [0, cy + h * 0.52, 0], null, flat);
   if (fid === 's_frame') mesh(cyl(0.05, 0.05, 0.02, 6), toon(tc.trim), frame, [0, cy - h * 0.05, dp * 0.68], [Math.PI / 2, 0, 0]);
   if (fid === 't_proto') mesh(box(0.016, h * 0.9, 0.01), glow(tc.glow), frame, [0, cy, -dp * 0.52], null, flat);
@@ -985,14 +1353,10 @@ function buildSignature(frame, tc, style, fid, w, h, dp, cy, R) {
     else mesh(sph(0.1, 14), M(tc.second), dish).scale.set(1, 1, 0.3);
     mesh(sph(0.018, 6), glow(tc.eye), dish, [0, 0, 0.035], null, flat);
     mesh(cyl(0.005, 0.005, h * 1.5, 5), M(INK), frame, [w * 0.32, cy + h * 1.1, -dp * 0.3], [0, 0, -0.18], flat);
-  } else if (fid === 't_assault') {
-    // forward chest blades: a striker's ram
-    for (const sx of [-1, 1]) sigPlate(style, w * 0.14, h * 0.75, dp * 0.55, M(tc.trim), frame, [sx * w * 0.34, cy + h * 0.05, dp * 0.7], [0.55, 0, sx * -0.35]);
   } else if (fid === 't_heavy') {
     // a thick armoured collar the head sinks into, and a sloped front glacis
     sigPlate(style, w * 1.1, h * 0.26, dp * 1.12, M(tc.second), frame, [0, cy + h * 0.5, 0]);
     for (const sx of [-1, 1]) sigPlate(style, w * 0.16, h * 0.42, dp * 0.9, M(tc.main), frame, [sx * w * 0.38, cy + h * 0.72, -dp * 0.05]);
-    sigPlate(style, w * 0.95, h * 0.6, dp * 0.28, M(tc.main), frame, [0, cy - h * 0.02, dp * 0.62], [0.3, 0, 0]);
   } else if (fid === 't_fortress') {
     // no head: a cockpit slit in a raised roof, a bulwark apron over the hips, twin smokestacks
     sigPlate(style, w * 1.02, h * 0.45, dp * 1.02, M(tc.main), frame, [0, cy + h * 0.68, 0]);
@@ -1110,7 +1474,7 @@ function buildMech(m, owner, doctrine, opt) {
   if (!S.torso) {
     if (opt.ghosts) { mesh(box(w, h + 0.08, dp), GHOST, frame, [0, cy, 0], null, flat); mesh(box(0.1, 0.09, 0.1), GHOST, frame, [0, 0.08 + h + 0.05, 0], null, flat); tag(frame, 'torso'); }
   } else {
-    buildChest(frame, tc, style, fid, w, h, dp, cy);
+    buildChest(frame, tc, style, fid, w, h, dp, cy, R.kind);
     buildSignature(frame, tc, style, fid, w, h, dp, cy, R);
     const htype = HEAD_TYPE[fid];
     if (htype !== 'none') {
@@ -1124,7 +1488,7 @@ function buildMech(m, owner, doctrine, opt) {
   }
   // core, set into the chest behind a ring
   if (S.core || opt.ghosts) {
-    const cg = new T.Group(); cg.position.set(0, cy, dp / 2 + 0.016); torso.add(cg);
+    const cg = new T.Group(); cg.position.set(0, cy, dp / 2 + (style === 'assault' ? 0.046 : style === 'armored' ? 0.058 : 0.036)); torso.add(cg);
     if (S.core) {
       mesh(tor(0.034, 0.01), toon(tc.dark), cg, null, null, flat);
       for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; mesh(box(0.012, 0.012, 0.012), toon(tc.trim), cg, [Math.cos(a) * 0.044, Math.sin(a) * 0.044, 0], null, flat); }
@@ -1134,7 +1498,7 @@ function buildMech(m, owner, doctrine, opt) {
     tag(cg, 'core');
   }
   if (!S.core && S.torso) {
-    const ag = new T.Group(); ag.position.set(0, cy, dp / 2 + 0.018); torso.add(ag);
+    const ag = new T.Group(); ag.position.set(0, cy, dp / 2 + (style === 'assault' ? 0.048 : style === 'armored' ? 0.06 : 0.038)); torso.add(ag);
     mesh(new T.CircleGeometry(0.04, 18), glow(0x07090c), ag, null, null, flat);
     R.coreAlarm = mesh(tor(0.05, 0.008), glow(0xff3b30, 0.9), ag, null, null, flat);
   }
@@ -1142,7 +1506,8 @@ function buildMech(m, owner, doctrine, opt) {
   for (const [key, sx] of [['armL', -1], ['armR', 1]]) {
     const sh = new T.Group(); sh.position.set(sx * (w / 2 + 0.055), cy + h * 0.3, 0); torso.add(sh);
     const inst = S[key];
-    if (S.torso) shoulderArmor(sh, sx, tc, style, fid === 't_skirm' ? k * 0.6 : k);
+    const sk = fid === 't_skirm' ? k * 0.6 : k;
+    if (S.torso) shoulderSocket(sh, sx, tc, sk);
     if (!inst) {
       if (opt.ghosts) { mesh(box(0.065, 0.15, 0.075), GHOST, sh, [0, -0.075, 0], null, flat); mesh(box(0.075, 0.075, 0.14), GHOST, sh, [0, -0.15, 0.07], null, flat); }
       tag(sh, key);
@@ -1154,9 +1519,11 @@ function buildMech(m, owner, doctrine, opt) {
       continue;
     }
     const def = Dd[inst.id], cat = def.cat;
+    armShoulder(sh, sx, tc, style, inst.id, sk);
     const ak = style === 'armored' ? 1.45 : style === 'experimental' ? 0.85 : 1;
     const arm = new T.Group(); sh.add(arm);
-    mesh(wedge(0.065 * ak, 0.15, 0.075 * ak, 1.15, 1.1), toon(style === 'experimental' ? tc.second : tc.main), arm, [0, -0.075, 0]);
+    if (style === 'assault') mesh(profile('as-uarm', 0.064, [[-0.034, 0.0], [0.034, 0.0], ['q', 0.04, -0.075, 0.034, -0.15], [-0.034, -0.15], ['q', -0.04, -0.075, -0.034, 0.0]], 0.012), toon(tc.main), arm);
+    else mesh(wedge(0.065 * ak, 0.15, 0.075 * ak, 1.15, 1.1), toon(style === 'experimental' ? tc.second : tc.main), arm, [0, -0.075, 0]);
     mesh(cyl(0.007, 0.007, 0.12, 5), toon(tc.metal), arm, [sx * 0.035 * ak, -0.08, -0.02], null, flat);
     // Assault stands at ease: arms hang a little out from the body, elbows slightly bent, weapons held low;
     // the others keep their forearms raised, weapons forward
@@ -1164,7 +1531,8 @@ function buildMech(m, owner, doctrine, opt) {
     if (style === 'assault') arm.rotation.z = sx * 0.14;
     const el = new T.Group(); el.position.y = -0.15; el.rotation.x = rest; arm.add(el);
     mesh(sph(0.036 * ak, 8), toon(tc.dark), el, [0, 0, 0]);
-    mesh(wedge(0.08 * ak, 0.14, 0.09 * ak, 1.2, 1.15), toon(style === 'armored' ? tc.second : tc.main), el, [0, -0.075, 0]);
+    if (style === 'assault') mesh(profile('as-farm', 0.082, [[-0.038, -0.01], [0.036, -0.01], ['q', 0.054, -0.07, 0.05, -0.14], [-0.046, -0.145], ['q', -0.054, -0.07, -0.038, -0.01]], 0.012), toon(tc.main), el);
+    else mesh(wedge(0.08 * ak, 0.14, 0.09 * ak, 1.2, 1.15), toon(style === 'armored' ? tc.second : tc.main), el, [0, -0.075, 0]);
     mesh(wedge(0.07 * ak, 0.09, 0.022, 1.1, 1), toon(style === 'assault' ? tc.second : style === 'armored' ? tc.accent : tc.accent), el, [sx * 0.0, -0.07, 0.048 * ak]);
     mesh(box(0.05 * ak, 0.04, 0.05 * ak), toon(tc.dark), el, [0, -0.152, 0]);
     if (style === 'experimental') mesh(box(0.006, 0.1, 0.006), glow(tc.glow), el, [sx * 0.04, -0.07, 0.02], null, flat);
@@ -1189,7 +1557,7 @@ function buildMech(m, owner, doctrine, opt) {
     if (isHurt(inst)) R.sparks.push(sh);
   }
   // backpack and aux systems
-  const bp = new T.Group(); bp.position.set(0, cy + h * 0.1, -dp / 2 - 0.04); torso.add(bp);
+  const bp = new T.Group(); bp.position.set(0, cy + h * 0.1, -dp / 2 - 0.02); torso.add(bp);
   if (S.torso) {
     buildPack(bp, tc, style, w, h, R);
     const n = S.torso ? (Dd[S.torso.id].auxSlots || 0) : 0;
@@ -1207,9 +1575,14 @@ function buildMech(m, owner, doctrine, opt) {
     root.updateMatrixWorld(true);
     const ls = new T.Vector3(), fs2 = new T.Vector3();
     new T.Box3().setFromObject(legsG).getSize(ls); new T.Box3().setFromObject(frame).getSize(fs2);
-    const upper = 0.08 + h + 0.1;
-    let grow = R.kind === 'treads' ? (fs2.x * 1.55) / Math.max(0.01, ls.x) : style === 'assault' ? (upper * 1.15) / R.hipY : style === 'armored' ? (fs2.x * 1.1) / Math.max(0.01, ls.x) : (fs2.x * 0.95) / Math.max(0.01, ls.x);
-    grow = Math.min(1.6, Math.max(0.8, grow));
+    // every chassis stands on the same legs, in proportion: the doctrine sizes its legs for the reference frame (the
+    // Assault Chassis), then they grow or shrink with the body's overall size, width and height together, so a broad
+    // hull never ends up on stubby legs and a slim one never on stilts
+    const [rw, rh] = FRAME_DIM.t_assault, refH = rh * (h / h0), refW = rw * (w / w0) * 1.05;
+    const size = (w0 + h0) / (rw + rh);
+    // splayed quad legs and the hover bell are far wider than the body by design, so they keep their own build
+    let grow = R.kind === 'treads' ? (refW * 1.55) / Math.max(0.01, ls.x) : style === 'assault' ? ((0.08 + refH + 0.1) * 1.15) / R.hipY : R.kind === 'quad' || R.kind === 'hover' ? 1 : style === 'armored' ? (refW * 1.1) / Math.max(0.01, ls.x) : (refW * 0.95 * 1.25) / Math.max(0.01, ls.x);
+    grow = Math.min(1.8, Math.max(0.55, grow * size));
     // humanoid legs get longer, not much thicker: slim under a broad chest
     if (style === 'assault' && R.kind !== 'treads') legsG.scale.set(0.82 + (grow - 1) * 0.3, grow, 0.82 + (grow - 1) * 0.3); else legsG.scale.setScalar(grow);
     R.hipY *= grow; hips.position.y = R.hipY;
@@ -1600,50 +1973,65 @@ function groundDeco(p, busy) {
   // the old scuff marks stay as wear on the ground
   if (Math.random() < 0.3) mesh(box(q(rand(0.2, 0.5)), 0.005, 0.02), toon(BIO.scuff), g, [p.x + rand(-0.25, 0.25), 0.004, p.z + rand(-0.25, 0.25)], [0, rand(0, 3), 0], flat).userData.ground = true;
 }
+// a low-poly pine after stylised tree sets: a turned trunk and three faceted tiers, each a cone whose rim curls down
+// into a lip, stacked a little off true
+function pine(parent, x, z, sc, cols, snow) {
+  const tr = new T.Group(); tr.position.set(x, 0, z); tr.scale.setScalar(sc); tr.rotation.y = rand(0, 3); parent.add(tr);
+  mesh(turned('pn-trunk', [[0.0, 0.0], [0.045, 0.0], [0.035, 0.26], [0.0, 0.26]], 6), toon(0x6a4a32), tr, null, [-Math.PI / 2, 0, 0]);
+  [[0.2, 0.2, 0.34], [0.16, 0.4, 0.3], [0.11, 0.58, 0.26]].forEach(([r, y, h], i) => {
+    mesh(turned('pn-tier' + i, [[0.0, y + h], [r * 0.12, y + h * 0.9], [r * 0.85, y + 0.05], [r, y], [r * 0.7, y + 0.03], [0.0, y + 0.03]], 7), toon(cols[i]), tr, [rand(-0.01, 0.01), 0, rand(-0.01, 0.01)], [-Math.PI / 2, 0, i * 0.4]);
+    if (snow) mesh(turned('pn-snow' + i, [[0.0, y + h + 0.004], [r * 0.12, y + h * 0.9 + 0.004], [r * 0.45, y + h * 0.5], [0.0, y + h * 0.5]], 7), toon(0xffffff), tr, null, [-Math.PI / 2, 0, i * 0.4], flat);
+  });
+  return tr;
+}
+// a faceted boulder: a low-poly lump squashed and turned at random
+function boulder(parent, pos, r, col, squash) {
+  const m = mesh(geo('bldr', () => { const g = new T.DodecahedronGeometry(1, 0); g.userData.exact = true; return g; }), toon(col), parent, pos, [rand(0, 3), rand(0, 3), rand(0, 3)]);
+  m.scale.set(r * rand(0.9, 1.15), r * (squash || 0.65), r * rand(0.9, 1.15));
+  return m;
+}
 function buildRock(p, k) {
   const pg = propGroup(k, p);
   if (BIO.rock === 'trees') {
-    // a clump of conifers round a mossy boulder
-    mesh(sph(0.22, 8), toon(0x7d8078), pg, [0.16, 0.1, 0.18]).scale.set(1.2, 0.7, 1);
-    mesh(sph(0.1, 6), toon(0x6f9a52), pg, [0.2, 0.22, 0.14], null, flat).scale.y = 0.4;
-    for (const [x, z, sc] of [[-0.2, -0.18, 1.15], [0.2, -0.24, 0.9], [-0.24, 0.24, 0.8], [0.02, 0.02, 1.3]]) {
-      const tr = new T.Group(); tr.position.set(x + rand(-0.04, 0.04), 0, z + rand(-0.04, 0.04)); tr.scale.setScalar(sc * rand(0.9, 1.1)); tr.rotation.y = rand(0, 3); pg.add(tr);
-      mesh(cyl(0.035, 0.045, 0.24, 6), toon(0x6a4a32), tr, [0, 0.12, 0]);
-      mesh(cone(0.2, 0.34, 7), toon(0x3f6b3c), tr, [0, 0.36, 0]);
-      mesh(cone(0.155, 0.3, 7), toon(0x4a7a44), tr, [0, 0.56, 0]);
-      mesh(cone(0.1, 0.26, 7), toon(0x578a4e), tr, [0, 0.74, 0]);
-    }
+    // a clump of low-poly pines round a mossy boulder
+    boulder(pg, [0.16, 0.08, 0.18], 0.2, 0x7d8078, 0.6);
+    mesh(sph(0.1, 6), toon(0x6f9a52), pg, [0.2, 0.19, 0.14], null, flat).scale.y = 0.35;
+    for (const [x, z, sc] of [[-0.2, -0.18, 1.15], [0.2, -0.24, 0.9], [-0.24, 0.24, 0.8], [0.02, 0.02, 1.3]]) pine(pg, x + rand(-0.04, 0.04), z + rand(-0.04, 0.04), sc * rand(0.9, 1.1), [0x3f6b3c, 0x4a7a44, 0x578a4e]);
   } else if (BIO.rock === 'mesa') {
-    // a stack of weathered sandstone slabs with strata bands, and a cactus at its foot
-    const cols = [0xc98f58, 0xb97d49, 0xd6a36b, 0xa96f40];
+    // a sandstone mesa after stylised desert rock sets: turned strata, each one bulging out and tucking in again so
+    // the stack reads as eroded bands, with a cap rock overhanging the top and a cactus at its foot
+    const cols = [0xc98f58, 0xb97d49, 0xd6a36b, 0xa96f40, 0xc98f58];
     let y = 0;
-    [[0.74, 0.3, 0.7], [0.62, 0.26, 0.6], [0.5, 0.24, 0.5], [0.36, 0.2, 0.34]].forEach(([w, h, d], i) => {
-      mesh(wedge(w, h, d, 0.86, 0.86), toon(cols[i]), pg, [rand(-0.03, 0.03), y + h / 2, rand(-0.03, 0.03)], [0, rand(-0.25, 0.25), 0]);
-      mesh(box(w * 0.9, 0.018, d * 0.9), toon(0x8f5a33), pg, [0, y + 0.012, 0], [0, rand(-0.2, 0.2), 0], flat);
+    [[0.36, 0.26], [0.3, 0.22], [0.26, 0.2], [0.2, 0.18], [0.24, 0.07]].forEach(([r, h], i) => {
+      mesh(turned('ms-band' + i, [[0.0, 0.0], [r * 0.92, 0.0], [r, h * 0.3], [r * 1.02, h * 0.55], [r * 0.9, h * 0.85], [r * 0.82, h], [0.0, h]], 7), toon(cols[i]), pg, [rand(-0.02, 0.02), y, rand(-0.02, 0.02)], [-Math.PI / 2, 0, rand(0, 3)]);
       y += h;
     });
-    const cx = 0.34, cz = 0.34;
-    mesh(cyl(0.04, 0.045, 0.3, 8), toon(0x5f8a4c), pg, [cx, 0.15, cz]);
-    mesh(cyl(0.025, 0.025, 0.12, 6), toon(0x5f8a4c), pg, [cx + 0.07, 0.2, cz], [0, 0, 0.9]);
-    mesh(cyl(0.025, 0.025, 0.1, 6), toon(0x5f8a4c), pg, [cx + 0.11, 0.26, cz]);
-    for (let i = 0; i < 3; i++) mesh(box(q(rand(0.08, 0.14)), 0.06, q(rand(0.08, 0.12))), toon(cols[i]), pg, [rand(-0.4, 0.1), 0.03, rand(0.2, 0.42)], [0, rand(0, 3), 0]);
+    const cx = 0.36, cz = 0.34;
+    mesh(turned('ms-cactus', [[0.0, 0.0], [0.04, 0.0], [0.045, 0.24], [0.03, 0.3], [0.0, 0.31]], 8), toon(0x5f8a4c), pg, [cx, 0, cz], [-Math.PI / 2, 0, 0]);
+    mesh(tube('ms-arm', [[cx, 0.14, cz], [cx + 0.08, 0.15, cz], [cx + 0.1, 0.26, cz]], 0.022, 12), toon(0x5f8a4c), pg);
+    for (let i = 0; i < 3; i++) boulder(pg, [rand(-0.4, 0.1), 0.03, rand(0.24, 0.42)], q(rand(0.05, 0.08)), cols[i], 0.6);
   } else if (BIO.rock === 'ice') {
-    // jagged ice shards breaking out of a snow drift, with a frosted pine
+    // ice shards breaking out of a faceted rock bed in a snow drift, after stylised ice-crystal rocks, and a frosted pine
     mesh(sph(0.36, 10), toon(0xe9f1f7), pg, [0, 0, 0]).scale.set(1, 0.3, 1);
-    for (const [x, z, h, rr, tilt] of [[0, 0, 1.05, 0.2, 0.05], [-0.2, 0.12, 0.7, 0.15, 0.3], [0.2, -0.1, 0.8, 0.16, -0.28], [0.08, 0.24, 0.5, 0.12, 0.4], [-0.14, -0.22, 0.56, 0.12, -0.35]])
-      mesh(cone(rr, h, 5), toon(h > 0.75 ? 0x8fcdea : 0x6fb6dc), pg, [x, h / 2, z], [tilt, rand(0, 3), tilt * 0.6]);
-    const tr = new T.Group(); tr.position.set(-0.32, 0, -0.3); pg.add(tr);
-    mesh(cyl(0.03, 0.04, 0.2, 6), toon(0x5a4334), tr, [0, 0.1, 0]);
-    mesh(cone(0.16, 0.28, 7), toon(0x3d5f55), tr, [0, 0.3, 0]); mesh(cone(0.12, 0.24, 7), toon(0x47695f), tr, [0, 0.46, 0]);
-    mesh(cone(0.07, 0.1, 7), toon(0xffffff), tr, [0, 0.58, 0], null, flat);
+    boulder(pg, [0.02, 0.06, 0.0], 0.24, 0x6f7a86, 0.45);
+    for (const [x, z, h, rr, tilt] of [[0, 0, 1.0, 0.16, 0.05], [-0.2, 0.12, 0.66, 0.12, 0.35], [0.2, -0.1, 0.76, 0.13, -0.32], [0.08, 0.24, 0.48, 0.1, 0.45], [-0.14, -0.22, 0.54, 0.1, -0.4]])
+      mesh(turned('ic-shard' + h, [[0.0, 0.0], [rr, 0.0], [rr * 1.05, h * 0.55], [rr * 0.5, h * 0.85], [0.0, h]], 6), toon(h > 0.7 ? 0x8fcdea : 0x6fb6dc), pg, [x, 0.04, z], [-Math.PI / 2 + tilt, 0, tilt * 0.6]);
+    pine(pg, -0.32, -0.3, 0.75, [0x3d5f55, 0x47695f, 0x52746a], true);
   } else if (BIO.rock === 'scrap') {
-    // stacked shipping containers, one skewed, with junk piled against them
+    // stacked shipping containers, one skewed, after container-yard models: chamfered boxes with corrugated sides,
+    // corner posts and lock bars on the doors, and junk piled against them
     const cols = [0xa6533a, 0x3f7f86, 0xc79a3a, 0x6b7a52];
-    const can = (x, y, z, ry, c) => { const b = mesh(box(0.72, 0.3, 0.34), toon(c), pg, [x, y, z], [0, ry, 0]); for (let i = -3; i <= 3; i++) mesh(box(0.012, 0.24, 0.345), toon(0x2f2b28), b, [i * 0.1, 0, 0], null, flat); mesh(box(0.012, 0.26, 0.3), toon(0x2f2b28), b, [0.362, 0, 0], null, flat); };
+    const can = (x, y, z, ry, c) => {
+      const b = new T.Group(); b.position.set(x, y - 0.15, z); b.rotation.y = ry; pg.add(b);
+      mesh(slab('ct-body', 0.34, [[-0.36, 0.0], [0.36, 0.0], [0.36, 0.3], [-0.36, 0.3]], 0.01), toon(c), b);
+      for (let i = -6; i <= 6; i++) for (const sz of [-1, 1]) mesh(box(0.024, 0.25, 0.008), toon(c), b, [i * 0.05, 0.15, sz * 0.172], null, flat);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) mesh(box(0.03, 0.3, 0.03), toon(0x2f2b28), b, [sx * 0.345, 0.15, sz * 0.155], null, flat);
+      for (const zz of [-0.06, 0.06]) mesh(box(0.006, 0.26, 0.012), toon(0x2f2b28), b, [0.362, 0.15, zz], null, flat);
+    };
     can(0, 0.15, -0.1, 0.1, cols[0]); can(0.02, 0.15, 0.26, -0.12, cols[1]); can(-0.02, 0.45, 0.06, 0.5, cols[2]);
     if (Math.random() < 0.6) can(0.04, 0.75, 0.04, 0.2, cols[3]);
     mesh(tor(0.09, 0.035), toon(0x2a2827), pg, [-0.36, 0.09, 0.38], [0.3, 0.4, 0]);
-    for (let i = 0; i < 4; i++) mesh(box(q(rand(0.08, 0.16)), q(rand(0.04, 0.1)), q(rand(0.06, 0.12))), toon(i % 2 ? 0x8c5a3a : 0x70757a), pg, [rand(-0.42, 0.42), 0.04, rand(0.3, 0.44)], [rand(-0.3, 0.3), rand(0, 3), 0]);
+    for (let i = 0; i < 4; i++) boulder(pg, [rand(-0.42, 0.42), 0.03, rand(0.3, 0.44)], q(rand(0.04, 0.07)), i % 2 ? 0x8c5a3a : 0x70757a, 0.6);
   }
   BD.props[k] = pg;
 }
@@ -1653,17 +2041,25 @@ function buildRuin(p, k, rubble) {
   // what has settled on the stonework: moss, sand, snow or rust
   const cap = { meadow: 0x6f9a52, desert: 0xdcb983, snow: 0xffffff, yard: 0x8c5a3a }[BIO.deco];
   if (rubble) {
-    for (let i = 0; i < 9; i++) mesh(box(rand(0.08, 0.2), rand(0.04, 0.12), rand(0.08, 0.2)), toon(i % 2 ? c : c2), pg, [rand(-0.35, 0.35), 0.04, rand(-0.35, 0.35)], [rand(-0.3, 0.3), rand(0, 3), rand(-0.3, 0.3)]);
+    for (let i = 0; i < 9; i++) boulder(pg, [rand(-0.35, 0.35), 0.04, rand(-0.35, 0.35)], rand(0.05, 0.1), i % 2 ? c : c2, 0.7);
     pg.userData.rubble = true;
   } else {
     const wall = (x, z, ry, len) => {
       const g2 = new T.Group(); g2.position.set(x, 0, z); g2.rotation.y = ry; pg.add(g2);
-      const steps = [0.42, 0.34, 0.22, 0.12];
-      steps.forEach((hh, i) => {
-        const seg = mesh(box(len / steps.length, hh, 0.08), toon(i % 2 ? c : c2), g2, [-len / 2 + (i + 0.5) * len / steps.length, hh / 2, 0]);
-        if (i === 0) mesh(box(0.06, 0.07, 0.005), toon(0x2d3640), seg, [0, 0.06, 0.043], null, flat);
-        if (i % 2 === 0 || BIO.deco === 'snow') mesh(box(len / steps.length * 0.96, 0.025, 0.1), toon(cap), seg, [0, hh / 2 + 0.01, 0], null, flat);
-      });
+      const course = 0.07, n = 6;
+      for (let row = 0; row < n; row++) {
+        // each course is shorter than the one under it, so the wall breaks off in steps toward one end
+        const reach = len * (1 - row * 0.15) * rand(0.92, 1);
+        let at = -len / 2 + (row % 2 ? 0.03 : 0);
+        while (at < -len / 2 + reach - 0.04) {
+          const w = Math.min(rand(0.09, 0.16), -len / 2 + reach - at);
+          const st = mesh(geo('rn-stone', () => { const g = bevelBox(1, 1, 1); g.userData.exact = true; return g; }), toon((row + Math.round(at * 20)) % 3 ? c : c2), g2, [at + w / 2, row * course + course / 2, rand(-0.006, 0.006)], [0, rand(-0.05, 0.05), 0]);
+          st.scale.set(w - 0.008, course - 0.006, rand(0.08, 0.095));
+          at += w;
+        }
+        if (row === n - 1 || BIO.deco === 'snow') mesh(box(reach * 0.9, 0.02, 0.1), toon(cap), g2, [-len / 2 + reach * 0.45, (row + 1) * course + 0.004, 0], null, flat);
+      }
+      mesh(box(0.06, 0.07, 0.005), toon(0x2d3640), g2, [-len / 2 + 0.1, 0.16, 0.05], null, flat);
     };
     wall(-0.05, -0.32, 0, 0.75); wall(-0.33, 0.02, Math.PI / 2, 0.6);
     for (let i = 0; i < 3; i++) mesh(box(rand(0.06, 0.12), 0.05, rand(0.06, 0.12)), toon(c2), pg, [rand(0, 0.35), 0.025, rand(0, 0.35)], [0, rand(0, 3), 0]);
@@ -1676,19 +2072,29 @@ function buildBase(p, k, pid) {
   const tc = TEAM[pid], pg = propGroup(k, p);
   const face = pid === 0 ? Math.PI : 0;
   pg.rotation.y = face;
-  mesh(box(0.92, 0.5, 0.86), toon(tc.second), pg, [0, 0.25, 0]);
-  mesh(box(0.94, 0.08, 0.88), toon(tc.main), pg, [0, 0.52, 0]);
-  mesh(box(0.5, 0.36, 0.04), toon(INK), pg, [0, 0.18, 0.44]);
-  mesh(box(0.54, 0.05, 0.05), toon(tc.trim), pg, [0, 0.38, 0.45]);
-  for (const sx of [-1, 1]) mesh(box(0.12, 0.62, 0.12), toon(tc.main), pg, [sx * 0.42, 0.31, 0.38]);
-  const tur = new T.Group(); tur.position.set(0, 0.56, -0.05); pg.add(tur);
-  mesh(cyl(0.16, 0.2, 0.12, 10), toon(tc.main), tur, [0, 0.06, 0]);
+  // after sci-fi command bunkers: a low hull with sloped, chamfered walls on a plinth, a recessed blast door with
+  // a cross brace, buttresses at the front corners, a turret on a turned ring on the roof and a mast with the lamp
+  mesh(slab('bs-plinth', 0.94, [[-0.48, 0.0], [0.48, 0.0], [0.48, 0.04], [0.45, 0.06], [-0.45, 0.06], [-0.48, 0.04]], 0.01), toon(tc.main), pg);
+  mesh(profile('bs-hull', 0.84, [[-0.42, 0.06], [0.42, 0.06], [0.33, 0.47], [-0.35, 0.47]], 0.016), toon(tc.second), pg);
+  mesh(profile('bs-roof', 0.86, [[-0.36, 0.46], [0.34, 0.46], [0.3, 0.53], [-0.32, 0.53]], 0.01), toon(tc.main), pg);
+  const door = new T.Group(); door.position.set(0, 0.0, 0.392); door.rotation.x = -0.215; pg.add(door);
+  mesh(slab('bs-frame', 0.03, [[-0.24, 0.06], [0.24, 0.06], [0.24, 0.32], [0.17, 0.39], [-0.17, 0.39], [-0.24, 0.32]], 0.008), toon(tc.trim), door);
+  mesh(slab('bs-door', 0.04, [[-0.19, 0.06], [0.19, 0.06], [0.19, 0.3], [0.14, 0.35], [-0.14, 0.35], [-0.19, 0.3]], 0.006), toon(INK), door, [0, 0, 0.004]);
+  for (const sx of [-1, 1]) mesh(box(0.016, 0.38, 0.012), toon(tc.trim), door, [0, 0.2, 0.026], [0, 0, sx * 0.86], flat);
+  for (const sx of [-1, 1]) mesh(profile('bs-butt', 0.12, [[0.16, 0.06], [0.47, 0.06], [0.47, 0.13], [0.22, 0.6], [0.16, 0.6]], 0.012), toon(tc.main), pg, [sx * 0.41, 0, 0]);
+  for (const sx of [-1, 1]) vents(pg, toon(INK), 4, 0.2, 0.05, [sx * 0.425, 0.26, -0.12], [0, sx * Math.PI / 2, 0]);
+  const tur = new T.Group(); tur.position.set(0, 0.53, -0.05); pg.add(tur);
+  mesh(turned('bs-tring', [[0.0, 0.0], [0.2, 0.0], [0.2, 0.03], [0.17, 0.05], [0.0, 0.05]], 10), toon(tc.main), tur, null, [-Math.PI / 2, 0, 0]);
+  mesh(turned('bs-tdome', [[0.0, 0.04], [0.16, 0.04], [0.16, 0.08], [0.12, 0.14], [0.05, 0.16], [0.0, 0.16]], 10), toon(tc.second), tur, null, [-Math.PI / 2, 0, 0]);
   const bar = new T.Group(); bar.position.set(0, 0.12, 0); tur.add(bar);
-  mesh(box(0.14, 0.1, 0.18), toon(tc.second), bar, [0, 0.03, 0]);
-  for (const sx of [-1, 1]) mesh(cyl(0.022, 0.022, 0.32, 8), toon(GUN), bar, [sx * 0.04, 0.04, 0.24], [Math.PI / 2, 0, 0]);
-  const mu = new T.Object3D(); mu.position.set(0, 0.04, 0.42); bar.add(mu);
-  mesh(cyl(0.006, 0.006, 0.35, 4), toon(INK), pg, [0.3, 0.75, -0.3], null, flat);
-  const lamp = new T.Mesh(sph(0.03, 8), glow(tc.ring)); lamp.position.set(0.3, 0.93, -0.3); pg.add(lamp);
+  mesh(slab('bs-mantle', 0.16, [[-0.08, -0.04], [0.08, -0.04], [0.09, 0.02], [0.06, 0.06], [-0.06, 0.06], [-0.09, 0.02]], 0.01), toon(tc.second), bar, [0, 0.0, 0.08]);
+  for (const sx of [-1, 1]) {
+    mesh(turned('bs-brl', [[0.0, 0.12], [0.024, 0.12], [0.022, 0.4], [0.0, 0.4]], 16), toon(GUN), bar, [sx * 0.04, 0.02, 0]);
+    mesh(turned('bs-brk', [[0.0, 0.38], [0.03, 0.38], [0.032, 0.39], [0.032, 0.42], [0.0, 0.42]], 16), toon(INK), bar, [sx * 0.04, 0.02, 0]);
+  }
+  const mu = new T.Object3D(); mu.position.set(0, 0.02, 0.43); bar.add(mu);
+  mesh(turned('bs-mast', [[0.0, 0.5], [0.03, 0.5], [0.02, 0.56], [0.008, 0.58], [0.006, 0.9], [0.0, 0.9]], 10), toon(INK), pg, [0.3, 0, -0.3], [-Math.PI / 2, 0, 0]);
+  const lamp = new T.Mesh(sph(0.03, 10), glow(tc.ring)); lamp.position.set(0.3, 0.93, -0.3); pg.add(lamp);
   pg.userData.base = true;
   BD.props[k] = pg;
   BD['base' + pid] = { tur, mu, pg, lamp };
@@ -1700,39 +2106,61 @@ function buildObjective(o) {
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.015; pg.add(ring);
   const rec = { o, pg, ring, light: null };
   if (o.type === 'depot') {
-    mesh(box(0.42, 0.22, 0.24), toon(0x6f7a55), pg, [-0.04, 0.11, 0.1]);
-    mesh(box(0.42, 0.22, 0.24), toon(0x7d6a4a), pg, [0.06, 0.33, 0.08], [0, 0.3, 0]);
-    mesh(box(0.42, 0.22, 0.24), toon(0x5b6d7a), pg, [0.02, 0.11, -0.18]);
-    mesh(cyl(0.008, 0.008, 0.5, 4), toon(INK), pg, [-0.3, 0.25, -0.28], null, flat);
+    // after field supply depots: rugged cases with chamfered lids, ribs round the middle and dark corner bumpers,
+    // stacked on a pallet, and a pole carrying the owner's light
+    const caseAt = (w, h, d, col, pos, ry) => {
+      const c = new T.Group(); c.position.set(pos[0], pos[1], pos[2]); c.rotation.y = ry || 0; pg.add(c);
+      mesh(slab('dp-case' + [w, h, d].join(), d, [[-w / 2, 0], [w / 2, 0], [w / 2, h * 0.8], [w / 2 - 0.03, h], [-w / 2 + 0.03, h], [-w / 2, h * 0.8]], 0.014), toon(col), c);
+      mesh(slab('dp-rib' + [w, d].join(), d + 0.012, [[-w / 2 - 0.006, h * 0.38], [w / 2 + 0.006, h * 0.38], [w / 2 + 0.006, h * 0.5], [-w / 2 - 0.006, h * 0.5]], 0.003), toon(0x2f3236), c);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) mesh(box(0.03, h * 0.9, 0.03), toon(0x2a2c2f), c, [sx * (w / 2 - 0.008), h * 0.45, sz * (d / 2 - 0.008)], null, flat);
+    };
+    mesh(slab('dp-pallet', 0.52, [[-0.3, 0.0], [0.3, 0.0], [0.3, 0.035], [-0.3, 0.035]], 0.006), toon(0x7a6244), pg, [0.0, 0, -0.02]);
+    caseAt(0.42, 0.2, 0.24, 0x6f7a55, [-0.04, 0.035, 0.1]);
+    caseAt(0.42, 0.2, 0.24, 0x5b6d7a, [0.02, 0.035, -0.17]);
+    caseAt(0.34, 0.18, 0.22, 0x7d6a4a, [0.04, 0.235, -0.02], 0.3);
+    mesh(turned('dp-pole', [[0.0, 0.0], [0.012, 0.0], [0.008, 0.52], [0.0, 0.52]], 8), toon(INK), pg, [-0.3, 0, -0.28], [-Math.PI / 2, 0, 0]);
     rec.light = mesh(box(0.14, 0.09, 0.006), glow(ownerColor(o)), pg, [-0.23, 0.45, -0.28], null, flat);
   } else if (o.type === 'radar') {
-    mesh(cyl(0.12, 0.16, 0.08, 8), toon(0x7c848c), pg, [0, 0.04, 0]);
-    mesh(cyl(0.035, 0.05, 0.6, 8), toon(0x9aa2aa), pg, [0, 0.38, 0]);
+    // after radar stations: a stepped, chamfered pedestal, a mast, and a deep parabolic dish whose feed horn is held
+    // out in front on three struts
+    mesh(turned('rd-base', [[0.0, 0.0], [0.17, 0.0], [0.17, 0.04], [0.14, 0.07], [0.1, 0.07], [0.1, 0.12], [0.07, 0.15], [0.0, 0.15]], 8), toon(0x7c848c), pg, null, [-Math.PI / 2, 0, 0]);
+    mesh(turned('rd-mast', [[0.0, 0.14], [0.05, 0.14], [0.035, 0.66], [0.0, 0.66]], 12), toon(0x9aa2aa), pg, null, [-Math.PI / 2, 0, 0]);
     const dish = new T.Group(); dish.position.y = 0.7; pg.add(dish);
-    mesh(cyl(0.22, 0.05, 0.08, 14), toon(0xd8dee4), dish, [0, 0, 0.04], [Math.PI / 2 - 0.5, 0, 0]);
-    mesh(cyl(0.006, 0.006, 0.16, 4), toon(INK), dish, [0, 0.03, 0.1], [Math.PI / 2 - 0.5, 0, 0], flat);
+    const face = new T.Group(); face.rotation.x = -0.5; dish.add(face);
+    mesh(turned('rd-dish', [[0.0, -0.01], [0.06, -0.006], [0.14, 0.02], [0.22, 0.07], [0.235, 0.085], [0.22, 0.08], [0.14, 0.034], [0.06, 0.008], [0.0, 0.004]], 40), toon(0xd8dee4), face);
+    mesh(turned('rd-hub', [[0.0, -0.05], [0.05, -0.05], [0.05, 0.0], [0.0, 0.0]], 12), toon(0x7c848c), face);
+    for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2; mesh(tube('rd-strut' + i, [[Math.cos(a) * 0.2, Math.sin(a) * 0.2, 0.07], [Math.cos(a) * 0.08, Math.sin(a) * 0.08, 0.14], [0, 0, 0.19]], 0.006, 12), toon(INK), face); }
+    mesh(turned('rd-horn', [[0.0, 0.17], [0.022, 0.17], [0.03, 0.2], [0.0, 0.21]], 12), toon(0x7c848c), face);
     rec.dish = dish;
     rec.light = mesh(sph(0.03, 8), glow(ownerColor(o)), pg, [0, 0.98, 0], null, flat);
   } else if (o.type === 'uplink') {
-    // a broad gold-trimmed plinth so it reads from above, a lattice mast, and a turning ring with a beacon
-    mesh(cyl(0.42, 0.46, 0.12, 8), toon(0x5f676f), pg, [0, 0.06, 0], null, { recv: true });
-    mesh(cyl(0.36, 0.4, 0.04, 8), toon(0xc39a3e), pg, [0, 0.14, 0]);
-    mesh(cyl(0.22, 0.28, 0.14, 8), toon(0x858d95), pg, [0, 0.23, 0]);
-    for (const a of [0, 2.09, 4.19]) mesh(box(0.04, 1.0, 0.04), toon(0x9aa2aa), pg, [Math.cos(a) * 0.11, 0.78, Math.sin(a) * 0.11], [Math.sin(a) * 0.08, 0, -Math.cos(a) * 0.08]);
-    for (let i = 0; i < 3; i++) mesh(cyl(0.13 - i * 0.025, 0.13 - i * 0.025, 0.03, 6), toon(0x7c848c), pg, [0, 0.5 + i * 0.25, 0]);
+    // a broad gold-trimmed plinth so it reads from above, a tapering mast with lattice legs, and a turning ring with
+    // a beacon on top
+    mesh(turned('up-plinth', [[0.0, 0.0], [0.46, 0.0], [0.46, 0.08], [0.42, 0.12], [0.0, 0.12]], 8), toon(0x5f676f), pg, null, [-Math.PI / 2, 0, 0], { recv: true });
+    mesh(turned('up-gold', [[0.0, 0.12], [0.4, 0.12], [0.4, 0.14], [0.37, 0.16], [0.0, 0.16]], 8), toon(0xc39a3e), pg, null, [-Math.PI / 2, 0, 0]);
+    mesh(turned('up-step', [[0.0, 0.16], [0.28, 0.16], [0.28, 0.24], [0.22, 0.3], [0.0, 0.3]], 8), toon(0x858d95), pg, null, [-Math.PI / 2, 0, 0]);
+    for (const a of [0, 2.09, 4.19]) mesh(tube('up-leg' + a, [[Math.cos(a) * 0.2, 0.3, Math.sin(a) * 0.2], [Math.cos(a) * 0.12, 0.8, Math.sin(a) * 0.12], [Math.cos(a) * 0.05, 1.2, Math.sin(a) * 0.05]], 0.022, 16), toon(0x9aa2aa), pg);
+    for (let i = 0; i < 3; i++) mesh(turned('up-band' + i, [[0.0, -0.015], [0.15 - i * 0.03, -0.015], [0.16 - i * 0.03, 0.0], [0.15 - i * 0.03, 0.015], [0.0, 0.015]], 8), toon(0x7c848c), pg, [0, 0.5 + i * 0.25, 0], [-Math.PI / 2, 0, 0]);
     const spin = new T.Group(); spin.position.y = 1.18; pg.add(spin);
     mesh(tor(0.3, 0.035), toon(0xc39a3e), spin, [0, 0, 0], [Math.PI / 2, 0, 0]);
-    mesh(box(0.66, 0.03, 0.06), toon(0xd8dee4), spin, [0, 0, 0]);
+    mesh(slab('up-bar', 0.06, [[-0.33, -0.015], [0.33, -0.015], [0.34, 0.0], [0.33, 0.015], [-0.33, 0.015], [-0.34, 0.0]], 0.004), toon(0xd8dee4), spin);
     rec.dish = spin;
-    rec.light = mesh(sph(0.09, 10), glow(ownerColor(o)), pg, [0, 1.36, 0], null, flat);
+    rec.light = mesh(sph(0.09, 12), glow(ownerColor(o)), pg, [0, 1.36, 0], null, flat);
     ring.scale.setScalar(1.12);
   } else {
-    mesh(cyl(0.4, 0.42, 0.05, 20), toon(0x4a5058), pg, [0, 0.025, 0], null, { recv: true });
+    // a repair pad: a chamfered landing disc with a glowing cross, under two curved gantry arches carrying a hoist
+    mesh(turned('rp-pad', [[0.0, 0.0], [0.42, 0.0], [0.42, 0.03], [0.39, 0.05], [0.0, 0.05]], 20), toon(0x4a5058), pg, null, [-Math.PI / 2, 0, 0], { recv: true });
     mesh(box(0.38, 0.006, 0.09), glow(0x8fbf9c), pg, [0, 0.052, 0], null, flat);
     mesh(box(0.09, 0.006, 0.38), glow(0x8fbf9c), pg, [0, 0.052, 0], null, flat);
-    mesh(box(0.06, 0.7, 0.06), toon(0xe0b43a), pg, [-0.36, 0.35, -0.36]);
-    mesh(box(0.5, 0.05, 0.05), toon(0xe0b43a), pg, [-0.14, 0.68, -0.36]);
-    mesh(cyl(0.004, 0.004, 0.3, 4), toon(INK), pg, [0.08, 0.52, -0.36], null, flat);
+    for (const z of [-0.3, 0.3]) {
+      const arch = []; for (let i = 0; i <= 12; i++) { const a = Math.PI * i / 12; arch.push([Math.cos(a) * 0.38, 0.05 + Math.sin(a) * 0.62, z]); }
+      mesh(tube('rp-arch' + z, arch, 0.03, 48), toon(0xe0b43a), pg);
+      for (const sx of [-1, 1]) mesh(slab('rp-foot', 0.1, [[-0.05, 0.0], [0.05, 0.0], [0.04, 0.06], [-0.04, 0.06]], 0.008), toon(0x5a6068), pg, [sx * 0.38, 0.0, z]);
+    }
+    mesh(tube('rp-beam', [[0, 0.67, -0.3], [0, 0.67, 0.3]], 0.022, 4), toon(0xe0b43a), pg);
+    mesh(turned('rp-hoist', [[0.0, 0.58], [0.04, 0.58], [0.04, 0.64], [0.0, 0.66]], 10), toon(0x5a6068), pg, null, [-Math.PI / 2, 0, 0]);
+    mesh(turned('rp-cable', [[0.0, 0.34], [0.004, 0.34], [0.004, 0.58], [0.0, 0.58]], 6), toon(INK), pg, null, [-Math.PI / 2, 0, 0], flat);
+    mesh(tor(0.025, 0.007), toon(0x5a6068), pg, [0, 0.32, 0], [0, 0, 0]);
     ring.material.color.setHex(0x8fbf9c);
   }
   BD.objs[k] = rec;
@@ -1862,8 +2290,11 @@ const OV_OP = { reach: 0.36, dep: 0.45, owd: 0.5, target: 0.5, threat: 0.2, 'ez-
 
 function buildWreck(w) {
   const k = key(w.x, w.y), pg = propGroup(k, tp(w.x, w.y));
-  for (let i = 0; i < 6; i++) mesh(box(rand(0.08, 0.2), rand(0.05, 0.12), rand(0.08, 0.2)), toon(i % 2 ? 0x3a3f46 : 0x4b4239), pg, [rand(-0.25, 0.25), 0.05, rand(-0.25, 0.25)], [rand(-0.5, 0.5), rand(0, 3), rand(-0.5, 0.5)]);
-  mesh(cyl(0.03, 0.03, 0.28, 6), toon(0x5a5f66), pg, [0.1, 0.08, 0.05], [0.3, 0, 1.3]);
+  // torn armour: a few chamfered plate shards, a bent pipe and a scorched hub
+  const shards = [[[-0.08, 0.0], [0.08, 0.0], [0.1, 0.05], [0.02, 0.09], [-0.09, 0.06]], [[-0.1, 0.0], [0.07, 0.0], [0.05, 0.06], [-0.06, 0.07]], [[-0.06, 0.0], [0.06, 0.0], [0.03, 0.1], [-0.05, 0.08]]];
+  for (let i = 0; i < 6; i++) { const m = mesh(slab('wk-shard' + (i % 3), 0.03, shards[i % 3], 0.006), toon(i % 2 ? 0x3a3f46 : 0x4b4239), pg, [rand(-0.25, 0.25), 0.02, rand(-0.25, 0.25)], [rand(-1.2, -0.4), rand(0, 3), rand(-0.4, 0.4)]); m.scale.setScalar(rand(0.8, 1.6)); }
+  mesh(tube('wk-pipe', [[-0.12, 0.03, -0.02], [0.0, 0.08, 0.02], [0.06, 0.12, 0.12], [0.16, 0.06, 0.16]], 0.022, 20), toon(0x5a5f66), pg);
+  mesh(turned('wk-hub', [[0.0, 0.0], [0.06, 0.0], [0.07, 0.02], [0.05, 0.05], [0.0, 0.05]], 10), toon(0x2a2c30), pg, [-0.1, 0, 0.12], [-Math.PI / 2 + 0.3, 0, 0.2]);
   const g = new T.Mesh(new T.RingGeometry(0.2, 0.42, 28), new T.MeshBasicMaterial({ color: 0xffa83a, transparent: true, opacity: 0.4, depthWrite: false }));
   g.rotation.x = -Math.PI / 2; g.position.y = 0.014; pg.add(g); pg.userData.glow = g;
   return pg;
@@ -1871,8 +2302,11 @@ function buildWreck(w) {
 function buildCrate(c) {
   const k = key(c.x, c.y), pg = propGroup(k, tp(c.x, c.y));
   const body = new T.Group(); pg.add(body); pg.userData.body = body;
-  mesh(box(0.3, 0.22, 0.3), toon(0xd99a2b), body, [0, 0.11, 0]);
-  mesh(box(0.31, 0.04, 0.31), toon(0x6b4a1c), body, [0, 0.11, 0]);
+  // a rugged drop case: chamfered body, dark bumpers on every vertical edge, a strap round the middle and a stencil
+  mesh(slab('cr-body', 0.3, [[-0.15, 0.0], [0.15, 0.0], [0.15, 0.17], [0.12, 0.22], [-0.12, 0.22], [-0.15, 0.17]], 0.014), toon(0xd99a2b), body);
+  mesh(slab('cr-strap', 0.312, [[-0.156, 0.09], [0.156, 0.09], [0.156, 0.13], [-0.156, 0.13]], 0.003), toon(0x6b4a1c), body);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) mesh(box(0.035, 0.2, 0.035), toon(0x3a2c18), body, [sx * 0.14, 0.1, sz * 0.14], null, flat);
+  for (const sz of [-1, 1]) mesh(box(0.1, 0.03, 0.004), toon(0x2a2010), body, [0, 0.16, sz * 0.153], null, flat);
   if (c.kind !== 'supply') mesh(oct(0.05), glow(0xffd56a), body, [0, 0.3, 0], null, flat);
   const chute = new T.Group(); chute.position.y = 0.95; chute.visible = false; body.add(chute); pg.userData.chute = chute;
   mesh(new T.SphereGeometry(0.32, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), toon(0xeef0f4), chute);
