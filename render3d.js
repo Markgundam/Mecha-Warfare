@@ -233,12 +233,50 @@ const INK_FS = [
   '  if (e < 0.5) discard;',
   '  gl_FragColor = vec4(mix(ink, vec3(1.0, 0.78, 0.23), h), max(alpha, h));',
   '}'].join('\n');
+/* ================= ambient occlusion =================
+   Screen-space, from the depth the ink mask already draws: each pixel looks around a small disc for nearby surfaces
+   that rise in front of it (a foot on the ground, a wall against a container) and darkens by how much they close it
+   in. Multiplied over the frame before the ink goes on. The board camera is orthographic, so depth is linear. */
+const AO_FS = [
+  'uniform sampler2D tDepth; uniform vec2 fr; uniform vec2 px; uniform float near; uniform float far; uniform float radius; uniform float power; varying vec2 vUv;',
+  'vec3 pos(vec2 uv) { return vec3((uv - 0.5) * fr, -(near + texture2D(tDepth, uv).x * (far - near))); }',
+  'void main() {',
+  '  if (texture2D(tDepth, vUv).x >= 1.0) discard;',
+  '  vec3 P = pos(vUv);',
+  '  vec3 a = pos(vUv + vec2(px.x, 0.0)) - P, b = P - pos(vUv - vec2(px.x, 0.0)), c = pos(vUv + vec2(0.0, px.y)) - P, d = P - pos(vUv - vec2(0.0, px.y));',
+  '  vec3 N = normalize(cross(abs(a.z) < abs(b.z) ? a : b, abs(c.z) < abs(d.z) ? c : d)); if (N.z < 0.0) N = -N;',
+  '  float spin = fract(sin(dot(floor(gl_FragCoord.xy / 2.0), vec2(12.9898, 78.233))) * 43758.5453) * 6.2831853, ao = 0.0;',
+  '  for (int i = 0; i < 16; i++) {',
+  '    float t = (float(i) + 0.5) / 16.0, ang = spin + float(i) * 2.3999632;',
+  '    vec3 v = pos(vUv + vec2(cos(ang), sin(ang)) * sqrt(t) * radius / fr) - P;',
+  '    float l = length(v);',
+  '    ao += max(0.0, dot(v, N) / (l + 1e-4) - 0.12) * max(0.0, 1.0 - l / (radius * 1.6));',
+  '  }',
+  '  gl_FragColor = vec4(vec3(clamp(1.0 - power * ao / 16.0, 0.0, 1.0)), 1.0);',
+  '}'].join('\n');
+function aoQuad(renderer, cam, st) {
+  if (!st.aoMat) {
+    st.aoMat = new T.ShaderMaterial({ uniforms: { tDepth: { value: null }, fr: { value: new T.Vector2() }, px: { value: new T.Vector2() }, near: { value: 0 }, far: { value: 1 }, radius: { value: st.aoRadius || 0.26 }, power: { value: st.aoPower || 2.2 } },
+      vertexShader: INK_VS, fragmentShader: AO_FS, depthTest: false, depthWrite: false, transparent: true,
+      blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.ZeroFactor, blendDst: T.SrcColorFactor });
+    st.aoQuad = new T.Mesh(new T.PlaneGeometry(2, 2), st.aoMat); st.aoQuad.frustumCulled = false;
+    st.aoScene = new T.Scene(); st.aoScene.add(st.aoQuad);
+  }
+  const u = st.aoMat.uniforms;
+  u.tDepth.value = st.rt.depthTexture;
+  u.fr.value.set((cam.right - cam.left) / cam.zoom, (cam.top - cam.bottom) / cam.zoom);
+  u.px.value.set(1 / inkV2.x, 1 / inkV2.y);
+  u.near.value = cam.near; u.far.value = cam.far;
+  const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(st.aoScene, st.qc); renderer.autoClear = ac;
+}
 const inkV2 = new T.Vector2(), inkCol = new T.Color();
 function inkPass(renderer, scene, cam, top, st) {
   renderer.getDrawingBufferSize(inkV2);
   if (!st.rt || st.rt.width !== inkV2.x || st.rt.height !== inkV2.y) {
     if (st.rt) st.rt.dispose();
     st.rt = new T.WebGLRenderTarget(inkV2.x, inkV2.y, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, format: T.RGBAFormat });
+    // the mask's depth doubles as the input to ambient occlusion
+    if (st.ao) { st.rt.depthTexture = new T.DepthTexture(inkV2.x, inkV2.y); st.rt.depthTexture.type = T.UnsignedIntType; }
     if (!st.quad) {
       st.mat = new T.ShaderMaterial({ uniforms: { tMask: { value: null }, px: { value: new T.Vector2() }, ink: { value: new T.Color(INK) }, alpha: { value: st.alpha || 1 } }, vertexShader: INK_VS, fragmentShader: INK_FS, depthTest: false, depthWrite: false, transparent: true });
       st.quad = new T.Mesh(new T.PlaneGeometry(2, 2), st.mat); st.quad.frustumCulled = false;
@@ -266,6 +304,7 @@ function inkPass(renderer, scene, cam, top, st) {
   renderer.shadowMap.autoUpdate = auto; scene.fog = fog; scene.background = bg;
   for (let i = 0; i < swaps.length; i += 2) swaps[i].material = swaps[i + 1];
   for (const o of hidden) o.visible = true;
+  if (st.ao && LEVEL !== 'low' && cam.isOrthographicCamera && st.rt.depthTexture) aoQuad(renderer, cam, st);
   const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(st.qs, st.qc); renderer.autoClear = ac;
 }
 // one mesh with an ink outline; pos/rot are [x,y,z]
@@ -1692,16 +1731,18 @@ R3.mount = function (el, onTap) {
   const scene = new T.Scene();
   scene.fog = new T.Fog(0x8e9a9f, 26, 60);
   const cam = new T.OrthographicCamera(-5, 5, 5, -5, 0.1, 100);
-  // sky light, a warm key sun with soft shadows, a cool fill from the far side, and the sky dome for reflections
+  // a strong, fairly low key sun so everything throws a long, readable shadow; sky and fill stay dim so the shade
+  // side keeps its depth, and the sky dome only adds reflections
   scene.environment = envFor(renderer);
-  const hemi = new T.HemisphereLight(0xdfe3e0, 0x4f5250, 0.5); scene.add(hemi);
-  const sun = new T.DirectionalLight(0xf2ead8, 1.05);
-  sun.position.set(-5, 11, 7); sun.castShadow = true;
+  const hemi = new T.HemisphereLight(0xdfe3e0, 0x4f5250, 0.26); scene.add(hemi);
+  const sun = new T.DirectionalLight(0xf2ead8, 1.75);
+  sun.position.set(-8, 7.5, 6); sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 3;
-  const fill = new T.DirectionalLight(0xb9cde0, 0.28); fill.position.set(6, 5, -6); scene.add(fill);
+  const fill = new T.DirectionalLight(0xb9cde0, 0.14); fill.position.set(6, 5, -6); scene.add(fill);
   // a rim from low behind the board, so mecha and scenery keep a bright edge against the ground
-  const rim = new T.DirectionalLight(0xdfeaff, 0.45); rim.position.set(4, 3.5, -9); scene.add(rim);
-  Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 30 });
+  const rim = new T.DirectionalLight(0xdfeaff, 0.35); rim.position.set(4, 3.5, -9); scene.add(rim);
+  // wide enough for the largest board's shadows at this lower sun angle
+  Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 40 });
   sun.shadow.bias = -0.0015;
   scene.add(sun);
   const group = new T.Group(); scene.add(group);
@@ -1939,13 +1980,36 @@ const BIOMES = {
     hemi: [0xdad2c6, 0x403c38], sun: 0xffdcae, ruin: [0x8c705a, 0x715c4b], rock: 'scrap', deco: 'yard' }
 };
 let BIO = BIOMES.open;
+// Value and colour separate the armies from the field: the battlefield is painted greyer and lighter, the mecha on it
+// a step darker, so in black and white the mecha read as dark shapes on a light ground
+const ENV_SAT = 0.5, ENV_LIFT = 0.3, MECH_VAL = 0.78, DULL = {}, DARK = {}, hslTmp = {};
+const dullHex = (c, lift) => { const k = new T.Color(c); k.getHSL(hslTmp); return k.setHSL(hslTmp.h, hslTmp.s * ENV_SAT, hslTmp.l + (1 - hslTmp.l) * (lift || 0)).getHex(); };
+function dull(mat) {
+  if (!mat.userData.paint) return mat;
+  if (DULL[mat.uuid]) return DULL[mat.uuid];
+  const m = mat.clone(); m.userData = { paint: true, dull: true }; m.color.setHex(dullHex(mat.color.getHex(), ENV_LIFT));
+  return (DULL[mat.uuid] = m);
+}
+function darken(mat) {
+  if (!mat.userData.paint) return mat;
+  if (DARK[mat.uuid]) return DARK[mat.uuid];
+  const m = mat.clone(); m.userData = { paint: true, dark: true }; m.color.multiplyScalar(MECH_VAL);
+  return (DARK[mat.uuid] = m);
+}
+function darkMech(root) { root.traverse(o => { if (o.isMesh) o.material = darken(o.material); }); }
+function dullScenery(root) {
+  root.traverse(o => {
+    if (o.userData.base) return o.traverse(q => { q.userData.keep = true; });
+    if (o.isMesh && !o.userData.keep && !(o.parent && o.parent.userData.keep)) o.material = dull(o.material);
+  });
+}
 const q = v => Math.round(v * 20) / 20;                       // keeps random sizes to a few shared shapes
 function buildBoard(S) {
   const MW = window.MW, W = MW.W, H = MW.H, g = BD.group;
   BIO = BIOMES[S.map] || BIOMES.open;
-  BD.renderer.setClearColor(BIO.sky);
-  if (BD.scene.fog) BD.scene.fog.color.setHex(BIO.sky);
-  if (BD.hemi) { BD.hemi.color.setHex(BIO.hemi[0]); BD.hemi.groundColor.setHex(BIO.hemi[1]); }
+  BD.renderer.setClearColor(dullHex(BIO.sky, ENV_LIFT));
+  if (BD.scene.fog) BD.scene.fog.color.setHex(dullHex(BIO.sky, ENV_LIFT));
+  if (BD.hemi) { BD.hemi.color.setHex(dullHex(BIO.hemi[0])); BD.hemi.groundColor.setHex(dullHex(BIO.hemi[1])); }
   BD.sun.color.setHex(BIO.sun);
   // the floating island under the board
   const isl = mesh(box(H + 0.5, 1.6, W + 0.5), soil(BIO.isle[0], 'rock'), g, [0, -0.95, 0], null, { t: 0.03 });
@@ -1974,6 +2038,7 @@ function buildBoard(S) {
     if (base != null) buildBase(p, k, base);
   }
   for (const o of S.objectives) buildObjective(o);
+  dullScenery(BD.group);
   BD.turretRings = [0, 1].map(pid => buildTurretRing(pid, S));
   ST.hasBoard = true;
 }
@@ -2223,6 +2288,7 @@ let MS = 1.15; // mech scale on the map: about one tile tall, a little smaller o
 function newRec(m, S) {
   const doc = S.players[m.owner] ? S.players[m.owner].doctrine : 'assault';
   const R = buildMech(m, m.owner, doc, {});
+  darkMech(R.root);
   R.root.scale.multiplyScalar(MS);
   R.root.userData.uid = m.uid;
   const rec = { uid: m.uid, owner: m.owner, R, sig: signature(m) + (m.entrenched ? '#E' : ''), x: m.x, y: m.y, pos: tp(m.x, m.y), face: m.owner === 0 ? Math.PI : 0, faceT: null, walk: null, anim: [], phase: rand(0, 6), shakeT: 0, gone: false, entr: !!m.entrenched };
@@ -2264,6 +2330,7 @@ function rebuildRec(rec, m, S) {
   BD.group.remove(old);
   const doc = S.players[m.owner] ? S.players[m.owner].doctrine : 'assault';
   rec.R = buildMech(m, m.owner, doc, {});
+  darkMech(rec.R.root);
   rec.R.root.scale.multiplyScalar(MS);
   rec.R.root.userData.uid = m.uid;
   rec.R.root.position.copy(pos); rec.R.root.rotation.y = rot;
@@ -3116,7 +3183,7 @@ function renderBoardFrame(dt) {
   aimView();
   camUpdate(dt);
   BD.renderer.render(BD.scene, BD.cam);
-  inkPass(BD.renderer, BD.scene, BD.cam, BD.group, BD.ink || (BD.ink = { weight: 0.55, alpha: 0.7 }));
+  inkPass(BD.renderer, BD.scene, BD.cam, BD.group, BD.ink || (BD.ink = { weight: 0.55, alpha: 0.7, ao: true }));
   positionLabels();
 }
 const tmpV = new T.Vector3();
