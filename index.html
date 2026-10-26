@@ -2334,6 +2334,35 @@ function simSide(p) {
     field: MW.fieldMechs(p.id).map(m => ({ name: m.name, role: MW.role(m), at: MW.coord(m.x, m.y), hp: MW.hpOf(m) + '/' + MW.maxHpOf(m), heat: m.heat, parts: ids(m) })),
     hangar: p.hangar.filter(m => !MW.isBlank(m)).map(m => ({ name: m.name, ready: !MW.issues(m).length, parts: ids(m) })) };
 }
+// every AI vs AI war is also kept in this browser, so it can be exported as a file wherever the game is hosted
+const SIMLOG = id => 'mw-simlog-' + id, SIMLOGS = 'mw-simlogs', SIMLOGS_MAX = 12;
+function simLocal(id, head, batch) {
+  try {
+    const rec = JSON.parse(localStorage.getItem(SIMLOG(id)) || 'null') || { head: null, rounds: {} };
+    rec.head = head;
+    for (const b of batch) rec.rounds[b.r] = b;
+    localStorage.setItem(SIMLOG(id), JSON.stringify(rec));
+    const ids = [id].concat((JSON.parse(localStorage.getItem(SIMLOGS) || '[]') || []).filter(x => x !== id));
+    for (const old of ids.slice(SIMLOGS_MAX)) localStorage.removeItem(SIMLOG(old));
+    localStorage.setItem(SIMLOGS, JSON.stringify(ids.slice(0, SIMLOGS_MAX)));
+  } catch (e) { /* storage full or unavailable: the export just has less to give */ }
+}
+// inside claude.ai the record already goes to the artifact's database, and the viewer can't save files, so no button there
+const hasSimLog = id => { if (window.claude && window.claude.use) return false; try { return !!localStorage.getItem(SIMLOG(id)); } catch (e) { return false; } };
+// one JSON file: the war at a glance, every round's full log with how each side stood, and what the AI has learned so far
+function exportSimLog(id) {
+  let rec = null;
+  try { rec = JSON.parse(localStorage.getItem(SIMLOG(id)) || 'null'); } catch (e) { /* unreadable */ }
+  if (!rec || !rec.head) return toast('No log was kept for that war.');
+  const out = { format: 'mecha-warfare-simlog', v: 1, exportedAt: new Date().toISOString(), host: location.host || 'file', head: rec.head,
+    rounds: Object.keys(rec.rounds).map(Number).sort((a, b) => a - b).map(r => rec.rounds[r]), aiMemory: MW.getAIMemory() };
+  const blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }), url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'mecha-warfare-' + (rec.head.map || 'war') + '-' + id + '.json';
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast('Log exported.');
+}
 function simRecord() {
   const id = gameId(S);
   if (ui.sim && ui.sim.id !== id) ui.sim = null;
@@ -2353,6 +2382,7 @@ function simRecord() {
   const sides = S.players.map(simSide);
   const batch = rounds.map(r => ({ r, lines: R.buf[r] || [], after: r === upTo ? sides : null }));
   rounds.forEach(r => { delete R.buf[r]; });
+  simLocal(id, head, batch);
   (async () => {
     try {
       await netReady;
@@ -2378,7 +2408,9 @@ function showEnd() {
     '<p>' + why + ' in round ' + S.round + '.' + (hot ? '' : won ? ' The war is yours, commander.' : ' ' + w.name + ' takes the war.') + '</p>' +
     '<div class="es-table">' + row(w) + row(l) + '</div>' +
     (S.training ? '<p class="es-next"><b>Training complete.</b> Next, try <b>Play the AI</b>: your first battles there are against the Recruit too, and field notes explain anything new.</p>' : '') +
-    '<div class="row"><button type="button" class="btn ghost" data-act="closeOverlay">See the battlefield</button><button type="button" class="btn primary grow" data-act="toStart">Main menu</button></div></div>';
+    '<div class="row"><button type="button" class="btn ghost" data-act="closeOverlay">See the battlefield</button>' +
+    (gameMode(S) === 'watch' && hasSimLog(gameId(S)) ? '<button type="button" class="btn ghost" data-act="exportLog">Export log</button>' : '') +
+    '<button type="button" class="btn primary grow" data-act="toStart">Main menu</button></div></div>';
   o.hidden = false;
   if (won) celebrate([getComputedStyle(document.documentElement).getPropertyValue('--p' + w.id).trim() || '#5fb0ec', '#f4c431', '#ffffff', '#ff6b9a', '#7dffb2']);
 }
@@ -2679,7 +2711,7 @@ function renderDock() {
   if (ui.holding) h += '<div class="dock-h">' + (ui.holdPrev === 'combat' ? 'Resolving the round…' : 'Finishing the last moves…') + '</div>';
   else if (S.phase === 'over') {
     const w = S.players[S.winner];
-    h += '<div class="dock-h p' + w.id + '"><b>' + w.name + ' victorious' + (S.winReason === 'points' ? ' on points' : '') + '.</b> ' + S.players.map(x => x.name + ': ' + (x.vp || 0) + ' VP, base ' + x.base.hp + ', ' + x.kills + ' kills').join(' · ') + '</div><div class="row"><button type="button" class="btn primary grow" data-act="toStart">Main menu</button></div>';
+    h += '<div class="dock-h p' + w.id + '"><b>' + w.name + ' victorious' + (S.winReason === 'points' ? ' on points' : '') + '.</b> ' + S.players.map(x => x.name + ': ' + (x.vp || 0) + ' VP, base ' + x.base.hp + ', ' + x.kills + ' kills').join(' · ') + '</div><div class="row">' + (gameMode(S) === 'watch' && hasSimLog(gameId(S)) ? '<button type="button" class="btn ghost" data-act="exportLog">Export log</button>' : '') + '<button type="button" class="btn primary grow" data-act="toStart">Main menu</button></div>';
   } else if (sm && sm.x != null) h += mechDock(sm, true);
   else if (othersTurn()) {
     const am = S.active != null ? MW.fieldMech(S.active) : null;
@@ -3297,6 +3329,7 @@ function onAct(el) {
   if (a === 'findParts') { ui.wtab = 'cards'; ui.pg = 0; ui.pf = 'auto'; return render(); }
   if (a === 'pf') { ui.pf = el.dataset.f; ui.pg = 0; return render(); }
   if (a === 'closeOverlay') { $('#overlay').hidden = true; return; }
+  if (a === 'exportLog') return exportSimLog(gameId(S));
   if (a === 'toStart') { $('#overlay').hidden = true; document.querySelectorAll('.confetti').forEach(c => c.remove()); return showStart(); }
   if (a === 'battleMenu') return showBattleMenu(false);
   if (a === 'concedeAsk') return showBattleMenu(true);
@@ -3982,6 +4015,7 @@ async function showRecent() {
       const acts = document.createElement('span'); acts.className = 'row';
       const live = g.status !== 'over';
       acts.innerHTML = '<button type="button" class="btn sm' + (live ? ' primary' : '') + '" data-rg="open" data-id="' + g.id + '">' + (live ? 'Continue' : 'View') + '</button>' +
+        (g.mode === 'watch' && hasSimLog(g.id) ? '<button type="button" class="btn sm ghost" data-rg="export" data-id="' + g.id + '" aria-label="Export the log of this war">Export log</button>' : '') +
         '<button type="button" class="btn sm ghost" data-rg="del" data-id="' + g.id + '" aria-label="Delete this game">Delete</button>';
       row.append(info, acts); el.append(row);
     }
@@ -4021,10 +4055,11 @@ document.addEventListener('click', async e => {
     if (g.cloud || !g.local) { try { const snap = await NETDB.doc('data/users/' + ME + '/mw/history/' + (g.cloud || g.id)).get(); cloud = snap.exists ? snap.data() : null; } catch (err) { /* offline */ } }
     return openGame(g.id, cloud, g);
   }
+  if (b.dataset.rg === 'export') return exportSimLog(g.id);
   if (b.dataset.rg === 'del') {
     if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Sure?'; b.classList.remove('ghost'); return; }
     b.disabled = true;
-    try { localStorage.removeItem(GAME(g.id)); localStorage.setItem(GAMES, JSON.stringify(gamesIndex().filter(x => x.id !== g.id))); } catch (err) { /* storage unavailable */ }
+    try { localStorage.removeItem(GAME(g.id)); localStorage.removeItem(SIMLOG(g.id)); localStorage.setItem(GAMES, JSON.stringify(gamesIndex().filter(x => x.id !== g.id))); } catch (err) { /* storage unavailable */ }
     try { await netReady; if (NETDB && ME) await NETDB.doc('data/users/' + ME + '/mw/history/' + (g.cloud || g.id)).delete(); } catch (err) { /* local copy is gone either way */ }
     showRecent();
   }
