@@ -411,14 +411,21 @@ class Particles {
       this.spawn(Object.assign({}, o, { pos: pos.clone().add(new T.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(o.spread || 0)), vel: dir, life: rand(o.life * 0.6, o.life) }));
     }
   }
-  chunks(pos, n, color) {
+  chunks(pos, n, color, o) {
+    o = o || {};
     const k = LEVEL === 'low' ? Math.ceil(n / 2) : n;
     for (let i = 0; i < k; i++) {
       const m = new T.Mesh(box(0.05, 0.035, 0.05), toon(color || 0x4a4f57));
       m.position.copy(pos); m.castShadow = true;
       this.parent.add(m);
-      this.debris.push({ m, v: new T.Vector3(rand(-1.4, 1.4), rand(1.2, 2.6), rand(-1.4, 1.4)), r: new T.Vector3(rand(-8, 8), rand(-8, 8), rand(-8, 8)), age: 0 });
+      const sp = o.spd || 1;
+      this.debris.push({ m, v: new T.Vector3(rand(-1.4, 1.4) * sp, rand(1.2, 2.6) * sp, rand(-1.4, 1.4) * sp), r: new T.Vector3(rand(-8, 8), rand(-8, 8), rand(-8, 8)), age: 0, fire: o.fire && Math.random() < 0.6, life: 2.2 });
     }
+  }
+  // a whole part torn off and thrown: keeps its place in the world, tumbles, bounces, trails fire and smoke
+  fling(obj, v, life) {
+    this.parent.attach(obj);
+    this.debris.push({ m: obj, v, r: new T.Vector3(rand(-6, 6), rand(-6, 6), rand(-6, 6)), age: 0, fire: true, life: life || 2.8 });
   }
   update(dt) {
     for (let i = this.live.length - 1; i >= 0; i--) {
@@ -439,8 +446,13 @@ class Particles {
       d.m.position.addScaledVector(d.v, dt);
       d.m.rotation.x += d.r.x * dt; d.m.rotation.y += d.r.y * dt;
       if (d.m.position.y < 0.02) { d.m.position.y = 0.02; d.v.multiplyScalar(0.4); d.v.y = Math.abs(d.v.y) * 0.3; d.r.multiplyScalar(0.5); }
-      if (d.age > 1.6) { d.m.scale.multiplyScalar(0.9); }
-      if (d.age > 2.2) { this.parent.remove(d.m); this.debris.splice(i, 1); }
+      // burning debris trails flame while it flies and smoke once it has landed
+      if (d.fire && LEVEL !== 'low' && Math.random() < 0.55) {
+        const air = d.m.position.y > 0.05;
+        this.spawn({ pos: d.m.position.clone(), vel: new T.Vector3(rand(-0.1, 0.1), air ? 0.1 : 0.35, rand(-0.1, 0.1)), add: air, life: air ? 0.4 : 1.6, size: air ? 0.07 : 0.1, size1: air ? 0.02 : 0.32, color: air ? 0xffc060 : 0x2e2a28, color1: air ? 0xc8320f : 0x6d6862, op: air ? 1 : 0.6, op1: 0, drag: 0.6 });
+      }
+      if (d.age > d.life - 0.6) { d.m.scale.multiplyScalar(0.9); }
+      if (d.age > d.life) { this.parent.remove(d.m); this.debris.splice(i, 1); }
     }
   }
 }
@@ -535,8 +547,8 @@ function buildLegs(R, g, id, tc, style, ghost) {
     // thick thighs, ball knees and broad armoured shin plates on blocky feet. Each leg is rigged hip (yaw) > thigh > knee > ankle
     // so IK can plant the feet and walk it like a heavy spider
     R.kind = 'quad'; R.hipY = 0.4;
-    mesh(turned('qd-hub', [[0.0, 0.28], [0.16, 0.28], [0.185, 0.31], [0.185, 0.37], [0.16, 0.4], [0.0, 0.4]], 8), M(tc.second), g, null, [-Math.PI / 2, Math.PI / 8, 0]);
-    mesh(turned('qd-top', [[0.0, 0.4], [0.13, 0.4], [0.13, 0.42], [0.11, 0.445], [0.0, 0.445]], 8), M(tc.main), g, null, [-Math.PI / 2, Math.PI / 8, 0]);
+    mesh(turned('qd-hub', [[0.0, 0.28], [0.16, 0.28], [0.185, 0.31], [0.185, 0.37], [0.16, 0.4], [0.0, 0.4]], 8), M(tc.second), g, null, [-Math.PI / 2, 0, Math.PI / 8]);
+    mesh(turned('qd-top', [[0.0, 0.4], [0.13, 0.4], [0.13, 0.42], [0.11, 0.445], [0.0, 0.445]], 8), M(tc.main), g, null, [-Math.PI / 2, 0, Math.PI / 8]);
     mesh(cyl(0.085, 0.095, 0.035, 18), M(tc.dark), g, [0, 0.46, 0]);
     if (!ghost) { for (const r2 of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) vents(g, toon(tc.dark), 3, 0.08, 0.022, [Math.sin(r2) * 0.172, 0.34, Math.cos(r2) * 0.172], [0, r2, 0]); }
     const LF = 0.24, LT = 0.42, HY = 0.34;
@@ -698,7 +710,9 @@ function quadStep(st, R, dt, speed) {
   const ws = R.legsG ? R.legsG.getWorldScale(new T.Vector3()).z || 1 : 1, k = R.legsG ? R.legsG.scale.x : 1;
   st.w = (st.w || 0) + ((speed > 0.02 ? 1 : 0) - (st.w || 0)) * Math.min(1, dt * 4);
   st.phase = ((st.phase || 0) + Math.min(0.55, (speed / ws) * 0.75 / Q.stride) * dt) % 1;
-  const w = st.w, dig = st.dig || 0, drop = (st.crouch || 0) + 0.17 * dig, splay = 1 + 0.55 * dig;
+  const w = st.w, legDig = st.digLegs || [0, 1, 2, 3].map(() => st.dig || 0);
+  const planted = legDig.map(e => smooth(Math.max(0, Math.min(1, (e - 0.6) / 0.4))));
+  const drop = (st.crouch || 0) + 0.17 * planted.reduce((a, b) => a + b, 0) / 4;
   // the hub: before each leg lifts it slides over the other three and sinks a little onto them, then eases back
   let shx = 0, shz = 0, load = 0;
   Q.legs.forEach((L, i) => {
@@ -712,8 +726,10 @@ function quadStep(st, R, dt, speed) {
     let z, y;
     if (p < 0.75) { z = Q.stride * (0.5 - p / 0.75); y = 0; }
     else { const s2 = (p - 0.75) / 0.25; z = Q.stride * (-0.5 + smooth(s2)); y = Q.lift * Math.sin(Math.PI * Math.min(1, Math.pow(s2, 0.6))); }
+    // digging in: the leg lifts and swings out to its wide stance, then stamps down and drives a little into the ground
+    const e = legDig[i], lift = e > 0 && e < 0.6 ? Math.sin(Math.PI * e / 0.6) * 0.13 : 0, splay = 1 + 0.55 * smooth(Math.min(1, e / 0.6)), sink = 0.035 * planted[i];
     // feet are offset against the hub's motion so they stay planted on the ground
-    quadSolve(L, Q, L.hx + (L.fx - L.hx) * splay - shx, Q.sole + y * w - hubY, L.hz + (L.fz - L.hz) * splay + z * w - shz);
+    quadSolve(L, Q, L.hx + (L.fx - L.hx) * splay - shx, Q.sole + y * w + lift - sink - hubY, L.hz + (L.fz - L.hz) * splay + z * w - shz);
   });
   // the upper body is fixed to the hub at the waist; only its lean follows the weight shift, on a slow soft spring
   // that lags, overshoots and settles, pivoting at the waist joint
@@ -1162,11 +1178,12 @@ function buildAux(bp, id, pos, tc) {
    chassis only offers a bare socket. The weapon's family picks the shoulder's shape; the doctrine still paints it. */
 const SHOULDER = { b_gun: 'gun', w_smg: 'gun', w_scatter: 'gun', w_rail: 'gun', w_gatling: 'rotary', w_laser: 'energy', w_lance: 'energy', w_arc: 'energy', s_emp: 'energy', s_cryo: 'energy', w_missile: 'mount', w_howitzer: 'mount', s_railgun: 'mount', w_blade: 'melee', w_ram: 'melee', w_shield: 'guard', w_repair: 'tool', s_inferno: 'tool' };
 // the chassis' socket: a dark collar the arm module plugs into, all that is left when the arm is gone
-function shoulderSocket(sh, sx, tc, k) {
+function shoulderSocket(sh, sx, tc, k, reach) {
   // the socket sits in the chest side: a chamfered flange in the hull colour set into the armour, a dark collar
   // standing a little proud of it, and the empty bore where the arm module locks in
   const kk = k.toFixed(3), r = [0, sx * Math.PI / 2, 0];
-  mesh(turned('sock-fl' + kk, [[0.0, -0.075], [0.05 * k, -0.075], [0.056 * k, -0.06], [0.056 * k, -0.035], [0.046 * k, -0.025], [0.0, -0.025]], 24), toon(tc.second), sh, null, r);
+  const back = -Math.max(0.075, (reach || 0.055) + 0.02), rk = kk + ':' + back.toFixed(3);
+  mesh(turned('sock-fl' + rk, [[0.0, back], [0.05 * k, back], [0.056 * k, back + 0.015], [0.056 * k, -0.035], [0.046 * k, -0.025], [0.0, -0.025]], 24), toon(tc.second), sh, null, r);
   mesh(turned('sock-col' + kk, [[0.0, -0.03], [0.036 * k, -0.03], [0.038 * k, -0.006], [0.032 * k, 0.0], [0.0, 0.0]], 24), toon(tc.dark), sh, null, r);
   mesh(turned('sock-bore' + kk, [[0.0, -0.004], [0.02 * k, -0.004], [0.02 * k, 0.002], [0.0, 0.002]], 16), toon(INK), sh, null, r, flat);
 }
@@ -1254,7 +1271,28 @@ function buildHead(hd, tc, style) {
   return null;
 }
 
+// the chassis as built, measured in its own space: the highest point under a footprint (where a head can rest) and
+// the widest point within a height band (where an arm can hang clear). Parts marked noRest are ones a head is meant
+// to sit down inside, like the Zaku's collar and pipes
+function frameBoxes(frame) {
+  frame.updateMatrixWorld(true);
+  const inv = new T.Matrix4().copy(frame.matrixWorld).invert(), out = [];
+  frame.traverse(o => { if (o.isMesh && !o.userData.outline && !o.userData.noRest) out.push(new T.Box3().setFromObject(o).applyMatrix4(inv)); });
+  return out;
+}
+function restTop(boxes, x0, x1, z0, z1, floor) {
+  let top = floor;
+  for (const b of boxes) if (b.max.x > x0 && b.min.x < x1 && b.max.z > z0 && b.min.z < z1) top = Math.max(top, b.max.y);
+  return top;
+}
+function sideExtent(boxes, y0, y1, floor) {
+  let ext = floor;
+  for (const b of boxes) if (b.max.y > y0 && b.min.y < y1) ext = Math.max(ext, Math.abs(b.min.x), Math.abs(b.max.x));
+  return ext;
+}
 function buildChest(frame, tc, style, fid, w, h, dp, cy, legKind) {
+  // skirt armour hangs over a biped's thighs; a quad hub, tracks and a hover bell carry the hull without it
+  const thighs = legKind !== 'treads' && legKind !== 'hover' && legKind !== 'quad';
   // waist: a medium joint block under every chest
   if (style !== 'armored') mesh(wedge(w * 0.5, 0.09, dp * 0.75, 1.2, 1.1), toon(tc.dark), frame, [0, 0.045, 0]);
   if (style === 'assault') {
@@ -1272,7 +1310,7 @@ function buildChest(frame, tc, style, fid, w, h, dp, cy, legKind) {
     mesh(slab('as-hatch' + K, 0.026, [[-w * 0.12, -h * 0.14], [w * 0.12, -h * 0.14], ['q', w * 0.13, -h * 0.38, 0, -h * 0.43], ['q', -w * 0.13, -h * 0.38, -w * 0.12, -h * 0.14]], 0.006), toon(tc.second), frame, [0, cy, dp * 0.39]);
     mesh(slab('as-belt' + K, dp * 0.86, [[-w * 0.33, 0.05], [w * 0.33, 0.05], ['q', w * 0.36, 0.05, w * 0.36, 0.03], [w * 0.33, 0.0], [-w * 0.33, 0.0], [-w * 0.36, 0.03], ['q', -w * 0.36, 0.05, -w * 0.33, 0.05]], 0.008), toon(tc.main), frame, [0, 0.035, 0]);
     mesh(slab('as-buckle' + K, 0.02, [[-w * 0.07, 0.045], [w * 0.07, 0.045], [0, -0.005]], 0.004), toon(tc.trim), frame, [0, 0.035, dp * 0.44]);
-    for (const sx of [-1, 1]) {
+    if (thighs) for (const sx of [-1, 1]) {
       mesh(slab('as-skirt' + K, 0.03, [[-w * 0.14, 0], [w * 0.14, 0], [w * 0.13, -h * 0.42], ['q', w * 0.1, -h * 0.5, 0, -h * 0.5], [-w * 0.13, -h * 0.42]], 0.006), toon(tc.main), frame, [sx * w * 0.17, 0.04, dp * 0.42], [0.12, 0, 0]);
       mesh(box(w * 0.1, h * 0.1, 0.012), toon(tc.trim), frame, [sx * w * 0.17, 0.04 - h * 0.2, dp * 0.42 + 0.034], [0.12, 0, 0], flat);
       mesh(profile('as-sskirt' + K, 0.03, [[-dp * 0.3, 0], [dp * 0.3, 0], [dp * 0.26, -h * 0.4], ['q', 0, -h * 0.46, -dp * 0.22, -h * 0.4]], 0.006), toon(tc.main), frame, [sx * w * 0.4, 0.04, 0], [0, 0, sx * -0.12]);
@@ -1287,8 +1325,7 @@ function buildChest(frame, tc, style, fid, w, h, dp, cy, legKind) {
     // joints, and two armoured tassets hanging over the front of the thighs, trimmed in brass
     mesh(turned('ar-joint' + K, [[0.0, 0.03], [w * 0.22, 0.03], [w * 0.25, 0.045], [w * 0.22, 0.06], [w * 0.25, 0.075], [w * 0.22, 0.09], [0.0, 0.09]], 24), toon(tc.dark), frame, null, [-Math.PI / 2, 0, 0]);
     mesh(slab('ar-pelvis' + K, dp * 0.72, [[-w * 0.3, 0.05], [w * 0.3, 0.05], [w * 0.36, 0.01], [w * 0.33, -0.04], [-w * 0.33, -0.04], [-w * 0.36, 0.01]], 0.012), toon(tc.second), frame);
-    // tassets only where there are thighs to cover: tracks and a hover skirt carry the hull on a turret neck instead
-    if (legKind !== 'treads' && legKind !== 'hover') for (const sx of [-1, 1]) {
+    if (thighs) for (const sx of [-1, 1]) {
       const ts = new T.Group(); ts.position.set(sx * w * 0.19, 0.04, dp * 0.36); ts.rotation.x = 0.14; frame.add(ts);
       mesh(slab('ar-tasset' + K, 0.03, [[-w * 0.15, 0.0], [w * 0.15, 0.0], [w * 0.15, -h * 0.34], [w * 0.1, -h * 0.42], [-w * 0.1, -h * 0.42], [-w * 0.15, -h * 0.34]], 0.008), toon(tc.main), ts);
       mesh(slab('ar-tstrip' + K, 0.034, [[-w * 0.15, -h * 0.34], [w * 0.15, -h * 0.34], [w * 0.1, -h * 0.42], [-w * 0.1, -h * 0.42]], 0.004), toon(tc.accent), ts);
@@ -1312,17 +1349,17 @@ function buildChest(frame, tc, style, fid, w, h, dp, cy, legKind) {
     const K = [w, h, dp].map(v => v.toFixed(3)).join();
     mesh(slab('ex-hull' + K, dp, [[-w * 0.3, h * 0.5], [w * 0.3, h * 0.5], ['q', w * 0.5, h * 0.48, w * 0.5, h * 0.15], ['q', w * 0.48, -h * 0.3, w * 0.3, -h * 0.42], [-w * 0.3, -h * 0.42], ['q', -w * 0.48, -h * 0.3, -w * 0.5, h * 0.15], ['q', -w * 0.5, h * 0.48, -w * 0.3, h * 0.5]], 0.014), toon(tc.main), frame, [0, cy, 0]);
     mesh(slab('ex-plate' + K, 0.03, [[-w * 0.3, h * 0.36], [w * 0.3, h * 0.36], ['q', w * 0.42, h * 0.16, w * 0.28, -h * 0.22], [-w * 0.28, -h * 0.22], ['q', -w * 0.42, h * 0.16, -w * 0.3, h * 0.36]], 0.008), toon(tc.second), frame, [0, cy, dp * 0.5 + 0.004]);
-    mesh(turned('ex-collar' + K, [[w * 0.18, 0.0], [w * 0.34, 0.0], [w * 0.38, h * 0.14], [w * 0.33, h * 0.3], [w * 0.24, h * 0.3]], 36), toon(tc.second), frame, [0, cy + h * 0.44, 0], [-Math.PI / 2, 0, 0]);
+    mesh(turned('ex-collar' + K, [[w * 0.18, 0.0], [w * 0.34, 0.0], [w * 0.38, h * 0.14], [w * 0.33, h * 0.3], [w * 0.24, h * 0.3]], 36), toon(tc.second), frame, [0, cy + h * 0.44, 0], [-Math.PI / 2, 0, 0]).userData.noRest = true;
     for (const sx of [-1, 1]) {
       const pipe = [[sx * w * 0.16, cy + h * 0.6, dp * 0.3], [sx * w * 0.34, cy + h * 0.46, dp * 0.66], [sx * w * 0.47, cy + h * 0.14, dp * 0.54], [sx * w * 0.5, cy - h * 0.12, dp * 0.2]];
-      mesh(tube('ex-pipe' + K + sx, pipe, 0.016, 32), toon(tc.dark), frame);
+      mesh(tube('ex-pipe' + K + sx, pipe, 0.016, 32), toon(tc.dark), frame).userData.noRest = true;
       // ribbed like a hose: rings along the pipe
       const cv = new T.CatmullRomCurve3(pipe.map(q => new T.Vector3(q[0], q[1], q[2])));
-      for (let i = 1; i < 8; i++) { const t = i / 8, pt = cv.getPoint(t), tg = cv.getTangent(t); const r = mesh(tor(0.018, 0.004), toon(tc.metal), frame, [pt.x, pt.y, pt.z], null, flat); r.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), tg); }
+      for (let i = 1; i < 8; i++) { const t = i / 8, pt = cv.getPoint(t), tg = cv.getTangent(t); const r = mesh(tor(0.018, 0.004), toon(tc.metal), frame, [pt.x, pt.y, pt.z], null, flat); r.userData.noRest = true; r.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), tg); }
     }
     mesh(turned('ex-waist' + K, [[0.0, 0.0], [w * 0.26, 0.0], [w * 0.3, h * 0.05], [w * 0.3, h * 0.2], [w * 0.24, h * 0.25], [0.0, h * 0.25]], 32), toon(tc.dark), frame, [0, 0.03, 0], [-Math.PI / 2, 0, 0]);
-    mesh(slab('ex-skirt' + K, 0.03, [[-w * 0.3, 0], [w * 0.3, 0], [w * 0.38, -h * 0.34], ['q', 0, -h * 0.42, -w * 0.38, -h * 0.34]], 0.006), toon(tc.main), frame, [0, 0.07, dp * 0.4], [0.16, 0, 0]);
-    for (const sx of [-1, 1]) mesh(profile('ex-sskirt' + K, 0.03, [[-dp * 0.3, 0], [dp * 0.3, 0], [dp * 0.34, -h * 0.36], ['q', 0, -h * 0.42, -dp * 0.3, -h * 0.36]], 0.006), toon(tc.main), frame, [sx * w * 0.42, 0.07, 0], [0, 0, sx * -0.16]);
+    if (thighs) mesh(slab('ex-skirt' + K, 0.03, [[-w * 0.3, 0], [w * 0.3, 0], [w * 0.38, -h * 0.34], ['q', 0, -h * 0.42, -w * 0.38, -h * 0.34]], 0.006), toon(tc.main), frame, [0, 0.07, dp * 0.4], [0.16, 0, 0]);
+    if (thighs) for (const sx of [-1, 1]) mesh(profile('ex-sskirt' + K, 0.03, [[-dp * 0.3, 0], [dp * 0.3, 0], [dp * 0.34, -h * 0.36], ['q', 0, -h * 0.42, -dp * 0.3, -h * 0.36]], 0.006), toon(tc.main), frame, [sx * w * 0.42, 0.07, 0], [0, 0, sx * -0.16]);
     for (const sx of [-1, 1]) mesh(sph(0.009, 8), glow(tc.glow), frame, [sx * w * 0.12, cy - h * 0.14, dp * 0.5 + 0.022], null, flat);
   }
   if (fid === 't_skirm' || fid === 't_light') mesh(box(w * 0.5, 0.012, dp * 0.4), toon(tc.trim), frame, [0, cy + h * 0.52, 0], null, flat);
@@ -1393,7 +1430,7 @@ function buildSignature(frame, tc, style, fid, w, h, dp, cy, R) {
 // the head, shaped by the chassis
 function shapeHead(hd, tc, style, type, h) {
   const G = tc.glow || tc.eye;
-  if (type === 'sunk') { hd.position.y -= h * 0.1; hd.scale.setScalar(0.9); }
+  if (type === 'sunk') hd.scale.setScalar(0.9);
   else if (type === 'visor') { hd.scale.setScalar(0.78); mesh(box(0.16, 0.018, 0.02), glow(tc.eye), hd, [0, 0.05, 0.075], null, flat); mesh(box(0.012, 0.012, 0.14), toon(tc.trim), hd, [0, 0.09, -0.02], [0.3, 0, 0], flat); }
   else if (type === 'mast') { hd.scale.setScalar(0.85); mesh(cyl(0.008, 0.008, 0.16, 5), toon(INK), hd, [-0.03, 0.15, -0.02], null, flat); mesh(sph(0.016, 6), glow(tc.eye), hd, [-0.03, 0.235, -0.02], null, flat); }
   else if (type === 'horns') { for (const sx of [-1, 1]) mesh(cone(0.018, 0.14, 5), toon(tc.trim), hd, [sx * 0.06, 0.12, 0.0], [0.25, 0, sx * -0.55]); }
@@ -1475,10 +1512,14 @@ function buildMech(m, owner, doctrine, opt) {
     if (opt.ghosts) { mesh(box(w, h + 0.08, dp), GHOST, frame, [0, cy, 0], null, flat); mesh(box(0.1, 0.09, 0.1), GHOST, frame, [0, 0.08 + h + 0.05, 0], null, flat); tag(frame, 'torso'); }
   } else {
     buildChest(frame, tc, style, fid, w, h, dp, cy, R.kind);
+    const before = new Set(frame.children);
     buildSignature(frame, tc, style, fid, w, h, dp, cy, R);
+    // fins, dishes, stacks and the like stand behind or beside the head: only the heavy collar is somewhere it rests
+    if (fid !== 't_heavy') frame.children.forEach(c => { if (!before.has(c)) c.traverse(o => { o.userData.noRest = true; }); });
     const htype = HEAD_TYPE[fid];
     if (htype !== 'none') {
-      const hd = new T.Group(); hd.position.set(0, 0.08 + h + 0.01, style === 'armored' ? 0.02 : 0); frame.add(hd); R.head = hd;
+      const hz = style === 'armored' ? 0.02 : 0, boxes = frameBoxes(frame);
+      const hd = new T.Group(); hd.position.set(0, restTop(boxes, -0.06, 0.06, hz - 0.06, hz + 0.07, 0.08 + h) + 0.004, hz); frame.add(hd); R.head = hd;
       let eye = buildHead(hd, tc, style);
       if (shapeHead(hd, tc, style, htype, h) === null) eye = null;
       if (eye) R.monoEye = eye;
@@ -1503,11 +1544,16 @@ function buildMech(m, owner, doctrine, opt) {
     R.coreAlarm = mesh(tor(0.05, 0.008), glow(0xff3b30, 0.9), ag, null, null, flat);
   }
   // arms: upper arm, elbow, forearm with a plate, and the weapon in hand (or on the shoulder)
+  root.updateMatrixWorld(true);
+  const sideBoxes = S.torso ? frameBoxes(frame) : [];
   for (const [key, sx] of [['armL', -1], ['armR', 1]]) {
-    const sh = new T.Group(); sh.position.set(sx * (w / 2 + 0.055), cy + h * 0.3, 0); torso.add(sh);
+    const armHalf = style === 'armored' ? 0.066 : style === 'experimental' ? 0.042 : 0.044;
+    const bodyX = S.torso ? sideExtent(sideBoxes, cy - h * 0.5, cy + h * 0.32, w / 2) : w / 2;
+    const shX = Math.max(w / 2 + 0.055, bodyX + armHalf + 0.012);
+    const sh = new T.Group(); sh.position.set(sx * shX, cy + h * 0.3, 0); torso.add(sh);
     const inst = S[key];
     const sk = fid === 't_skirm' ? k * 0.6 : k;
-    if (S.torso) shoulderSocket(sh, sx, tc, sk);
+    if (S.torso) shoulderSocket(sh, sx, tc, sk, shX - bodyX);
     if (!inst) {
       if (opt.ghosts) { mesh(box(0.065, 0.15, 0.075), GHOST, sh, [0, -0.075, 0], null, flat); mesh(box(0.075, 0.075, 0.14), GHOST, sh, [0, -0.15, 0.07], null, flat); }
       tag(sh, key);
@@ -1525,9 +1571,11 @@ function buildMech(m, owner, doctrine, opt) {
     if (style === 'assault') mesh(profile('as-uarm', 0.064, [[-0.034, 0.0], [0.034, 0.0], ['q', 0.04, -0.075, 0.034, -0.15], [-0.034, -0.15], ['q', -0.04, -0.075, -0.034, 0.0]], 0.012), toon(tc.main), arm);
     else mesh(wedge(0.065 * ak, 0.15, 0.075 * ak, 1.15, 1.1), toon(style === 'experimental' ? tc.second : tc.main), arm, [0, -0.075, 0]);
     mesh(cyl(0.007, 0.007, 0.12, 5), toon(tc.metal), arm, [sx * 0.035 * ak, -0.08, -0.02], null, flat);
-    // Assault stands at ease: arms hang a little out from the body, elbows slightly bent, weapons held low;
-    // the others keep their forearms raised, weapons forward
-    const rest = style === 'assault' ? -0.5 : -Math.PI / 2;
+    // Assault stands at ease: arms hang a little out from the body, elbows slightly bent, guns held low. Only a gun
+    // in the hand on walking legs, though: a weapon built onto the forearm, or a hull riding low on tracks, a hover
+    // skirt or a quad hub, would carry it down into the legs, so those hold the forearm up like everyone else
+    const atEase = style === 'assault' && HANDHELD.has(inst.id) && cat !== 'melee' && R.kind === 'biped';
+    const rest = atEase ? -0.85 : -Math.PI / 2;
     if (style === 'assault') arm.rotation.z = sx * 0.14;
     const el = new T.Group(); el.position.y = -0.15; el.rotation.x = rest; arm.add(el);
     mesh(sph(0.036 * ak, 8), toon(tc.dark), el, [0, 0, 0]);
@@ -1561,7 +1609,11 @@ function buildMech(m, owner, doctrine, opt) {
   if (S.torso) {
     buildPack(bp, tc, style, w, h, R);
     const n = S.torso ? (Dd[S.torso.id].auxSlots || 0) : 0;
-    const spots = [[-w * 0.36, h * 0.62, dp * 0.42], [w * 0.36, h * 0.62, dp * 0.42], [0, -h * 0.42, dp * 0.95]];
+    // aux modules bolt onto the outside of the backpack, measured from its rear face, never inside the hull
+    root.updateMatrixWorld(true);
+    const pb = new T.Box3().setFromObject(bp).applyMatrix4(new T.Matrix4().copy(bp.matrixWorld).invert());
+    const back = Math.min(-0.04, pb.min.z) - 0.034;
+    const spots = [[-w * 0.3, h * 0.45, back], [w * 0.3, h * 0.45, back], [0, -h * 0.3, back]];
     for (let i = 0; i < n; i++) {
       const a = S.aux[i];
       if (a) { const ag = buildAux(bp, a.id, spots[i], tc); ag.scale.setScalar(1.5); tag(ag, 'aux' + i); }
@@ -1655,7 +1707,7 @@ R3.mount = function (el, onTap) {
   const group = new T.Group(); scene.add(group);
   BD = { el, renderer, scene, cam, group, sun, hemi, onTap, recs: {}, tiles: {}, ov: {}, props: {}, labels: [], queue: [], anims: [], shake: 0, flip: false, crates: {}, wrecks: {}, objs: {}, sel: null, active: null,
     rig: { az: ISO_AZ, el: EL_34, zoom: 1, tx: 0, tz: 0 }, rigT: { az: ISO_AZ, el: EL_34, zoom: 1, tx: 0, tz: 0 }, viewAz: 0, userT: -9, intent: null, focusTok: 0, size: { w: 1, h: 1 }, pad: { t: 0, r: 0, b: 0, l: 0 } };
-  BD.parts = new Particles(group, 260);
+  BD.parts = new Particles(group, 900);
   const resize = () => { const e = BD.el, w = e.clientWidth || 1, h = e.clientHeight || 1; renderer.setSize(w, h, false); BD.size = { w, h }; };
   BD.resize = resize;
   if (window.ResizeObserver) { BD.ro = new ResizeObserver(resize); BD.ro.observe(el); } else window.addEventListener('resize', resize);
@@ -2332,6 +2384,46 @@ function flash(pos, col, size, life) { BD.parts.spawn({ pos, size: size || 0.35,
 function sparks(pos, col, n) { BD.parts.burst(pos, n || 10, { spd: 2.2, life: 0.35, size: 0.06, size1: 0.01, color: col || 0xffe2a0, color1: 0xff7a2a, grav: 4, upMin: 0 }); }
 function smoke(pos, n, big) { BD.parts.burst(pos, LEVEL === 'low' ? Math.ceil(n / 2) : n, { add: false, spd: big ? 0.6 : 0.3, life: big ? 1.6 : 1, size: big ? 0.3 : 0.16, size1: big ? 0.7 : 0.4, color: 0x5d6168, color1: 0x9aa0a8, op: 0.6, op1: 0, grav: -0.6, upMin: 0.3, drag: 0.5 }); }
 function shake(a) { if (LEVEL === 'low') return; BD.shake = Math.max(BD.shake, a); }
+// dust that hangs, after game dust VFX: tan clouds that swell slowly, drift outward and take seconds to settle
+const dustCol = () => (BIO && BIO.deco === 'snow' ? [0xf4f8fb, 0xdde6ee] : BIO && BIO.deco === 'yard' ? [0xb8aa98, 0x9a8e80] : [0xe2d6bc, 0xc8baa0]);
+function dust(pos, n, r, spd) {
+  const k = LEVEL === 'low' ? Math.ceil(n / 2) : n, [c0, c1] = dustCol();
+  for (let i = 0; i < k; i++) {
+    const a = rand(0, Math.PI * 2), d = rand(0, r || 0.3), v = rand(0.15, 0.5) * (spd || 1);
+    BD.parts.spawn({ pos: new T.Vector3(pos.x + Math.cos(a) * d, Math.max(0.04, pos.y) + rand(0, 0.08), pos.z + Math.sin(a) * d), vel: new T.Vector3(Math.cos(a) * v, rand(0.03, 0.16), Math.sin(a) * v), add: false, life: rand(2.6, 4.4), size: rand(0.16, 0.28), size1: rand(0.65, 1.05), color: c0, color1: c1, op: 0.65 * (BD.dustK || 1), op1: 0, drag: 0.35 });
+  }
+}
+// a ring of dust thrown out along the ground by a blast, a big gun firing or a heavy landing
+function dustRing(pos, n, spd) {
+  const k = LEVEL === 'low' ? Math.ceil(n / 2) : n, [c0, c1] = dustCol();
+  for (let i = 0; i < k; i++) {
+    const a = (i / k) * Math.PI * 2 + rand(-0.15, 0.15), v = rand(0.8, 1.4) * (spd || 1);
+    BD.parts.spawn({ pos: new T.Vector3(pos.x + Math.cos(a) * 0.1, 0.06, pos.z + Math.sin(a) * 0.1), vel: new T.Vector3(Math.cos(a) * v, rand(0.02, 0.12), Math.sin(a) * v), add: false, life: rand(2.4, 3.8), size: 0.22, size1: rand(0.75, 1.1), color: c0, color1: c1, op: 0.7 * (BD.dustK || 1), op1: 0, drag: 0.22 });
+  }
+}
+// a blackened patch on the ground that fades over several seconds
+function scorch(pos, r) {
+  const m = new T.Mesh(new T.CircleGeometry(r, 20), new T.MeshBasicMaterial({ color: 0x14110f, transparent: true, opacity: 0.55, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(pos.x, 0.012, pos.z); m.renderOrder = 2; BD.group.add(m);
+  const t0 = clock();
+  BD.anims.push(t => { const k = (t - t0) / 7; if (k >= 1) { BD.group.remove(m); m.geometry.dispose(); m.material.dispose(); return false; } m.material.opacity = 0.55 * (1 - k * k); return true; });
+}
+// a fireball, after stylised explosion VFX: a white flash, a hot core blooming outward and climbing as it cools
+// from yellow through orange to deep red, dark smoke rolling up out of it and hanging, embers, burning debris,
+// a scorch mark and dust thrown out along the ground
+function fireball(pos, s) {
+  s = s || 1;
+  flash(pos.clone(), 0xfff4d0, 0.55 * s, 0.1);
+  flash(pos.clone(), 0xff9a30, 1.3 * s, 0.3);
+  BD.parts.burst(pos, Math.round(22 * s), { spd: 1.2 * s, life: 0.85, size: 0.2 * s, size1: 0.5 * s, color: 0xff9a2a, color1: 0x7a1606, op: 0.85, grav: -1.3, spread: 0.08 * s, drag: 0.22 });
+  BD.parts.burst(pos, Math.round(8 * s), { spd: 0.5 * s, life: 0.45, size: 0.22 * s, size1: 0.08 * s, color: 0xffd060, color1: 0xff5a10, op: 0.9, grav: -0.6, spread: 0.05 * s });
+  for (let i = 0; i < Math.round(12 * s); i++) BD.parts.spawn({ pos: pos.clone().add(new T.Vector3(rand(-0.15, 0.15) * s, rand(0, 0.2) * s, rand(-0.15, 0.15) * s)), vel: new T.Vector3(rand(-0.25, 0.25), rand(0.35, 0.8), rand(-0.25, 0.25)).multiplyScalar(Math.sqrt(s)), add: false, life: rand(2.2, 3.8), size: 0.24 * s, size1: 0.85 * s, color: 0x2e2826, color1: 0x6d6862, op: 0.7, op1: 0, drag: 0.45 });
+  BD.parts.burst(pos, Math.round(20 * s), { spd: 3.2 * Math.sqrt(s), life: 1, size: 0.045, size1: 0.01, color: 0xffe2a0, color1: 0xff5a1a, grav: 3.5, upMin: 0.2 });
+  BD.parts.chunks(pos.clone(), Math.round(5 * s), 0x3a3f46, { fire: true, spd: Math.sqrt(s) });
+  shockRing(pos.clone().setY(0.04), 0xffc46b, 0.55 * s, 0.5);
+  scorch(pos, 0.3 * s);
+  dust(pos.clone().setY(0.05), Math.round(6 * s), 0.2 * s);
+}
 function explosion(pos, scale) {
   scale = scale || 1;
   flash(pos.clone(), 0xffffff, 0.9 * scale, 0.16);
@@ -2359,6 +2451,71 @@ function projectile(from, to, opt) {
     m.position.copy(p); m.lookAt(BD.group.localToWorld(p.clone().add(p.clone().sub(prev)))); prev.copy(p);
     if (opt.trail && Math.random() < (LEVEL === 'low' ? 0.4 : 0.9)) BD.parts.spawn({ pos: p.clone(), vel: new T.Vector3(rand(-0.1, 0.1), 0.2, rand(-0.1, 0.1)), add: opt.trail === 'fire', life: 0.6, size: 0.07, size1: 0.2, color: opt.trail === 'fire' ? 0xffb066 : 0x8a9098, color1: 0xb0b6be, op: 0.7, op1: 0 });
     if (k >= 1) { BD.group.remove(m); return false; }
+    return true;
+  });
+}
+// a missile in flight, after missile-launch references: a pale body with a red nose cone, a flickering rocket
+// flame and white-hot nozzle glow behind it, a short fire trail and a long smoke trail that billows and hangs;
+// each one bursts into its own fireball where it lands
+function missile(from, to, o) {
+  const g = new T.Group(); g.scale.setScalar(1.9);
+  mesh(cyl(0.016, 0.016, 0.11, 8), toon(0xd8dce0), g, [0, 0, 0], [Math.PI / 2, 0, 0], flat);
+  mesh(cone(0.016, 0.04, 8), toon(0xd8382a), g, [0, 0, 0.075], [Math.PI / 2, 0, 0], flat);
+  for (const a of [0, 1, 2, 3]) mesh(box(0.004, 0.03, 0.03), toon(0x5a5f66), g, [Math.cos(a * Math.PI / 2) * 0.018, Math.sin(a * Math.PI / 2) * 0.018, -0.045], [0, 0, a * Math.PI / 2], flat);
+  const flame = new T.Mesh(cone(0.024, 0.22, 8), new T.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false }));
+  flame.rotation.x = -Math.PI / 2; flame.position.z = -0.16; g.add(flame);
+  const inner = new T.Mesh(cone(0.012, 0.12, 8), new T.MeshBasicMaterial({ color: 0xffe8a0, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false }));
+  inner.rotation.x = -Math.PI / 2; inner.position.z = -0.11; g.add(inner);
+  const hot = new T.Mesh(sph(0.022, 8), new T.MeshBasicMaterial({ color: 0xfff4d0, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false }));
+  hot.position.z = -0.06; g.add(hot);
+  g.visible = false; BD.group.add(g);
+  const t0 = clock() + (o.delay || 0), dur = o.dur, arc = o.arc || 0, prev = from.clone(), tail = new T.Vector3();
+  BD.anims.push(t => {
+    if (t < t0) return true;
+    g.visible = true;
+    const k = Math.min(1, (t - t0) / dur);
+    // the launch is slow for a moment, then the motor catches and it accelerates
+    const e = k < 0.15 ? k * k / 0.15 * 0.5 : 0.075 + (k - 0.15) / 0.85 * 0.925;
+    const p = from.clone().lerp(to, e); p.y += Math.sin(e * Math.PI) * arc;
+    g.position.copy(p); g.lookAt(BD.group.localToWorld(p.clone().add(p.clone().sub(prev).multiplyScalar(4))));
+    flame.scale.set(1 + rand(-0.2, 0.2), 1 + rand(-0.25, 0.5), 1); inner.scale.y = 1 + rand(-0.2, 0.3);
+    tail.copy(p).sub(prev).normalize().multiplyScalar(-0.22).add(p); prev.copy(p);
+    for (let j = 0; j < (LEVEL === 'low' ? 1 : 2); j++) {
+      BD.parts.spawn({ pos: tail.clone(), vel: new T.Vector3(rand(-0.08, 0.08), rand(-0.02, 0.06), rand(-0.08, 0.08)), life: 0.3, size: 0.11, size1: 0.03, color: 0xffc060, color1: 0xc8280c, op: 1, op1: 0 });
+      BD.parts.spawn({ pos: tail.clone(), vel: new T.Vector3(rand(-0.06, 0.06), rand(0.04, 0.14), rand(-0.06, 0.06)), add: false, life: rand(1.8, 2.8), size: 0.1, size1: 0.42, color: 0xe2ded8, color1: 0x8f8a84, op: 0.6, op1: 0, drag: 0.5 });
+    }
+    if (k >= 1) { BD.group.remove(g); fireball(to.clone(), o.blast || 0.5); shake(0.08); return false; }
+    return true;
+  });
+}
+// electric arcs crawling along a beam, after laser-and-lightning VFX: jagged bolts that hug the beam, re-strike
+// every few frames and wander along its length, with sparks thrown off where they jump
+function beamArcs(from, to, col, life, amp, n, delay) {
+  const dir = to.clone().sub(from), len = dir.length(); dir.normalize();
+  const u = new T.Vector3(0, 1, 0).cross(dir); if (u.lengthSq() < 1e-4) u.set(1, 0, 0); u.normalize();
+  const v = dir.clone().cross(u).normalize();
+  // each bolt is a thin glowing tube: a white-hot core inside a wider coloured glow, so it reads at any zoom
+  const mats = [[new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: T.AdditiveBlending, depthWrite: false }), 0.007], [new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.6, blending: T.AdditiveBlending, depthWrite: false }), 0.02]];
+  const t0 = clock() + (delay || 0); let next = 0; const lines = [];
+  const clear = () => { lines.forEach(l => { BD.group.remove(l); l.geometry.dispose(); }); lines.length = 0; };
+  BD.anims.push(t => {
+    if (t < t0) return true;
+    const k = (t - t0) / life;
+    if (k >= 1) { clear(); mats.forEach(([m]) => m.dispose()); return false; }
+    if (t >= next) {
+      next = t + 0.04; clear();
+      for (let j = 0; j < n; j++) {
+        const a = rand(0, 0.75), b = Math.min(1, a + rand(0.18, 0.4)), seg = 12, pts = [];
+        for (let i = 0; i <= seg; i++) {
+          const q = a + (b - a) * i / seg, taper = Math.sin(Math.PI * i / seg), w = amp * (0.4 + taper);
+          pts.push(from.clone().addScaledVector(dir, q * len).addScaledVector(u, rand(-w, w)).addScaledVector(v, rand(-w, w)));
+        }
+        const path = new T.CurvePath(); for (let i = 1; i < pts.length; i++) path.add(new T.LineCurve3(pts[i - 1], pts[i]));
+        for (const [m, r] of mats) { const l = new T.Mesh(new T.TubeGeometry(path, pts.length - 1, r, 4, false), m); BD.group.add(l); lines.push(l); }
+        if (Math.random() < 0.5) BD.parts.spawn({ pos: pts[(Math.random() * pts.length) | 0].clone(), vel: new T.Vector3(rand(-0.6, 0.6), rand(-0.2, 0.8), rand(-0.6, 0.6)), life: 0.25, size: 0.04, size1: 0.01, color: 0xffffff, color1: col, op: 1, op1: 0 });
+      }
+    }
+    mats.forEach(([m], i) => { m.opacity = (1 - k) * (i ? 0.6 : 1) * (Math.random() < 0.15 ? 0.3 : 1); });
     return true;
   });
 }
@@ -2419,11 +2576,11 @@ function shockRing(pos, col, r, life, vertical, dir) {
   const t0 = clock();
   BD.anims.push(t => { const k = (t - t0) / life; if (k >= 1) { BD.group.remove(m); m.geometry.dispose(); m.material.dispose(); return false; } m.scale.setScalar(1 + k * r * 10); m.material.opacity = 0.95 * (1 - k); return true; });
 }
-function screenFlash(op) {
+function screenFlash(op, col) {
   if (LEVEL === 'low' || typeof document === 'undefined') return;
   const host = BD.el; if (!host) return;
   const d = document.createElement('div');
-  d.style.cssText = 'position:absolute;inset:0;pointer-events:none;background:#fff;opacity:' + op + ';transition:opacity .35s ease-out;z-index:5';
+  d.style.cssText = 'position:absolute;inset:0;pointer-events:none;background:' + (col || '#fff') + ';opacity:' + op + ';transition:opacity .35s ease-out;z-index:5';
   host.appendChild(d); requestAnimationFrame(() => { d.style.opacity = '0'; }); setTimeout(() => d.remove(), 420);
 }
 // crackling arcs round a point, while something charges
@@ -2435,15 +2592,41 @@ function arcsAround(getP, col, dur, n) {
     return true;
   });
 }
+// a heavy shell landing, after artillery-impact references: a big fireball, a column of dirt thrown straight up
+// that rains back down, debris, a wide ring of dust rolling out along the ground and hanging, and a hard shake
+function artilleryImpact(to, hit) {
+  const g = to.clone().setY(0.08);
+  fireball(hit ? to.clone() : g.clone(), 2.1);
+  for (let i = 0; i < (LEVEL === 'low' ? 10 : 22); i++) BD.parts.spawn({ pos: g.clone().add(new T.Vector3(rand(-0.1, 0.1), 0, rand(-0.1, 0.1))), vel: new T.Vector3(rand(-0.25, 0.25), rand(2.2, 3.6), rand(-0.25, 0.25)), life: rand(0.4, 0.7), size: 0.22, size1: 0.45, color: 0xffb040, color1: 0x8a1a06, op: 0.9, op1: 0, grav: 1.5, drag: 0.4 });
+  const [c0] = dustCol();
+  for (let i = 0; i < (LEVEL === 'low' ? 16 : 36); i++) BD.parts.spawn({ pos: g.clone().add(new T.Vector3(rand(-0.15, 0.15), 0, rand(-0.15, 0.15))), vel: new T.Vector3(rand(-0.7, 0.7), rand(2.4, 4.4), rand(-0.7, 0.7)), add: false, life: rand(1.2, 1.9), size: rand(0.12, 0.24), size1: 0.32, color: 0x4a3a2c, color1: c0, op: 0.9, op1: 0, grav: 4.5 });
+  BD.parts.chunks(g.clone(), 10, 0x4b4239, { spd: 1.5 });
+  dustRing(g, 26, 1.3);
+  shockRing(g.clone().setY(0.05), 0xffffff, 1.2, 0.6);
+  shake(0.42); screenFlash(0.3, '#ffb060');
+}
+// a rail slug punching through, after rail-gun impact references: a white-hot pierce flash, rings of light
+// along the shot line, sparks sprayed out of the far side, a burst of fire and dust, and a hard shake
+function railImpact(to, col) {
+  flash(to.clone(), 0xffffff, 1.6, 0.2);
+  sparks(to, 0xffffff, 40); sparks(to, col, 26);
+  shockRing(to.clone(), col, 0.7, 0.55); shockRing(to.clone(), 0xffffff, 0.45, 0.4);
+  fireball(to.clone(), 0.8);
+  dustRing(to.clone().setY(0.06), 16, 1);
+  shake(0.36); screenFlash(0.4);
+}
 // what a hit does, by weight: sparks for light rounds, fire, frost, a shock pulse, or a real explosion
 function impactFx(to, kind, col, hit) {
-  if (!hit) { smoke(to.clone(), 3, false); BD.parts.burst(to, 8, { spd: 1.2, life: 0.45, size: 0.05, color: 0xc8c0a8, grav: 3, upMin: 0.3 }); return; }
+  if (kind === 'missile') { shake(0.14); dust(to.clone().setY(0.05), 6, 0.3); return; }
+  if (kind === 'artillery') { artilleryImpact(to, hit); return; }
+  if (kind === 'rail' && hit) { railImpact(to, col); return; }
+  if (!hit) { smoke(to.clone(), 3, false); dust(to.clone().setY(0.05), 4, 0.15); BD.parts.burst(to, 8, { spd: 1.2, life: 0.45, size: 0.05, color: 0xc8c0a8, grav: 3, upMin: 0.3 }); return; }
   if (kind === 'light') { sparks(to, col, 10); flash(to.clone(), col, 0.28, 0.1); }
   else if (kind === 'medium') { sparks(to, col, 18); flash(to.clone(), 0xffffff, 0.45, 0.12); smoke(to.clone(), 2, false); shake(0.03); }
-  else if (kind === 'heavy') { explosion(to, 0.6); sparks(to, 0xffe2a0, 16); shake(0.07); }
-  else if (kind === 'blast') { explosion(to, 1); shockRing(to.clone().setY(0.04), 0xffc46b, 0.5, 0.55); shake(0.12); }
+  else if (kind === 'heavy') { fireball(to, 0.7); sparks(to, 0xffe2a0, 16); shake(0.09); }
+  else if (kind === 'blast') { fireball(to, 1.1); shake(0.14); }
   else if (kind === 'pierce') { flash(to.clone(), 0xffffff, 0.8, 0.14); sparks(to, 0xffffff, 26); sparks(to, col, 14); shockRing(to.clone(), col, 0.35, 0.4); shake(0.1); }
-  else if (kind === 'rail') { flash(to.clone(), 0xffffff, 1.2, 0.18); sparks(to, 0xffffff, 34); sparks(to, col, 20); shockRing(to.clone(), col, 0.55, 0.5); shockRing(to.clone().setY(0.04), 0xffffff, 0.45, 0.5); smoke(to.clone(), 5, true); shake(0.16); screenFlash(0.35); }
+  else if (kind === 'rail') railImpact(to, col);
   else if (kind === 'fire') { BD.parts.burst(to, 22, { spd: 1, life: 0.7, size: 0.14, size1: 0.36, color: 0xffd27a, color1: 0xff3a1a, grav: -1.5 }); smoke(to.clone(), 3, false); shake(0.03); }
   else if (kind === 'frost') { BD.parts.burst(to, 22, { spd: 1.4, life: 0.7, size: 0.08, size1: 0.01, color: 0xffffff, color1: 0x8fdcff, grav: 1 }); flash(to.clone(), 0xbfefff, 0.6, 0.18); shockRing(to.clone(), 0xbfefff, 0.3, 0.45); }
   else if (kind === 'shock') { flash(to.clone(), 0x9fe8ff, 0.7, 0.2); shockRing(to.clone(), 0x9fe8ff, 0.5, 0.5); for (let i = 0; i < 4; i++) lightning(to, to.clone().add(new T.Vector3(rand(-0.5, 0.5), rand(-0.1, 0.5), rand(-0.5, 0.5))), 0x9fe8ff, 0.25, i * 0.05); shake(0.05); }
@@ -2465,18 +2648,18 @@ const FIRE = {
     fire: c => { for (let i = 0; i < 12; i++) schedule(i * 0.045, () => { flash(c.from.clone(), 0xffe9a8, 0.26, 0.05); projectile(c.from, c.jitter(0.15), { color: 0xffe6a0, dur: 0.12 }); casing(c.from, c.dir); c.kick(0.35); if (i % 3 === 0) sparks(c.jitter(0.2), 0xffe2a0, 4); }); schedule(0.55, () => smoke(c.from.clone(), 3, false)); return 0.62; } },
   w_scatter: { wind: 0.6, pose: 'pull', charge: { col: 0xffd890, size: 0.9 }, impact: 'medium',
     fire: c => { flash(c.from.clone(), 0xfff2c0, 0.6, 0.12); smoke(c.from.clone(), 4, false); c.kick(1.6); shake(0.04); for (let i = 0; i < 9; i++) projectile(c.from, c.jitter(0.3), { color: 0xffe6a0, dur: 0.13, geo: box(0.02, 0.02, 0.08) }); casing(c.from, c.dir); return 0.16; } },
-  w_rail: { wind: 1.1, pose: 'brace', charge: { col: 0x9fd8ff, size: 2.2, coil: true }, impact: 'pierce',
-    fire: c => { flash(c.from.clone(), 0xffffff, 0.8, 0.15); beam(c.from, c.to, 0x9fd8ff, 0.07, 0.5); beam(c.from, c.to, 0xffffff, 0.03, 0.25); shockRing(c.from.clone(), 0x9fd8ff, 0.35, 0.35, true, c.dir); smoke(c.from.clone(), 4, false); c.kick(2); shake(0.07); return 0.06; } },
-  s_railgun: { wind: 1.4, pose: 'brace', charge: { col: 0xbfe8ff, size: 3.2, coil: true, ground: true }, impact: 'rail',
-    fire: c => { flash(c.from.clone(), 0xffffff, 1.4, 0.2); beam(c.from, c.to, 0xbfe8ff, 0.12, 0.7); beam(c.from, c.to, 0xffffff, 0.05, 0.35); shockRing(c.from.clone(), 0xbfe8ff, 0.6, 0.5, true, c.dir); shockRing(c.att.R.root.position.clone().setY(0.04), 0xffffff, 0.6, 0.5); smoke(c.from.clone(), 8, true); c.kick(3); shake(0.14); screenFlash(0.25); return 0.06; } },
-  w_missile: { wind: 0.7, pose: 'raise', charge: { col: 0xffb070, size: 0.9 }, impact: 'heavy',
-    fire: c => { for (let i = 0; i < 4; i++) schedule(i * 0.1, () => { flash(c.from.clone(), 0xffd8a0, 0.3, 0.08); smoke(c.from.clone(), 1, false); projectile(c.from.clone().add(new T.Vector3(rand(-0.06, 0.06), 0, rand(-0.06, 0.06))), c.jitter(0.12), { geo: cyl(0.018, 0.018, 0.11, 6), color: 0xffe2b0, dur: 0.6, arc: rand(0.5, 0.8), trail: 'smoke' }); c.kick(0.5); }); return 0.95; } },
-  w_howitzer: { wind: 0.85, pose: 'raise', charge: { col: 0xffd08a, size: 1.2 }, impact: 'blast',
-    fire: c => { flash(c.from.clone(), 0xfff2c0, 0.8, 0.16); smoke(c.from.clone(), 8, true); shockRing(c.from.clone(), 0xffe0a0, 0.35, 0.4, true, c.dir); c.kick(2.4); shake(0.08); projectile(c.from, c.to, { geo: sph(0.045, 8), color: 0xffd27a, dur: 0.85, arc: 1.8, trail: 'fire' }); return 0.88; } },
+  w_rail: { wind: 2.0, pose: 'brace', long: true, charge: { col: 0x9fd8ff, size: 2.6, coil: true, ground: true }, impact: 'rail',
+    fire: c => { longShot(c, 0x9fd8ff, 0.8); beam(c.from, c.to, 0x9fd8ff, 0.09, 0.6); beam(c.from, c.to, 0xffffff, 0.04, 0.35); beamArcs(c.from, c.to, 0xbfe8ff, 0.55, 0.12, 3); c.kick(2.6); return 0.06; } },
+  s_railgun: { wind: 2.6, pose: 'brace', long: true, charge: { col: 0xbfe8ff, size: 3.6, coil: true, ground: true }, impact: 'rail',
+    fire: c => { longShot(c, 0xbfe8ff, 1.2); beam(c.from, c.to, 0xbfe8ff, 0.14, 0.8); beam(c.from, c.to, 0xffffff, 0.06, 0.45); beamArcs(c.from, c.to, 0xdff4ff, 0.7, 0.16, 4); c.kick(3.4); return 0.06; } },
+  w_missile: { wind: 0.7, pose: 'raise', charge: { col: 0xffb070, size: 0.9 }, impact: 'missile',
+    fire: c => { for (let i = 0; i < 4; i++) schedule(i * 0.1, () => { const o = c.from.clone().add(new T.Vector3(rand(-0.06, 0.06), 0, rand(-0.06, 0.06))); flash(o.clone(), 0xffd8a0, 0.35, 0.08); backBlast(c, o); missile(o, c.jitter(0.16), { dur: 0.62, arc: rand(0.5, 0.85), blast: 0.45 }); c.kick(0.5); shake(0.03); }); return 0.95; } },
+  w_howitzer: { wind: 2.0, pose: 'raise', long: true, charge: { col: 0xffd08a, size: 1.8, ground: true }, impact: 'artillery',
+    fire: c => { longShot(c, 0xffd08a, 1); projectile(c.from, c.to, { geo: sph(0.05, 10), color: 0xffd27a, dur: 0.85, arc: 1.8, trail: 'fire' }); c.kick(3); return 0.88; } },
   w_laser: { wind: 0.7, pose: 'aim', charge: { col: 0x9cf0ff, size: 1.6 }, impact: 'medium',
-    fire: c => { flash(c.from.clone(), 0x9cf0ff, 0.45, 0.18); beam(c.from, c.to, 0x7fe8ff, 0.05, 0.5); beam(c.from, c.to, 0xffffff, 0.02, 0.4); c.kick(0.6); return 0.06; } },
+    fire: c => { flash(c.from.clone(), 0x9cf0ff, 0.55, 0.2); beam(c.from, c.to, 0x7fe8ff, 0.055, 0.55); beam(c.from, c.to, 0xffffff, 0.022, 0.45); beamArcs(c.from, c.to, 0xbff6ff, 0.75, 0.15, 4); c.kick(0.6); shake(0.03); return 0.06; } },
   w_lance: { wind: 1.05, pose: 'brace', charge: { col: 0xc8a0ff, size: 2.6, coil: true }, impact: 'pierce',
-    fire: c => { flash(c.from.clone(), 0xe8d0ff, 0.8, 0.2); beam(c.from, c.to, 0xb08cff, 0.09, 0.6); beam(c.from, c.to, 0xffffff, 0.035, 0.45); for (let i = 0; i < 14; i++) BD.parts.spawn({ pos: c.from.clone().lerp(c.to, Math.random()), vel: new T.Vector3(rand(-0.4, 0.4), rand(-0.2, 0.5), rand(-0.4, 0.4)), life: 0.5, size: 0.05, size1: 0.01, color: 0xe0c8ff, op: 1, op1: 0 }); c.kick(1.4); shake(0.06); return 0.06; } },
+    fire: c => { flash(c.from.clone(), 0xe8d0ff, 0.9, 0.22); beam(c.from, c.to, 0xb08cff, 0.09, 0.65); beam(c.from, c.to, 0xffffff, 0.035, 0.5); beamArcs(c.from, c.to, 0xd8b8ff, 0.85, 0.2, 5); for (let i = 0; i < 14; i++) BD.parts.spawn({ pos: c.from.clone().lerp(c.to, Math.random()), vel: new T.Vector3(rand(-0.4, 0.4), rand(-0.2, 0.5), rand(-0.4, 0.4)), life: 0.5, size: 0.05, size1: 0.01, color: 0xe0c8ff, op: 1, op1: 0 }); c.kick(1.4); shake(0.08); return 0.06; } },
   w_arc: { wind: 0.75, pose: 'aim', charge: { col: 0x9fe8ff, size: 1.4, coil: true }, impact: 'shock',
     fire: c => { for (let i = 0; i < 4; i++) lightning(c.from, c.jitter(0.1), 0x9fe8ff, 0.32, i * 0.06); flash(c.from.clone(), 0x9fe8ff, 0.5, 0.2); c.kick(0.7); return 0.12; } },
   s_emp: { wind: 0.95, pose: 'aim', charge: { col: 0x7fd4ff, size: 2.4, coil: true, ring: true }, impact: 'shock',
@@ -2492,6 +2675,26 @@ const FIRE = {
   w_repair: { wind: 0.5, pose: 'aim', charge: { col: 0x9fd8b4, size: 1 }, impact: 'light',
     fire: c => { beam(c.from, c.to, 0x9fd8b4, 0.03, 0.5); return 0.08; } }
 };
+// a long gun going off, after artillery-firing references: a fireball blown out of the muzzle along the shot,
+// a shock ring at the muzzle, a ring of dust blasted out along the ground under the shooter, a massive shake and
+// a flash across the screen
+function longShot(c, col, s) {
+  const d = c.to.clone().sub(c.from).normalize();
+  flash(c.from.clone(), 0xffffff, 1.6 * s, 0.22);
+  for (let i = 0; i < Math.round(22 * s); i++) BD.parts.spawn({ pos: c.from.clone(), vel: d.clone().multiplyScalar(rand(1.2, 3.2)).add(new T.Vector3(rand(-0.5, 0.5), rand(-0.2, 0.6), rand(-0.5, 0.5))), life: rand(0.25, 0.45), size: 0.12 * s, size1: 0.4 * s, color: 0xfff0c0, color1: 0xd8481a, op: 1, op1: 0, drag: 0.15 });
+  for (let i = 0; i < Math.round(10 * s); i++) BD.parts.spawn({ pos: c.from.clone(), vel: d.clone().multiplyScalar(rand(0.4, 1.2)).add(new T.Vector3(rand(-0.3, 0.3), rand(0, 0.4), rand(-0.3, 0.3))), add: false, life: rand(1.8, 3), size: 0.18 * s, size1: 0.7 * s, color: 0x8f8a84, color1: 0x5d5a56, op: 0.6, op1: 0, drag: 0.4 });
+  shockRing(c.from.clone(), col, 0.7 * s, 0.5, true, c.dir);
+  if (c.att) { const g = c.att.R.root.position.clone().setY(0.05); dustRing(g, Math.round(22 * s), 1.1); shockRing(g, 0xffffff, 0.8 * s, 0.5); }
+  shake(0.32 + 0.12 * s); screenFlash(0.35);
+}
+// a rocket leaving its tube: a jet of flame and a cloud of smoke blown out behind the rack
+function backBlast(c, o) {
+  const back = c.to.clone().sub(c.from).setY(0).normalize().multiplyScalar(-1);
+  for (let i = 0; i < 4; i++) BD.parts.spawn({ pos: o.clone(), vel: back.clone().multiplyScalar(rand(0.6, 1.4)).add(new T.Vector3(rand(-0.2, 0.2), rand(0, 0.3), rand(-0.2, 0.2))), life: 0.25, size: 0.08, size1: 0.18, color: 0xffd27a, color1: 0xd8381a, op: 1, op1: 0 });
+  for (let i = 0; i < 4; i++) BD.parts.spawn({ pos: o.clone(), vel: back.clone().multiplyScalar(rand(0.3, 0.8)).add(new T.Vector3(rand(-0.2, 0.2), rand(0.05, 0.3), rand(-0.2, 0.2))), add: false, life: rand(1.6, 2.6), size: 0.1, size1: 0.45, color: 0xd8d4ce, color1: 0x8f8a84, op: 0.55, op1: 0, drag: 0.45 });
+}
+// seconds from the shot leaving the muzzle to the impact, per weapon
+const FLIGHT = { b_gun: 0.3, w_smg: 0.38, w_gatling: 0.62, w_scatter: 0.16, w_rail: 0.06, s_railgun: 0.06, w_missile: 0.95, w_howitzer: 0.88, w_laser: 0.06, w_lance: 0.06, w_arc: 0.12, s_emp: 0.32, s_inferno: 0.5, s_cryo: 0.08, w_blade: 0.2, w_ram: 0.22, w_repair: 0.08 };
 // fallbacks by weapon class, for anything without its own profile
 const FIRE_CAT = { ballistic: 'b_gun', energy: 'w_laser', missile: 'w_missile', artillery: 'w_howitzer', melee: 'w_blade', siege: 'w_ram', support: 'w_repair', incendiary: 's_inferno', cryo: 's_cryo' };
 
@@ -2508,7 +2711,8 @@ function charge(att, cat, dur, slotKey, P) {
   BD.group.add(m); BD.group.add(core);
   const t0 = clock();
   if (ch.coil) arcsAround(() => muzzleWorld(att, cat, slotKey), col, dur);
-  if (ch.ground) schedule(dur * 0.4, () => { const p = att.R.root.position.clone().setY(0.05); smoke(p, 6, true); shockRing(p, 0xcbbf9e, 0.4, 0.6); shake(0.04); });
+  if (ch.ground) schedule(dur * 0.35, () => { const p = att.R.root.position.clone().setY(0.05); dust(p, 8, 0.3, 0.6); shockRing(p, 0xcbbf9e, 0.45, 0.6); shake(0.05); });
+  if (P.long) for (let i = 1; i < 10; i++) schedule(dur * i / 10, () => { if (att.gone) return; const p = att.R.root.position.clone().setY(0.05); shake(0.01 + 0.035 * i / 10); if (i % 3 === 0) dust(p, 3, 0.35, 0.4); });
   BD.anims.push(t => {
     const k = (t - t0) / dur;
     if (k >= 1 || att.gone) { BD.group.remove(m); BD.group.remove(core); m.material.dispose(); core.material.dispose(); return false; }
@@ -2569,7 +2773,7 @@ function shoot(f, start, follow) {
   if (P && P.melee && att) att.lunge = { t0: clock() + start + wind - 0.12, to };
   let travel = 0.2;
   // the flight time is known up front for each profile, so impacts and damage numbers line up
-  const est = { b_gun: 0.3, w_smg: 0.38, w_gatling: 0.62, w_scatter: 0.16, w_rail: 0.06, s_railgun: 0.06, w_missile: 0.95, w_howitzer: 0.88, w_laser: 0.06, w_lance: 0.06, w_arc: 0.12, s_emp: 0.32, s_inferno: 0.5, s_cryo: 0.08, w_blade: 0.2, w_ram: 0.22, w_repair: 0.08 };
+  const est = FLIGHT;
   if (P) travel = follow ? Math.min(0.2, est[wid] || 0.2) : est[wid] || 0.2;
   schedule(start + wind, () => {
     if (!from) from = muzzleWorld(att, cat, f.key);
@@ -2662,15 +2866,11 @@ R3.fx = function (list) {
     const i = idx[j], k = key(f.x, f.y);
     if (f.k === 'float') { delays[i] = Math.round(1000 * (impact[k] != null ? impact[k] : tShot)); return; }
     const at = (impact[k] != null ? impact[k] + 0.15 : tShot) + 0.05;
-    if (f.k === 'boom' || f.k === 'nuke') endP = Math.max(endP, at + (f.k === 'nuke' ? 2 : 1.1));
+    if (f.k === 'boom' || f.k === 'nuke') endP = Math.max(endP, at + (f.k === 'nuke' ? 2 : 2.2));
     if (f.k === 'boom') {
       delays[i] = at * 1000;
       const rec = (f.uid && BD.recs[f.uid]) || recAt(f.x, f.y, true) || null;
-      schedule(at, () => {
-        const p = tp(f.x, f.y, 0.4);
-        explosion(p, 1.1);
-        if (rec) { rec.dying = { t0: clock() }; }
-      });
+      schedule(at, () => destroyMech(rec, tp(f.x, f.y, 0.4)));
     } else if (f.k === 'nuke') {
       const rec = (f.uid && BD.recs[f.uid]) || recAt(f.x, f.y, true);
       if (rec) rec.charging = clock();
@@ -2734,6 +2934,34 @@ function pillar(p, col) {
   BD.anims.push(t => { const k = (t - t0) / 1.1; if (k >= 1) { BD.group.remove(m); return false; } m.material.opacity = 0.5 * (1 - k); m.scale.set(1 - k * 0.6, 1, 1 - k * 0.6); return true; });
   BD.parts.burst(p.clone().setY(0.1), 14, { spd: 1.2, life: 0.8, size: 0.06, color: col, grav: -1.5, upMin: 0.6 });
 }
+// a mech destroyed, after cinematic mech-death references: small explosions pop across the body as it buckles,
+// then a big fireball engulfs it with a flash and a hard shake; the head and arms are torn off and thrown, burning,
+// a ring of dust rolls out, and a column of dark smoke and embers keeps rising from the wreck
+function destroyMech(rec, p) {
+  if (rec) rec.dying = { t0: clock(), long: true };
+  const at = () => (rec ? rec.R.root.position.clone() : p.clone().setY(0));
+  [0, 0.22, 0.42].forEach((d, i) => schedule(d, () => { const q = at().add(new T.Vector3(rand(-0.2, 0.2), rand(0.25, 0.75), rand(-0.2, 0.2))); fireball(q, 0.32); sparks(q, 0xffe2a0, 10); shake(0.08 + i * 0.03); }));
+  schedule(0.7, () => {
+    const c = at().setY(0.4);
+    fireball(c, 1.8);
+    BD.parts.chunks(c.clone(), 10, 0x3a3f46, { fire: true, spd: 1.4 });
+    dustRing(c.clone().setY(0.05), 24, 1.2);
+    shake(0.45); screenFlash(0.35, '#ffb060');
+    if (rec && LEVEL !== 'low') {
+      const R = rec.R, parts = [R.head].concat(Object.values(R.arms).map(a => a.sh)).filter(Boolean);
+      parts.forEach(o => { const out = new T.Vector3(); o.getWorldPosition(out); BD.group.worldToLocal(out); const d = out.sub(c).setY(0).normalize(); BD.parts.fling(o, new T.Vector3(d.x * rand(1, 2), rand(2.2, 3.4), d.z * rand(1, 2)), 2.8); });
+    }
+    // the wreck burns: a column of smoke and embers rising for a few seconds
+    const base = c.clone().setY(0.15), t0 = clock();
+    BD.anims.push(t => {
+      const k = (t - t0) / 4.5; if (k >= 1) return false;
+      if (Math.random() < 0.7 * (1 - k)) BD.parts.spawn({ pos: base.clone().add(new T.Vector3(rand(-0.15, 0.15), rand(0, 0.1), rand(-0.15, 0.15))), vel: new T.Vector3(rand(-0.08, 0.08), rand(0.45, 0.8), rand(-0.08, 0.08)), add: false, life: rand(2.2, 3.2), size: 0.2, size1: 0.8, color: 0x2a2624, color1: 0x5d5a56, op: 0.7, op1: 0, drag: 0.6 });
+      if (Math.random() < 0.4 * (1 - k)) BD.parts.spawn({ pos: base.clone().add(new T.Vector3(rand(-0.12, 0.12), 0, rand(-0.12, 0.12))), vel: new T.Vector3(rand(-0.2, 0.2), rand(0.4, 1.0), rand(-0.2, 0.2)), life: rand(0.8, 1.4), size: 0.035, size1: 0.01, color: 0xffd27a, color1: 0xff4a1a, op: 1, op1: 0, grav: -0.3 });
+      if (Math.random() < 0.3 * (1 - k)) BD.parts.spawn({ pos: base.clone().add(new T.Vector3(rand(-0.1, 0.1), 0, rand(-0.1, 0.1))), vel: new T.Vector3(0, rand(0.2, 0.4), 0), life: 0.5, size: 0.12, size1: 0.04, color: 0xffb040, color1: 0xc8320f, op: 0.9, op1: 0 });
+      return true;
+    });
+  });
+}
 function nuke(f, rec) {
   const p = tp(f.x, f.y, 0.4);
   if (rec) rec.dying = { t0: clock(), vapor: true };
@@ -2757,7 +2985,7 @@ R3.reset = function () {
   MS = window.MW.W > 10 ? 0.98 : window.MW.W > 9 ? 1.06 : 1.15;
   while (BD.group.children.length) BD.group.remove(BD.group.children[0]);
   Object.assign(BD, { recs: {}, tiles: {}, ov: {}, props: {}, objs: {}, wrecks: {}, crates: {}, queue: [], anims: [], labels: [], shake: 0, base0: null, base1: null });
-  BD.parts = new Particles(BD.group, 260);
+  BD.parts = new Particles(BD.group, 900);
   ST.hasBoard = false;
 };
 
@@ -2972,6 +3200,7 @@ function updateBoard(t, dt) {
   for (const k in BD.wrecks) {
     const w = BD.wrecks[k];
     w.userData.glow.material.opacity = 0.2 + 0.35 * (0.5 + 0.5 * Math.sin(t * 3.5));
+    if (LEVEL !== 'low' && Math.random() < 0.06) BD.parts.spawn({ pos: w.position.clone().add(new T.Vector3(rand(-0.15, 0.15), 0.1, rand(-0.15, 0.15))), vel: new T.Vector3(rand(-0.05, 0.05), rand(0.25, 0.45), rand(-0.05, 0.05)), add: false, life: rand(2, 3), size: 0.12, size1: 0.5, color: 0x3a3634, color1: 0x6d6862, op: 0.45, op1: 0, drag: 0.6 });
     if (Math.random() < dt * (LEVEL === 'low' ? 1 : 3)) smoke(w.position.clone().setY(0.12), 1, false);
   }
   for (const k in BD.crates) {
@@ -2995,7 +3224,7 @@ function updateRec(rec, t, dt) {
   // drop-in deployment
   if (rec.drop) {
     const q = (t - rec.drop.t0) / rec.drop.dur;
-    if (q >= 1) { rec.drop = null; BD.parts.burst(root.position.clone().setY(0.05), 14, { add: false, spd: 1, life: 0.7, size: 0.1, size1: 0.3, color: 0xb8ad98, op: 0.7, upMin: 0 }); shake(0.05); }
+    if (q >= 1) { rec.drop = null; dustRing(root.position.clone().setY(0.05), 14, 0.7); shake(0.06); }
     else { y = 5 * Math.pow(1 - q, 2); if (R.thrusters) R.thrusters.forEach(f => { f.visible = true; f.scale.y = 1 + Math.random(); }); }
   }
   // walking along a path
@@ -3063,7 +3292,7 @@ function updateRec(rec, t, dt) {
   }
   // dying: topple, sink and go
   if (rec.dying) {
-    const q = (t - rec.dying.t0) / (rec.dying.vapor ? 0.25 : 1.2);
+    const q = (t - rec.dying.t0) / (rec.dying.vapor ? 0.25 : rec.dying.long ? 2.0 : 1.2);
     if (q >= 1) { dropRec(rec); return; }
     if (rec.dying.vapor) { root.scale.setScalar(MS * (1 - q)); }
     else { R.torso.rotation.x = kf(q, [[0, 0], [0.08, -0.35, 'out'], [0.3, 0.2], [0.6, 0.3]]); R.hips.position.y = R.hipY * kf(q, [[0, 1], [0.3, 0.92], [0.55, 0.6, 'in']]); root.rotation.z = (R.kind === 'treads' ? 0.28 : 1) * kf(q, [[0, 0], [0.3, 0.06], [0.62, -1.35, 'in'], [0.72, -1.18, 'out'], [0.82, -1.38]]); y += kf(q, [[0, 0], [0.62, -0.05], [0.72, 0.03, 'out'], [0.82, -0.05], [1, -0.2, 'in']]); if (Math.random() < 0.5) smoke(root.position.clone().setY(0.4), 1, false); if (Math.random() < 0.3) sparks(root.position.clone().setY(0.4), 0xffe2a0, 3); }
@@ -3075,9 +3304,20 @@ function updateRec(rec, t, dt) {
     // dig-in transition: starts when the entrenched state changes (not when a mech first appears already dug in)
     if (rec.entrSeen === undefined) rec.entrSeen = entr;
     if (rec.entrSeen !== entr) { rec.entrSeen = entr; rec.digT = t; rec.digFx = false; }
-    const dq = rec.digT != null ? (t - rec.digT) / 0.85 : 1;
+    // a quad takes its time: each leg in turn lifts, swings out, stamps down and drives into the ground
+    const digDur = R.kind === 'quad' ? (entr ? 3.4 : 1.8) : 0.85;
+    const dq = rec.digT != null ? (t - rec.digT) / digDur : 1;
     const dig = dq < 1 ? digPose(entr ? dq * 0.85 : dq * 0.65, entr) : (entr ? 1 : 0);
-    if (dq < 1 && entr && dq * 0.85 >= 0.42 && !rec.digFx) {
+    if (R.kind === 'quad') {
+      const qs = rec.gait || (rec.gait = {});
+      if (dq < 1) {
+        qs.digLegs = [0, 1, 2, 3].map(i => { const e = Math.max(0, Math.min(1, (dq - 0.06 - i * 0.21) / 0.27)); return entr ? e : 1 - e; });
+        // each foot that stamps home throws up dust, a crack of sparks and a thump through the ground
+        rec.digStamp = rec.digStamp || [];
+        if (entr) qs.digLegs.forEach((e, i) => { if (e >= 0.62 && !rec.digStamp[i]) { rec.digStamp[i] = true; const L = R.quad.legs[i], p = new T.Vector3(); L.ankle.getWorldPosition(p); BD.group.worldToLocal(p); p.y = 0.05; dust(p, 7, 0.12, 0.6); sparks(p, 0xcbbf9e, 6); shockRing(p.clone(), 0xcbbf9e, 0.25, 0.4); shake(0.07); } });
+      } else { qs.digLegs = null; rec.digStamp = null; }
+    }
+    if (dq < 1 && entr && R.kind !== 'quad' && dq * 0.85 >= 0.42 && !rec.digFx) {
       rec.digFx = true;
       const feet = R.kind === 'quad' ? R.quad.legs.map(L => L.ankle) : (R.stakes && R.stakes.length ? R.stakes.map(x => x.g) : []);
       feet.forEach(o => { const p = new T.Vector3(); o.getWorldPosition(p); BD.group.worldToLocal(p); p.y = 0.05; smoke(p, 2, false); sparks(p, 0xcbbf9e, 4); });
@@ -3112,7 +3352,7 @@ function updateRec(rec, t, dt) {
     if (R.kind === 'quad') {
       const p0 = rec.gaitPos || root.position.clone(), sp = moving && dt > 0 ? Math.hypot(root.position.x - p0.x, root.position.z - p0.z) / dt : 0;
       rec.gaitPos = root.position.clone();
-      const qs = rec.gait || (rec.gait = {}); qs.dig = dig;
+      const qs = rec.gait || (rec.gait = {}); qs.dig = Math.max(0, Math.min(1, entr ? 1 : 0)); if (dq < 1) qs.dig = null;
       const g = quadStep(qs, R, dt, sp);
       if (g) { R.legsG.position.set(g.hubX, g.hubY, g.hubZ); R.hips.position.x = g.bodyX; R.hips.position.z = g.bodyZ; R.hips.position.y += g.bob; R.hips.rotation.z = g.roll; R.torso.rotation.y += g.yaw; lean += g.pitch; }
     }
@@ -3462,6 +3702,8 @@ function makePreview() {
   const bubble = new T.Mesh(sph(0.62, 24), new T.MeshBasicMaterial({ color: 0x8fdcff, transparent: true, opacity: 0, depthWrite: false }));
   scene.add(bubble);
   PV = { ground, view: 'front', renderer, scene, cam, holder, fx, bubble, R: null, sig: '', act: 'idle', t0: 0, rot: 0.55, ink: { weight: 1.2 }, parts: [], frame: null, fired: false };
+  // the battle effects play in the preview exactly as on the board: the same particles, timings, shake and flashes
+  PV.ctx = { group: fx, parts: new Particles(fx, 700), anims: [], queue: [], shake: 0, el: null, recs: {}, dustK: 0.45 };
   renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;touch-action:none;cursor:grab';
   // drag to turn
   let drag = null;
@@ -3516,19 +3758,35 @@ function pvLoop() {
     if (w && h && (PV.w !== w || PV.h !== h)) { PV.w = w; PV.h = h; PV.renderer.setSize(w, h, false); PV.cam.aspect = w / h; PV.cam.updateProjectionMatrix(); }
     if (!PV.R || !PV.frame) return;
     if (PV.auto && PV.act === 'idle' && t > PV.auto.next) pvAutoAct(t);
-    pvAnimate(t, dt);
+    const host = el.parentNode;
+    if (host && PV.ctx.el !== host) { PV.ctx.el = host; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; }
+    withPV(() => {
+      pvAnimate(t, dt);
+      const C = PV.ctx;
+      for (let i = C.queue.length - 1; i >= 0; i--) if (C.queue[i].t <= t) { const q = C.queue.splice(i, 1)[0]; try { q.fn(); } catch (e) { /* keep animating */ } }
+      for (let i = C.anims.length - 1; i >= 0; i--) { let keep = false; try { keep = C.anims[i](t); } catch (e) { keep = false; } if (!keep) C.anims.splice(i, 1); }
+      C.parts.update(dt);
+    });
     // camera: a showroom 3/4 view, the board's isometric angle, or straight down like the overview
     // the doctrine showroom ('show') fills the view with the mech, centred, whatever the box's shape, with a little
     // headroom for a jump
     const show = PV.view === 'show', tn = 2 * Math.tan(15 * Math.PI / 180);
-    const f = PV.frame, dist = show ? Math.max(f.ht * 1.12, f.w * 1.05 / PV.cam.aspect) / tn * 1.15 : f.h / tn * (PV.view === 'front' ? 1.5 : 1.7);
+    // while a weapon fires or the mech is destroyed the camera eases back, so the shot, its impact and the blast stay in view
+    const wide = !show && (PV.act === 'fireL' || PV.act === 'fireR' || PV.act === 'destroyed' || PV.act === 'melee');
+    PV.zoomK = (PV.zoomK || 1) + ((wide ? 1.75 : 1) - (PV.zoomK || 1)) * Math.min(1, dt * 2.5);
+    const f = PV.frame, dist = (show ? Math.max(f.ht * 1.12, f.w * 1.05 / PV.cam.aspect) / tn * 1.15 : f.h / tn * (PV.view === 'front' ? 1.5 : 1.7)) * (show ? 1 : PV.zoomK);
     const el2 = PV.view === 'top' ? 1.35 : PV.view === 'iso' ? 0.62 : show ? 0.12 : 0.18, az = PV.view === 'front' || show ? 0 : 0.785;
     PV.cam.position.set(f.c.x + Math.sin(az) * Math.cos(el2) * dist, f.c.y + Math.sin(el2) * dist, f.c.z + Math.cos(az) * Math.cos(el2) * dist); PV.cam.lookAt(f.c.x, show ? f.c.y : f.c.y * 0.8, f.c.z);
+    if (PV.ctx.shake > 0.002) { PV.cam.position.add(new T.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(PV.ctx.shake * 0.6)); PV.ctx.shake *= 0.86; }
     PV.renderer.render(PV.scene, PV.cam);
     inkPass(PV.renderer, PV.scene, PV.cam, PV.holder, PV.ink);
   };
   requestAnimationFrame(step);
 }
+// run battle effects against the preview's own context instead of the board's
+function withPV(fn) { const saved = BD; BD = PV.ctx; try { return fn(); } finally { BD = saved; } }
+// a stand-in for the board's mech record, so charge() and the weapon profiles can find the muzzle
+function pvAtt() { return PV.att && PV.att.R === PV.R ? PV.att : (PV.att = { R: PV.R, gone: false }); }
 // one-shot effects: a flash, a tracer, sparks
 function pvFlash(pos, col, size, life) {
   const m = new T.Mesh(sph(size, 12), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false }));
@@ -3607,10 +3865,30 @@ function pvAnimate(t, dt) {
     if (R.kind === 'hover') { hipY += 0.03 * Math.sin(t * 2.2); root.rotation.x = 0.14; root.rotation.z = 0.08 * Math.sin(t * 1.8); R.torso.rotation.y = -0.15 * Math.sin(t * 1.8); }
     if (R.kind === 'treads') { root.rotation.x = 0.035 + 0.012 * Math.sin(t * 24); hipY += 0.006 * Math.sin(t * 31); }
   } else if (act === 'fireL' || act === 'fireR') {
-    // anticipation: turn into the shot and raise the weapon; a beat of aim; the kick; follow-through and settle
+    // anticipation: turn into the shot and raise the weapon; a beat of aim; the kick; follow-through and settle.
+    // The timing is the weapon's own: a long gun winds up for seconds, a pistol barely at all
     const k = pvArmKey(R, act === 'fireL' ? 'armL' : 'armR');
+    const mz0 = k && R.muzzles[k], P = mz0 && mz0.cat !== 'melee' ? (FIRE[mz0.id] || FIRE[FIRE_CAT[mz0.cat]]) : null;
+    const wind = P ? P.wind : 0.42, flight = P ? (FLIGHT[mz0.id] || 0.2) : 0;
+    // the pose keyframes are written for a 0.42s wind-up; stretch them to this weapon's
+    const qq = q < wind ? q / wind * 0.42 : 0.42 + (q - wind);
+    if (k && P) {
+      if (q >= 0) once('charge', () => charge(pvAtt(), mz0.cat, wind, k, P));
+      if (q >= wind) once('shot', () => {
+        const from = muzzleAt(k), col = FX_COL[mz0.cat] || 0xffffff;
+        const dir = new T.Vector3(0, 0, 1).applyQuaternion(mz0.o.getWorldQuaternion(new T.Quaternion())).setY(0).normalize();
+        // a target in front of the mech: the ground for shells and missiles, chest height for everything else
+        const lob = mz0.cat === 'missile' || mz0.cat === 'artillery';
+        const to = from.clone().addScaledVector(dir, lob ? 1.05 : 1.0); to.y = lob ? 0.08 : Math.max(0.25, from.y * 0.85);
+        // keep the impact inside the frame whichever way the mech is turned
+        to.x = c.x + Math.max(-0.55, Math.min(0.55, to.x - c.x));
+        const ctx = { att: pvAtt(), from, to, col, dir, f: {}, jitter: sz => to.clone().add(new T.Vector3(rand(-sz, sz), rand(-sz, sz) * 0.6, rand(-sz, sz))), kick: () => {} };
+        P.fire(ctx);
+        schedule(flight, () => impactFx(to, P.impact, col, true));
+      });
+    }
     if (k) {
-      const a = R.arms[k], sd = side(k), mz = R.muzzles[k];
+      const a = R.arms[k], sd = side(k), mz = R.muzzles[k], q0 = q; { const q = qq;
       R.torso.rotation.y = kf(q, [[0, 0], [0.25, -0.35 * sd], [0.38, -0.35 * sd], [0.42, 0.05 * sd, 'out'], [0.7, -0.22 * sd], [1.3, 0]]);
       a.el.rotation.x = kf(q, [[0, a.rest != null ? a.rest : -Math.PI / 2], [0.25, -Math.PI / 2 - 0.08], [1.0, -Math.PI / 2], [1.4, a.rest != null ? a.rest : -Math.PI / 2]]);
       a.arm.rotation.x = kf(q, [[0, 0], [0.25, -0.15], [0.38, -0.12], [0.42, -0.75, 'out'], [0.62, 0.1], [0.85, -0.08], [1.2, 0]]);
@@ -3618,17 +3896,11 @@ function pvAnimate(t, dt) {
       root.position.z = kf(q, [[0, 0], [0.38, 0.02], [0.42, -0.09, 'out'], [0.75, 0.01], [1.2, 0]]);
       root.rotation.x = kf(q, [[0, 0], [0.38, 0.06], [0.42, -0.12, 'out'], [0.75, 0.03], [1.2, 0]]);
       crouch = kf(q, [[0, 0], [0.3, 0.035], [0.42, 0.06, 'out'], [0.9, 0.01], [1.3, 0]]);
-      if (mz && mz.spin) mz.spin.rotation.z += dt * (q > 0.25 && q < 1.0 ? 45 : 0.5);
-      if (mz && q > 0.2 && q < 0.42) { once('charge', () => pvFlash(muzzleAt(k), FX_COL[mz.cat] || 0xffffff, 0.03, 0.22)); }
-      if (mz && q >= 0.42) once('fire', () => {
-        const p = muzzleAt(k), col = FX_COL[mz.cat] || 0xffffff;
-        const dir = new T.Vector3(0, 0, 1).applyQuaternion(mz.o.getWorldQuaternion(new T.Quaternion())).normalize();
-        pvFlash(p, col, 0.14, 0.35); pvFlash(p, 0xffffff, 0.07, 0.15);
-        if (mz.cat !== 'melee' && mz.cat !== 'support') pvTracer(p, dir, col);
-        pvRing(p.x, p.z, col, 0.7, 0.5);
-      });
-    }
-    if (q > 1.5) PV.act = 'idle';
+      if (mz && mz.spin) mz.spin.rotation.z += dt * (q0 > wind * 0.4 && q0 < wind + 0.6 ? 45 : 0.5);
+      // a weapon with no battle profile still shows a muzzle flash
+      if (mz && !P && q >= 0.42) once('fire', () => { const p = muzzleAt(k), col = FX_COL[mz.cat] || 0xffffff; pvFlash(p, col, 0.14, 0.35); pvFlash(p, 0xffffff, 0.07, 0.15); });
+    } }
+    if (q > wind + flight + 1.8) PV.act = 'idle';
   } else if (act === 'melee') {
     // anticipation: crouch and coil away; the strike: lunge and sweep; follow-through: overswing, then recover
     const k = Object.keys(R.muzzles).find(kk => R.muzzles[kk].cat === 'melee' || R.muzzles[kk].cat === 'siege') || pvArmKey(R);
@@ -3646,7 +3918,11 @@ function pvAnimate(t, dt) {
         const yaw = Math.atan2(fwd.x, fwd.z);
         pvArc(wp, 0.55, -yaw + Math.PI / 2 - 1.3 * sd - (sd < 0 ? 1.4 : 0), 2.6, FX_COL.melee, c.y * 1.05);
       });
-      if (q >= 0.44) once('hit', () => { const p = muzzleAt(k); pvSparks(p, FX_COL.melee); pvFlash(p, 0xffffff, 0.06, 0.15); });
+      if (q >= 0.44) once('hit', () => {
+        const mz = R.muzzles[k], P = mz && (FIRE[mz.id] || FIRE[FIRE_CAT[mz.cat]]), p = muzzleAt(k).addScaledVector(fwd, 0.2);
+        if (P && P.fire) { P.fire({ att: pvAtt(), from: p, to: p, col: FX_COL[mz.cat] || FX_COL.melee, dir: fwd, f: {}, jitter: () => p.clone(), kick: () => {} }); schedule(FLIGHT[mz.id] || 0.2, () => impactFx(p, P.impact, FX_COL[mz.cat] || FX_COL.melee, true)); }
+        else { pvSparks(p, FX_COL.melee); pvFlash(p, 0xffffff, 0.06, 0.15); }
+      });
     }
     if (q > 1.4) PV.act = 'idle';
   } else if (act === 'jump') {
@@ -3659,8 +3935,8 @@ function pvAnimate(t, dt) {
     const sq = kf(q, [[0, 1], [0.3, 0.9], [0.38, 1.1, 'out'], [0.6, 1], [1.12, 1.04], [1.16, 0.86, 'out'], [1.45, 1]]);
     root.scale.set(base / Math.sqrt(sq), base * sq, base / Math.sqrt(sq));
     for (const k in R.arms) { R.arms[k].arm.rotation.x = kf(q, [[0, 0], [0.3, 0.7], [0.4, -0.9, 'out'], [1.1, -0.3], [1.2, 0.5], [1.6, 0]]); }
-    if (q >= 0.33) once('launch', () => { const wp = new T.Vector3(); root.getWorldPosition(wp); pvRing(wp.x, wp.z, 0xd9d2c3, 0.75, 0.5); });
-    if (q >= 1.13) once('land', () => { const wp = new T.Vector3(); root.getWorldPosition(wp); pvRing(wp.x, wp.z, 0xd9d2c3, 0.9, 0.55); pvSparks(new T.Vector3(wp.x, 0.05, wp.z), 0xcbbf9e); });
+    if (q >= 0.33) once('launch', () => { const wp = new T.Vector3(); root.getWorldPosition(wp); pvRing(wp.x, wp.z, 0xd9d2c3, 0.75, 0.5); dust(new T.Vector3(wp.x, 0.05, wp.z), 6, 0.2); });
+    if (q >= 1.13) once('land', () => { const wp = new T.Vector3(); root.getWorldPosition(wp); dustRing(new T.Vector3(wp.x, 0.05, wp.z), 14, 0.7); sparks(new T.Vector3(wp.x, 0.05, wp.z), 0xcbbf9e, 6); shake(0.06); });
     if (q > 1.7) PV.act = 'idle';
   } else if (act === 'brace') {
     // a small rise, then drop into a guard with both arms crossed; the shield pops with an overshoot
@@ -3678,21 +3954,28 @@ function pvAnimate(t, dt) {
     if (q >= 0.3) once('pop', () => pvRing(c.x, c.z, 0x8fdcff, 0.85, 0.5));
     if (q > 2.5) PV.act = 'idle';
   } else if (act === 'entrench') {
-    // rise, slam down into the ground with dust at every foot, hold dug in, then pack up
-    const into = q < 2.1, dg = into ? digPose(q, true) : digPose(q - 2.1, false);
-    if (R.kind === 'quad') { (PV.gait || (PV.gait = {})).dig = dg; }
+    // rise, slam down into the ground with dust at every foot, hold dug in, then pack up. A quad takes its time: each
+    // leg in turn lifts, swings out, stamps down and drives in, then they pack up in the same order, faster
+    const quad = R.kind === 'quad', IN = quad ? 3.4 : 0.85, HOLD = quad ? 4.4 : 2.1, OUT = quad ? 1.8 : 0.65;
+    const into = q < HOLD, dg = into ? digPose(Math.min(1, q / IN) * 0.85, true) : digPose(Math.min(1, (q - HOLD) / OUT) * 0.65, false);
+    if (quad) {
+      const st = PV.gait || (PV.gait = {});
+      const g = into ? Math.min(1, q / IN) : Math.min(1, (q - HOLD) / OUT);
+      st.digLegs = [0, 1, 2, 3].map(i => { const e = Math.max(0, Math.min(1, (g - 0.06 - i * 0.21) / 0.27)); return into ? e : 1 - e; });
+      if (into) st.digLegs.forEach((e, i) => { if (e >= 0.62) once('stamp' + i, () => { const L = R.quad.legs[i], p = new T.Vector3(); L.ankle.getWorldPosition(p); p.y = 0.05; dust(p, 7, 0.12, 0.6); sparks(p, 0xcbbf9e, 6); shockRing(p.clone(), 0xcbbf9e, 0.25, 0.4); shake(0.07); }); });
+    }
     else crouch = 0.16 * dg;
     root.rotation.x = into ? kf(q, [[0, 0], [0.25, -0.07], [0.42, 0.13, 'out'], [0.7, 0.02], [0.85, 0.03]]) : kf(q - 2.1, [[0, 0.03], [0.15, 0.08], [0.45, -0.05, 'out'], [0.65, 0]]);
     root.position.y = into ? kf(q, [[0, 0], [0.25, 0.03, 'in'], [0.42, 0, 'out']]) : kf(q - 2.1, [[0, 0], [0.45, 0.025, 'out'], [0.65, 0]]);
     for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = kf(q, [[0, 0], [0.25, 0.35], [0.42, -0.25, 'out'], [0.8, -0.1], [2.1, -0.1], [2.75, 0]]); }
     if (R.stakes) R.stakes.forEach(st2 => { const e = Math.max(0, Math.min(1, dg)); st2.g.rotation.z = st2.sx * 0.95 * e; st2.g.position.y = -0.06 - 0.11 * e; });
-    if (q >= 0.42) once('slam', () => {
-      const feet = R.kind === 'quad' ? R.quad.legs.map(L => L.ankle) : (R.stakes && R.stakes.length ? R.stakes.map(x => x.g) : (R.legs || []).map(h => h.userData.ankle).filter(Boolean));
+    if (!quad && q >= 0.42) once('slam', () => {
+      const feet = R.stakes && R.stakes.length ? R.stakes.map(x => x.g) : (R.legs || []).map(h => h.userData.ankle).filter(Boolean);
       feet.forEach(o => { const p = new T.Vector3(); o.getWorldPosition(p); pvRing(p.x, p.z, 0xcbbf9e, 0.38, 0.55); pvSparks(new T.Vector3(p.x, 0.04, p.z), 0xcbbf9e); });
       pvRing(c.x, c.z, 0xd9d2c3, 1.0, 0.7);
     });
-    if (q >= 2.55) once('lift', () => pvRing(c.x, c.z, 0xd9d2c3, 0.7, 0.45));
-    if (q > 2.9) PV.act = 'idle';
+    if (q >= HOLD + OUT * 0.7) once('lift', () => pvRing(c.x, c.z, 0xd9d2c3, 0.7, 0.45));
+    if (q > HOLD + OUT + 0.3) PV.act = 'idle';
   } else if (act === 'hit') {
     // knocked back and twisted, arms flung out, then a staggered recovery
     root.position.z = kf(q, [[0, 0], [0.08, -0.2, 'out'], [0.4, -0.14], [0.9, 0]]);
@@ -3700,7 +3983,7 @@ function pvAnimate(t, dt) {
     R.torso.rotation.y = kf(q, [[0, 0], [0.08, 0.6, 'out'], [0.35, -0.15], [0.6, 0.06], [0.9, 0]]);
     crouch = kf(q, [[0, 0], [0.12, 0.06, 'out'], [0.5, 0.03], [0.9, 0]]);
     for (const k in R.arms) { const sd = side(k); R.arms[k].arm.rotation.x = kf(q, [[0, 0], [0.08, 0.6, 'out'], [0.5, 0.1], [0.9, 0]]); R.arms[k].arm.rotation.z = kf(q, [[0, R.arms[k].arm.rotation.z], [0.08, 0.5 * sd, 'out'], [0.9, R.arms[k].arm.rotation.z]]); }
-    once('impact', () => { const p = new T.Vector3(c.x, c.y * 1.1, c.z).addScaledVector(fwd, 0.12); pvSparks(p, 0xffc46a); pvFlash(p, 0xff8a4a, 0.1, 0.3); pvFlash(p, 0xffffff, 0.05, 0.1); });
+    once('impact', () => { const p = new T.Vector3(c.x, c.y * 1.1, c.z).addScaledVector(fwd, 0.12); impactFx(p, 'heavy', 0xffc46a, true); });
     if (q > 1.0) PV.act = 'idle';
   } else if (act === 'destroyed') {
     // stagger, knees buckle, topple, a bounce on impact and a blast with smoke
@@ -3714,8 +3997,8 @@ function pvAnimate(t, dt) {
     root.position.y = kf(q, [[0, 0], [0.95, -0.06], [1.07, 0.03, 'out'], [1.2, -0.07]]);
     for (const k in R.arms) R.arms[k].arm.rotation.x = kf(q, [[0, 0], [0.1, 0.7, 'out'], [0.4, -0.5], [0.95, -1.1], [1.1, -0.7]]);
     if (q >= 0.1) once('stagger', () => { pvSparks(new T.Vector3(c.x, c.y, c.z), 0xffb04a); pvFlash(c.clone(), 0xff9a3a, 0.08, 0.25); });
-    if (q >= 0.95) once('crash', () => { const wp = new T.Vector3(); root.getWorldPosition(wp); pvRing(wp.x - 0.2, wp.z, 0xd9d2c3, 1.0, 0.6); pvFlash(new T.Vector3(c.x - 0.15, c.y * 0.6, c.z), 0xff7a2a, 0.2, 0.7); pvSmoke(new T.Vector3(c.x - 0.15, c.y * 0.5, c.z)); });
-    if (q > 3.2) PV.act = 'idle';
+    if (q >= 0.25) once('blast', () => destroyMech(null, new T.Vector3(c.x, c.y * 0.6, c.z)));
+    if (q > 5.2) PV.act = 'idle';
   }
   // the legs: IK keeps the feet planted through every crouch, and walks on the spot
   if (R.kind === 'biped') {
@@ -3727,7 +4010,7 @@ function pvAnimate(t, dt) {
       if (act === 'walk') for (const k in R.arms) R.arms[k].arm.rotation.x += -(k === 'armL' ? g.swing[1] : g.swing[0]) * (R.style === 'armored' ? 0.55 : 0.85);
     }
   } else if (R.kind === 'quad') {
-    const st = PV.gait || (PV.gait = {}); st.crouch = crouch * 1.3; if (act !== 'entrench') st.dig = 0;
+    const st = PV.gait || (PV.gait = {}); st.crouch = crouch * 1.3; if (act !== 'entrench') { st.dig = 0; st.digLegs = null; }
     const g = quadStep(st, R, dt, speed);
     if (g) { R.legsG.position.set(g.hubX, g.hubY, g.hubZ); R.hips.position.x = g.bodyX; R.hips.position.z = g.bodyZ; hipY += g.bob - st.crouch * R.legsG.scale.y; R.hips.rotation.z += g.roll; R.hips.rotation.x = g.pitch; R.torso.rotation.y += g.yaw; }
   } else hipY -= crouch * (R.legsG ? R.legsG.scale.y : 1);

@@ -197,7 +197,7 @@ const CALLSIGNS = [
 
 /* ---------- Battlefield ---------- */
 // Every map is point-symmetric, (x, y) -> (W-1-x, H-1-y), so neither side has the better half.
-// rules: map-wide changes to how points are scored. traits: per-doctrine balance for this map.
+// rules: map-wide changes to how points are scored. effects: trait values every army on this map shares.
 const MAPS = {
   open: {
     name: 'Open Field', goal: 'Capture points',
@@ -207,7 +207,8 @@ const MAPS = {
     rocks: [[2, 2], [6, 4], [3, 3], [5, 3]],
     ruins: [[2, 1], [6, 5], [3, 4], [5, 2], [2, 3], [6, 3]],
     rules: {},
-    traits: {}
+    effects: { killVp: 1 / 3 },
+    notes: 'Every 3 enemy mecha destroyed score 1 point.'
   },
   lanes: {
     name: 'Three Lanes', goal: 'Capture points',
@@ -217,8 +218,8 @@ const MAPS = {
     rocks: [[3, 2], [4, 2], [6, 2], [7, 2], [3, 5], [4, 5], [6, 5], [7, 5]],
     ruins: [[2, 1], [8, 6], [4, 0], [6, 7], [3, 3], [7, 4], [3, 4], [7, 3], [8, 1], [2, 6]],
     rules: {},
-    traits: { assault: { startMechs: 2 } },
-    notes: 'Assault starts with 2 mecha.'
+    effects: { startMechs: 2, killVp: 1 / 3 },
+    notes: 'Both sides start with 2 mecha. Every 3 enemy mecha destroyed score 1 point.'
   },
   uplink: {
     name: 'Uplink', goal: 'King of the hill',
@@ -228,8 +229,8 @@ const MAPS = {
     rocks: [[4, 1], [4, 5], [2, 2], [6, 4]],
     ruins: [[3, 2], [5, 4], [3, 4], [5, 2], [1, 1], [7, 5]],
     rules: { depotVp: false, uplinkVp: 2, baseHp: 6 },
-    traits: { assault: { draw: 3 } },
-    notes: 'Bases +6 HP. Assault draws 3 cards a round.'
+    effects: { killVp: 1 / 3 },
+    notes: 'Bases +6 HP. Every 3 enemy mecha destroyed score 1 point.'
   },
   salvage: {
     name: 'Scrapyard', goal: 'Salvage race',
@@ -238,9 +239,9 @@ const MAPS = {
     obj: [[2, 1, 'depot'], [7, 5, 'depot'], [2, 5, 'depot'], [7, 1, 'depot'], [4, 3, 'repair'], [5, 3, 'repair']],
     rocks: [[3, 2], [6, 4], [3, 4], [6, 2]],
     ruins: [[4, 1], [5, 5], [4, 5], [5, 1], [2, 3], [7, 3], [1, 0], [8, 6]],
-    rules: { depotVp: false, crateVp: 1, crateEvery: 1, cratePairs: true, crateMax: 6, crateBand: [2, 7], baseHp: 8, crateSupply: 1 },
-    traits: {},
-    notes: 'Bases +8 HP.'
+    rules: { depotVp: false, crateVp: 1, crateEvery: 1, cratePairs: true, crateStops: true, crateMax: 8, crateBand: [2, 7], baseHp: 8, crateSupply: 1 },
+    effects: { control: 1, killVp: 0.25 },
+    notes: 'Bases +8 HP. Any mech grabs a crate from the next tile over, if no enemy stands as close, but loading one ends its turn. Every 4 enemy mecha destroyed score 1 point.'
   }
 };
 const MAP_IDS = Object.keys(MAPS);
@@ -360,8 +361,9 @@ for (const [doc, add] of Object.entries({ assault: { t_skirm: 1 }, armored: {}, 
 }
 const TRAIT_KEYS = ['turretArc', 'pack', 'fortify', 'control', 'fieldMax', 'hangarMax', 'startMechs', 'move', 'ep', 'draw', 'ap', 'plate', 'plateRegen', 'steady', 'turretDmg', 'heatTick'];
 function docTrait(doc, k) {
-  const mt = MAP.traits[doc], t = DOCTRINES[doc] && DOCTRINES[doc].traits;
-  if (mt && mt[k] != null) return mt[k];
+  // a map's effects hold for every army alike
+  const me = MAP.effects, t = DOCTRINES[doc] && DOCTRINES[doc].traits;
+  if (me && me[k] != null) return me[k];
   return t && t[k] != null ? t[k] : null;
 }
 const isEasy = p => !!(p && p.ai && PERSONAS[p.ai.persona] && PERSONAS[p.ai.persona].easy);
@@ -1127,6 +1129,8 @@ function pickupCrate(m) {
     log(m.name + ' grabs a crate holding ' + DEFS[c.card].name + '. It goes to the Workshop, free to fit.', 'p' + m.owner);
     salvagePoint(m);
   }
+  // heavy crates: loading one ends the mech's activation
+  if (rule('crateStops', false) && m.ap > 0) { m.ap = 0; log(m.name + ' stops to load the crate.', 'p' + m.owner); }
 }
 // a crate's point is banked now and scored with the rest at the end of the round
 function salvagePoint(m) {
@@ -1606,12 +1610,22 @@ function resolution() {
    During a war it adjusts to what hurts it; across wars it keeps a few variants of its playbook per personality,
    mostly plays the one that has won most, and now and then tries a mutated one, steered away from how it lost. */
 const PERSONAS = {
-  blitz: { name: 'Blitz', blurb: 'Hits first and drives at the enemy base.', w: { aggro: 0.85, objective: 1.05, siege: 1.35, caution: 0.4, focus: 0.9, cohesion: 0.6, swarm: 0.85, tech: 0.3, hold: 0.1, overwatch: 0.2 } },
-  warden: { name: 'Warden', blurb: 'Holds ground, covers it with overwatch and bleeds the attacker.', w: { aggro: 0.4, objective: 1.1, siege: 0.4, caution: 1.4, focus: 0.8, cohesion: 0.7, swarm: 0.3, tech: 0.7, hold: 0.9, overwatch: 0.95 } },
-  raider: { name: 'Raider', blurb: 'Spreads out to grab objectives and race on points.', w: { aggro: 0.35, objective: 1.8, siege: 0.6, caution: 0.9, focus: 0.5, cohesion: 0.05, swarm: 0.65, tech: 0.4, hold: 0.3, overwatch: 0.4 } },
-  hunter: { name: 'Hunter', blurb: 'Moves as a pack and focuses fire to destroy mecha.', w: { aggro: 0.9, objective: 1.05, siege: 0.5, caution: 0.8, focus: 1.8, cohesion: 0.75, swarm: 0.4, tech: 0.6, hold: 0.2, overwatch: 0.6 } },
+  // Armored: a slow fortress that wins by destroying mecha, then taking and holding the ground they stood on
+  siege: { name: 'Siegemaster', doctrine: 'armored', blurb: 'Focuses fire with its long guns to break the enemy, then rolls its line onto the objectives.', w: { aggro: 0.65, objective: 1.25, siege: 0.7, caution: 0.35, focus: 2.0, cohesion: 1.05, swarm: 0.4, tech: 0.6, hold: 0.45, overwatch: 0.6 } },
+  bastion: { name: 'Bastion', doctrine: 'armored', blurb: 'Advances as one armoured line, takes the objectives and holds them, gunning down whatever contests them.', w: { aggro: 0.75, objective: 1.45, siege: 0.5, caution: 0.45, focus: 1.8, cohesion: 1.0, swarm: 0.35, tech: 0.5, hold: 0.8, overwatch: 0.7 } },
+  // Assault: numbers; cheap fast mecha spread over the map to grab and hold more points than the enemy can cover
+  swarm: { name: 'Swarm', doctrine: 'assault', blurb: 'Floods the map with cheap mecha to grab and hold as many points as it can.', w: { aggro: 0.45, objective: 1.7, siege: 0.5, caution: 0.7, focus: 0.6, cohesion: 0.0, swarm: 1.0, tech: 0.3, hold: 0.6, overwatch: 0.4 } },
+  striker: { name: 'Striker', doctrine: 'assault', blurb: 'Hits and runs: gangs up on stragglers, steals points and pressures the base.', w: { aggro: 0.9, objective: 1.65, siege: 0.5, caution: 0.6, focus: 1.4, cohesion: 0.5, swarm: 0.9, tech: 0.3, hold: 0.4, overwatch: 0.3 } },
+  // Experimental: odd machines and tricks; ambushes and sabotage instead of a fair fight
+  trickster: { name: 'Trickster', doctrine: 'experimental', blurb: 'Leans on special weapons and tricks, sets ambushes and picks targets off.', w: { aggro: 0.75, objective: 1.35, siege: 0.6, caution: 1.0, focus: 1.4, cohesion: 0.5, swarm: 0.4, tech: 1.6, hold: 0.5, overwatch: 0.9 } },
+  saboteur: { name: 'Saboteur', doctrine: 'experimental', blurb: 'Slips odd machines onto the objectives and disrupts whatever holds them.', w: { aggro: 0.5, objective: 1.45, siege: 0.6, caution: 0.8, focus: 0.8, cohesion: 0.2, swarm: 0.6, tech: 0.9, hold: 0.4, overwatch: 0.5 } },
   // a gentle opponent for learning: slow to attack, rarely goes for the base, short on Supply, and never learns
   recruit: { name: 'Recruit', easy: true, blurb: 'An easy opponent for learning: cautious, slow to attack, fields at most two mecha and builds with one action less.', w: { aggro: 0.2, objective: 0.8, siege: 0.15, caution: 1.2, focus: 0.2, cohesion: 0.5, swarm: 0.3, tech: 0.2, hold: 0.5, overwatch: 0.1 } },
+  // retired commanders, kept so older saved wars still load
+  blitz: { name: 'Blitz', hidden: true, blurb: 'Hits first and drives at the enemy base.', w: { aggro: 0.85, objective: 1.05, siege: 1.35, caution: 0.4, focus: 0.9, cohesion: 0.6, swarm: 0.85, tech: 0.3, hold: 0.1, overwatch: 0.2 } },
+  warden: { name: 'Warden', hidden: true, blurb: 'Holds ground, covers it with overwatch and bleeds the attacker.', w: { aggro: 0.4, objective: 1.1, siege: 0.4, caution: 1.4, focus: 0.8, cohesion: 0.7, swarm: 0.3, tech: 0.7, hold: 0.9, overwatch: 0.95 } },
+  raider: { name: 'Raider', hidden: true, blurb: 'Spreads out to grab objectives and race on points.', w: { aggro: 0.35, objective: 1.8, siege: 0.6, caution: 0.9, focus: 0.5, cohesion: 0.05, swarm: 0.65, tech: 0.4, hold: 0.3, overwatch: 0.4 } },
+  hunter: { name: 'Hunter', hidden: true, blurb: 'Moves as a pack and focuses fire to destroy mecha.', w: { aggro: 0.9, objective: 1.05, siege: 0.5, caution: 0.8, focus: 1.8, cohesion: 0.75, swarm: 0.4, tech: 0.6, hold: 0.2, overwatch: 0.6 } },
   // the old single-minded AI, kept as a yardstick for testing
   classic: { name: 'Classic', hidden: true, w: { aggro: 0.5, objective: 1, siege: 1, caution: 0, focus: 0, cohesion: 0, swarm: 0.5, tech: 0.5, hold: 0, overwatch: 0.5 } }
 };
@@ -1623,11 +1637,13 @@ const STANCES = {
   regroup: { label: 'regroups to fight together', mod: { cohesion: 0.7, caution: 0.5, aggro: -0.2 } },
   hunt: { label: 'closes in for the kill', mod: { aggro: 0.4, focus: 0.6 } }
 };
-// every commander plays to its army: heavy machines fight forward, swarms spread over the objectives
-const DOCTRINE_STYLE = {
-  armored: { aggro: 0.35, focus: 0.3, caution: -0.45, cohesion: 0.3, siege: 0.2, objective: -0.1 },
-  assault: { objective: 0.15, swarm: 0.3, cohesion: -0.1 },
-  experimental: { aggro: 0.1 }
+// each doctrine's character lives in its own commanders' weights; nothing is layered on top
+const DOCTRINE_STYLE = { armored: {}, assault: {}, experimental: {} };
+// commanders are not chosen: each war a doctrine is led by one of the commanders that suits it, at random
+const DOCTRINE_COMMANDERS = {
+  armored: ['siege', 'bastion'],
+  assault: ['swarm', 'striker'],
+  experimental: ['trickster', 'saboteur']
 };
 let AIMEM = { v: 1, personas: {} };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1662,7 +1678,8 @@ function chooseVariant(id, learn) {
 }
 function setupCommander(p, o) {
   if (!p.isAI) { p.ai = null; return; }
-  const ids = Object.keys(PERSONAS).filter(k => !PERSONAS[k].hidden && !PERSONAS[k].easy);
+  const ids = DOCTRINE_COMMANDERS[p.doctrine] || Object.keys(PERSONAS).filter(k => !PERSONAS[k].hidden && !PERSONAS[k].easy);
+  // a named commander is honoured only for testing (the Recruit and the Classic yardstick); otherwise the doctrine picks
   const persona = PERSONAS[o.persona] ? o.persona : ids[Math.floor(rnd() * ids.length)];
   const learn = o.learn !== false && !PERSONAS[persona].easy;
   const v = chooseVariant(persona, learn);
@@ -1758,6 +1775,13 @@ function aiKillable(tm, pid) {
   }
   return (S._kill[key] = pot >= hpOf(tm));
 }
+// the victory points an enemy mech is scoring by holding ground: what dislodging it is worth
+function aiHolderVp(e) {
+  const reach = Math.max(0, trait(e.owner, 'control'));
+  let v = 0;
+  for (const o of S.objectives) if (o.owner === e.owner && scores(o, e.owner) && man(e.x, e.y, o.x, o.y) <= reach) v = Math.max(v, objVp(o));
+  return v;
+}
 function withPos(m, x, y, fn) { const ox = m.x, oy = m.y; m.x = x; m.y = y; try { return fn(); } finally { m.x = ox; m.y = oy; } }
 function aiWeaponBest(m, wp, st) {
   const w = wp.w;
@@ -1783,6 +1807,8 @@ function aiWeaponBest(m, wp, st) {
       // a finishing shot is worth most; otherwise hull damage, plus what a knock-out takes away from the enemy
       let mult = (1 + aw.focus * 0.8 * (1 - hull / Math.max(1, maxHpOf(tm)))) * (aiKillable(tm, m.owner) ? 1.5 : 1);
       if (pv.kill) mult = 3 + aw.focus;
+      // a mech sitting on scoring ground is worth breaking: every round it stays costs points
+      mult *= 1 + 0.3 * aiHolderVp(tm) * aw.objective;
       let ko = 0;
       if (!pv.kill && pv.ko) {
         const pd = DEFS[pi.id];
@@ -1849,7 +1875,7 @@ function aiGoal(m) {
     for (const e of S.mechs) if (e.owner !== m.owner) {
       // wounded prey draws hunters; intruders near home draw defenders
       const prey = 1 + aw.focus * 0.5 * (1 - hpOf(e) / Math.max(1, maxHpOf(e)));
-      const intruder = aiSieger(m.owner, e) ? 3 : defending && man(e.x, e.y, own.x, own.y) <= 4 ? 2 : 1;
+      const held = aiHolderVp(e), intruder = aiSieger(m.owner, e) ? 3 : held ? 1 + 0.6 * held * aw.objective : defending && man(e.x, e.y, own.x, own.y) <= 4 ? 2 : 1;
       cands.push({ x: e.x, y: e.y, cost: (dTo(e.x, e.y) * 1.1 - 1) / ((0.5 + aw.aggro) * prey * intruder) * (holder && intruder === 1 ? 2.5 : 1), pref: rng });
     }
     const b = BASE_POS[1 - m.owner];
@@ -1940,7 +1966,11 @@ function aiCombatStep() {
   // prototype tricks: overclock before a worthwhile shot if the heat allows; phase when it lands somewhere better
   // than walking would; cloak when standing where the enemy can pour fire in
   const trick = !m.tricked ? trickOf(m) : null, st0 = stats(m);
-  if (trick === 'overclock' && m.ap >= 1 && m.heat + 3 + 2 <= st0.heatCap && aiBestAttack(m) && overclock(m).ok) return true;
+  // only once the mech has settled where it fires from, so the extra action goes into a shot, not a walk to overwatch
+  if (trick === 'overclock' && m.ap >= 1 && m.heat + 3 + 2 <= st0.heatCap && aiBestAttack(m)) {
+    const b = m.moves ? null : aiBestTile(m);
+    if ((!b || (b.x === m.x && b.y === m.y)) && overclock(m).ok) return true;
+  }
   if (trick === 'phase' && m.moves === 0 && m.heat + 2 <= st0.heatCap) {
     const walk = aiBestTile(m), pt = {};
     phaseTiles(m).forEach(([x, y]) => { pt[K(x, y)] = 1; });
@@ -2164,7 +2194,7 @@ function aiStep() {
 }
 
 const api = {
-  PERSONAS, aiW,
+  PERSONAS, DOCTRINE_COMMANDERS, aiW,
   getAIMemory() { return AIMEM; },
   setAIMemory(m) { AIMEM = m && m.v === 1 && m.personas ? m : { v: 1, personas: {} }; },
   get W() { return W; }, get H() { return H; }, C, DEFS, DOCTRINES, REQUIRED,

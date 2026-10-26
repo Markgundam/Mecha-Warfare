@@ -3448,7 +3448,7 @@ function showRules() {
     ['Special', [['Specials', '5 per deck, gold ★. Inferno Cannon burns (1 damage at each of 3 Resolutions), Cryo Lance slows (−2 move), EMP Projector shocks (one action next round). Aegis Frame and Lattice Core are tougher standard parts.'],
       ['Artillery', 'The Quad Walker (Armored issue) is very slow, tough legs that add ' + MW.DEFS.l_quad.hull + ' HP and take long-range weapons only (range ' + MW.LONG_RANGE + '+). Their mech fires only after spending an action to dig in; dug in, it works as a turret with +1 range and +1 armour, and must pack up to move again. The Heavy Railgun fires only when dug in.'],
       ['Fortified', 'Armored scores no points for kills. Instead, while it holds an objective it already held last round, it scores up to 1 more point that round (within the usual cap).']]],
-    ['AI', [['Commanders', 'The computer opponent is led by a commander with its own style. ' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).map(k => MW.PERSONAS[k].name + ': ' + MW.PERSONAS[k].blurb).join(' ')],
+    ['AI', [['Commanders', 'The computer opponent is led by a commander with its own style, picked at random from those that suit its doctrine: ' + Object.keys(MW.DOCTRINE_COMMANDERS).map(d => MW.DOCTRINES[d].name.replace(' Doctrine', '') + ' by ' + MW.DOCTRINE_COMMANDERS[d].map(k => MW.PERSONAS[k].name).join(' or ')).join(', ') + '. ' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden && !MW.PERSONAS[k].easy).map(k => MW.PERSONAS[k].name + ': ' + MW.PERSONAS[k].blurb).join(' ')],
       ['Adapting', 'Each round a commander reads the board and picks a stance: defending its base when threatened, raiding objectives when behind, pressing the base when ahead, regrouping when outnumbered. It grows warier when it loses mecha and turns to defence when its base is hit.'],
       ['Learning', 'Commanders remember their wars in this browser. Each keeps a proven playbook and now and then tries a variation, keeping it if it wins more, and leaning away from whatever cost it past wars.']]],
     ['Doctrines', Object.keys(MW.DOCTRINES).map(id => [DOC_NAME(id), MW.DOCTRINES[id].blurb + ' ' + (MW.DOCTRINES[id].perks || []).join(' · ') + '.'])],
@@ -3577,7 +3577,8 @@ const CMD_RANDOM = 'Any of the commanders, picked when the battle starts.';
 const cmdOf = seat => seat ? ui.cmd : ui.cmd0;
 function cmdRow() {
   for (const seat of [0, 1]) {
-    const el = $('#cmdrow' + seat), on = ui.startMode === 'sim' || (seat === 1 && ui.startMode === 'ai');
+    // commanders are not chosen: each AI side is led by one that suits its doctrine, picked at random when the war starts
+    const el = $('#cmdrow' + seat), on = false;
     if (!on) { el.innerHTML = ''; continue; }
     const cur = cmdOf(seat), P = MW.PERSONAS[cur];
     const ids = Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden).sort((a, b) => !!MW.PERSONAS[b].easy - !!MW.PERSONAS[a].easy).concat('random');
@@ -3924,7 +3925,7 @@ $('#setup').addEventListener('submit', e => {
   if (d1 === 'random') d1 = keys[Math.floor(Math.random() * keys.length)];
   const cs = document.querySelector('input[name=cmd1]:checked'); if (cs) ui.cmd = cs.value;
   const cs0 = document.querySelector('input[name=cmd0]:checked'); if (cs0) ui.cmd0 = cs0.value;
-  const sim = ui.startMode === 'sim', who = c => c && c !== 'random' ? c : null;
+  const sim = ui.startMode === 'sim', who = () => null;
   // in AI vs AI both commanders learn from the war, the same as they do against a person
   MW.newGame({ map: f.get('map') || 'open', players: [
     { name: 'Azure', doctrine: f.get('doc0'), isAI: sim, persona: sim ? who(ui.cmd0) : undefined },
