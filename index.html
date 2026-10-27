@@ -78,6 +78,19 @@ body.first .mode.train { order: -1; border-color: var(--good); }
 .nrow b { display: block; font-size: 14px; line-height: 1.2; }
 .nrow small { font-family: var(--mono); font-size: 14px; color: var(--muted); }
 .nrow .row { flex: none; }
+.bal-run { gap: 8px; align-items: center; }
+.bal-bar { height: 6px; background: var(--raised); border-radius: 3px; overflow: hidden; }
+.bal-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.bal-docs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.bal-docs div { padding: 8px 10px; border: 1px solid var(--line); background: var(--raised); border-radius: 3px; }
+.bal-docs b { display: block; font-size: 22px; font-family: var(--mono); }
+.bal-docs small { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.bal-wrap { overflow-x: auto; }
+.bal-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+.bal-table th, .bal-table td { padding: 5px 6px; border-bottom: 1px solid var(--line-soft); text-align: right; white-space: nowrap; }
+.bal-table th:first-child, .bal-table td:first-child { text-align: left; }
+.bal-table th { color: var(--muted); font-weight: 600; }
+.bal-table .hi { color: var(--bad); } .bal-table .lo { color: var(--p0); }
 .net-join { display: flex; gap: 8px; }
 .net-join input { font: inherit; font-family: var(--mono); font-size: 18px; letter-spacing: .01em; text-transform: none; padding: 7px 10px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 3px; flex: 1; min-width: 0; }
 .nrow .code { font-family: var(--mono); font-weight: 600; letter-spacing: .12em; color: var(--ink); }
@@ -1542,6 +1555,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
       <div class="row menu-acts">
         <button class="btn primary" type="button" id="resume" hidden>Continue last battle</button>
         <button class="btn" type="button" data-act="recent">Recent games</button>
+        <button class="btn ghost" type="button" data-act="balance">Balance check</button>
         <button class="btn ghost" type="button" data-act="rules">How to play</button>
       </div>
       <p class="note" id="menu-note" hidden></p>
@@ -1550,6 +1564,16 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
       <div class="phead"><h2>Recent games</h2><button type="button" class="btn sm" data-act="toStart">Back</button></div>
       <p class="note">Every battle is saved as you play. Continue one that is still going, or open a finished one to look over the battlefield.</p>
       <div class="netlist" id="recent-list"></div>
+    </div>
+    <div id="balance" class="menu" hidden>
+      <div class="phead"><h2>Balance check</h2><button type="button" class="btn sm" data-act="toStart">Back</button></div>
+      <p class="note">Plays quick AI vs AI wars out of sight: every doctrine pair on every map, sides swapped, commanders drawn as usual and playing with what they have learned so far. Nothing they learn here is kept, and your games are untouched.</p>
+      <div class="row bal-run">
+        <select id="bal-n" aria-label="Wars to play"><option value="60">60 wars</option><option value="120" selected>120 wars</option><option value="240">240 wars</option><option value="480">480 wars</option></select>
+        <button type="button" class="btn primary" id="bal-go">Run</button>
+      </div>
+      <div class="bal-bar" id="bal-bar" hidden><i></i></div>
+      <div id="bal-out"></div>
     </div>
     <div id="online" class="menu" hidden>
       <div class="phead"><h2>Online match</h2><span class="lbl">Two devices</span></div>
@@ -3312,6 +3336,7 @@ function onAct(el) {
   if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } if (!$('#overlay').hidden) showBattleMenu(); return renderTop(); }
   if (a === 'rules') { ui.ruleTab = 0; return showRules(); }
   if (a === 'recent') return showRecent();
+  if (a === 'balance') return showBalance();
   if (a === 'training') { $('#overlay').hidden = true; return startTraining(); }
   if (a === 'coachNext') return coachNext();
   if (a === 'coachSkip') return coachEnd(true);
@@ -3520,7 +3545,8 @@ function showStart() {
   const last = gamesIndex().find(g => g.status === 'playing' && g.mode !== 'online' && g.mode !== 'watch');
   $('#resume').hidden = !last;
   if (last) $('#resume').dataset.id = last.id;
-  $('#menu').hidden = false; $('#setup').hidden = true; $('#recent').hidden = true;
+  $('#menu').hidden = false; $('#setup').hidden = true; $('#recent').hidden = true; $('#balance').hidden = true;
+  if (BAL.run && !BAL.run.done) BAL.run.stop = true;
   // nobody has played here yet: point them at Training
   let trained = false; try { trained = !!localStorage.getItem('mw-trained'); } catch (e) { /* storage unavailable */ }
   const fresh = !trained && !gamesIndex().length;
@@ -3996,8 +4022,84 @@ function rgLine(g) {
   const ph = { build: 'build', deploy: 'deployment', action: 'battle', resolve: 'battle', draw: 'draw', over: 'ended' }[g.phase] || g.phase;
   return (MW.MAPS[g.map] || MW.MAPS.open).name + ' · R' + g.round + (g.status === 'over' ? '' : ' ' + ph) + ' · ' + score + ' pts · ' + ago(g.at);
 }
+/* ---------- Balance check: a batch of quick AI vs AI wars, played out of sight, and how often each doctrine wins ---------- */
+const BAL = { run: null };
+function showBalance() {
+  $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#recent').hidden = true; $('#balance').hidden = false;
+  drawBalance();
+}
+$('#bal-go').addEventListener('click', () => {
+  if (BAL.run && !BAL.run.done) { BAL.run.stop = true; return; }
+  balanceRun(+$('#bal-n').value || 120);
+});
+function balanceRun(n) {
+  const copy = o => JSON.parse(JSON.stringify(o));
+  // the open game and the commanders' memory are put back exactly as they were when the check ends
+  const prev = MW.S ? copy(MW.S) : null, mem = copy(MW.getAIMemory());
+  const docs = Object.keys(MW.DOCTRINES), maps = MW.MAP_IDS, pairs = [];
+  for (let i = 0; i < docs.length; i++) for (let j = i + 1; j < docs.length; j++) pairs.push([docs[i], docs[j]]);
+  const cells = pairs.length * maps.length;
+  const R = BAL.run = { n, i: 0, played: 0, wins: {}, games: {}, cell: {}, pairs, maps, stop: false, done: false };
+  const finish = () => { MW.setAIMemory(mem); if (prev) MW.load(prev); R.done = true; drawBalance(); };
+  const step = () => {
+    if (R.stop) return finish();
+    const t = performance.now();
+    while (R.i < n && performance.now() - t < 45) {
+      // wars cycle through every pair and map, then the same again with the sides swapped
+      const c = R.i % cells, swap = Math.floor(R.i / cells) % 2 === 1, [a, b] = pairs[Math.floor(c / maps.length)], map = maps[c % maps.length];
+      R.i++;
+      MW.setAIMemory(copy(mem));
+      MW.newGame({ map, players: [{ name: 'Azure', doctrine: swap ? b : a, isAI: true }, { name: 'Ember', doctrine: swap ? a : b, isAI: true }] });
+      let guard = 0;
+      while (MW.S.phase !== 'over' && MW.S.round <= 60 && guard++ < 20000) MW.aiStep();
+      if (MW.S.phase !== 'over') continue;
+      const w = MW.S.players[MW.S.winner].doctrine, k = a + '>' + b + '@' + map;
+      R.played++;
+      for (const d of [a, b]) R.games[d] = (R.games[d] || 0) + 1;
+      R.wins[w] = (R.wins[w] || 0) + 1;
+      const cl = R.cell[k] = R.cell[k] || { g: 0, a: 0 };
+      cl.g++; if (w === a) cl.a++;
+    }
+    drawBalance();
+    if (R.i < n) setTimeout(step, 0); else finish();
+  };
+  drawBalance();
+  setTimeout(step, 30);
+}
+function drawBalance() {
+  const R = BAL.run, out = $('#bal-out'), bar = $('#bal-bar'), go = $('#bal-go');
+  const running = R && !R.done;
+  go.textContent = running ? 'Stop' : R ? 'Run again' : 'Run';
+  go.classList.toggle('primary', !running);
+  bar.hidden = !R;
+  if (!R) { out.innerHTML = ''; return; }
+  bar.firstElementChild.style.width = Math.round(100 * R.i / R.n) + '%';
+  const pc = (w, g) => g ? Math.round(100 * w / g) : null;
+  // how far a result could stray from 50% on luck alone, at 95%
+  const margin = g => g ? Math.round(98 / Math.sqrt(g)) : 0;
+  const per = Math.max(1, Math.round(R.played * 2 / 3));
+  let h = '<p class="note">' + (running ? 'Playing war ' + R.i + ' of ' + R.n + '…' : R.played + ' wars played' + (R.stop ? ' (stopped early)' : '') + '.') +
+    ' With this many wars, a doctrine within about ±' + margin(per) + ' points of 50% is balanced; the rest is luck.</p>';
+  h += '<div class="bal-docs">' + Object.keys(MW.DOCTRINES).map(d => {
+    const g = R.games[d] || 0, w = R.wins[d] || 0, p = pc(w, g);
+    return '<div><small>' + DOC_NAME(d) + '</small><b>' + (p == null ? '–' : p + '%') + '</b><small>' + w + ' of ' + g + ' wars</small></div>';
+  }).join('') + '</div>';
+  h += '<div class="bal-wrap"><table class="bal-table"><thead><tr><th>First-named wins</th>' + R.maps.map(m => '<th>' + MW.MAPS[m].name + '</th>').join('') + '<th>All</th></tr></thead><tbody>';
+  for (const [a, b] of R.pairs) {
+    let ta = 0, tg = 0;
+    h += '<tr><td>' + DOC_NAME(a) + ' v ' + DOC_NAME(b) + '</td>' + R.maps.map(m => {
+      const cl = R.cell[a + '>' + b + '@' + m];
+      if (!cl || !cl.g) return '<td>–</td>';
+      ta += cl.a; tg += cl.g;
+      const p = pc(cl.a, cl.g), off = Math.abs(p - 50) > margin(cl.g);
+      return '<td class="' + (off ? (p > 50 ? 'hi' : 'lo') : '') + '">' + p + '% <small>(' + cl.g + ')</small></td>';
+    }).join('') + '<td>' + (tg ? pc(ta, tg) + '%' : '–') + '</td></tr>';
+  }
+  h += '</tbody></table></div><p class="note">A coloured cell leans further from even than luck alone would explain for that many wars.</p>';
+  out.innerHTML = h;
+}
 async function showRecent() {
-  $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#recent').hidden = false;
+  $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#balance').hidden = true; $('#recent').hidden = false;
   const el = $('#recent-list');
   const draw = list => {
     el.innerHTML = list.length ? '' : '<p class="note">No games yet. Start one from the menu and it will show up here.</p>';

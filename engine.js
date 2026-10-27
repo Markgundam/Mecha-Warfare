@@ -177,15 +177,15 @@ const DOCTRINES = {
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Up to 3 mecha on the field, every one 1 move slower', 'Heavy industry: 6 build actions a round instead of 4', 'Line mechs: +6 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers dig in and fire long guns as turrets, +1 range', '+15% accuracy when it has not moved', 'Holds an objective, and grabs a crate, from the next tile over, if no enemy stands as close', 'Fortified: +1 victory point a round while it holds an objective it held last round', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { ep: 6, fieldMax: 3, plate: 6, plateRegen: 0, steady: 15, control: 1, fortify: 1, move: -1, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    perks: ['Up to 3 mecha on the field, every one 1 move slower', 'Heavy industry: 6 build actions a round instead of 4', 'Line mechs: +6 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers dig in and fire long guns as turrets, +1 range', '+10% accuracy when it has not moved', 'Holds an objective, and grabs a crate, from the next tile over, if no enemy stands as close', 'Fortified: +1 victory point a round while it holds an objective it held last round', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { ep: 6, fieldMax: 3, plate: 6, plateRegen: 0, steady: 10, control: 1, fortify: 1, move: -1, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 3, w_ram: 2, w_repair: 1, w_shield: 1, a_plate: 2, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_frame: 1, x_supply: 2, x_overtime: 1, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 actions per mech instead of 2', 'Prototype workshop: 3 build actions a round instead of 4', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
-    traits: { ap: 3, ep: 3, melt: 2, turretArc: 1 },
+    perks: ['Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 actions per mech instead of 2', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
+    traits: { ap: 3, melt: 2, turretArc: 1 },
     deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
@@ -218,8 +218,8 @@ const MAPS = {
     rocks: [[3, 2], [4, 2], [6, 2], [7, 2], [3, 5], [4, 5], [6, 5], [7, 5]],
     ruins: [[2, 1], [8, 6], [4, 0], [6, 7], [3, 3], [7, 4], [3, 4], [7, 3], [8, 1], [2, 6]],
     rules: {},
-    effects: { startMechs: 2, killVp: 1 / 3 },
-    notes: 'Both sides start with 2 mecha. Every 3 enemy mecha destroyed score 1 point.'
+    effects: { killVp: 1 / 3 },
+    notes: 'Every 3 enemy mecha destroyed score 1 point.'
   },
   uplink: {
     name: 'Uplink', goal: 'King of the hill',
@@ -1611,13 +1611,13 @@ function resolution() {
    mostly plays the one that has won most, and now and then tries a mutated one, steered away from how it lost. */
 const PERSONAS = {
   // Armored: a slow fortress that wins by destroying mecha, then taking and holding the ground they stood on
-  siege: { name: 'Siegemaster', doctrine: 'armored', blurb: 'Focuses fire with its long guns to break the enemy, then rolls its line onto the objectives.', w: { aggro: 0.65, objective: 1.25, siege: 0.7, caution: 0.35, focus: 2.0, cohesion: 1.05, swarm: 0.4, tech: 0.6, hold: 0.45, overwatch: 0.6 } },
-  bastion: { name: 'Bastion', doctrine: 'armored', blurb: 'Advances as one armoured line, takes the objectives and holds them, gunning down whatever contests them.', w: { aggro: 0.75, objective: 1.45, siege: 0.5, caution: 0.45, focus: 1.8, cohesion: 1.0, swarm: 0.35, tech: 0.5, hold: 0.8, overwatch: 0.7 } },
+  siege: { name: 'Siegemaster', doctrine: 'armored', blurb: 'Focuses fire with its long guns to break the enemy, then rolls its line onto the objectives.', w: { aggro: 0.65, objective: 1.45, siege: 0.51, caution: 0, focus: 2.0, cohesion: 1.05, swarm: 0.4, tech: 0.35, hold: 0.45, overwatch: 0.6 } },
+  bastion: { name: 'Bastion', doctrine: 'armored', blurb: 'Advances as one armoured line, takes the objectives and holds them, gunning down whatever contests them.', w: { aggro: 0.59, objective: 1.79, siege: 0.5, caution: 0, focus: 1.8, cohesion: 0.66, swarm: 0.71, tech: 0.5, hold: 0.8, overwatch: 0.54 } },
   // Assault: numbers; cheap fast mecha spread over the map to grab and hold more points than the enemy can cover
-  swarm: { name: 'Swarm', doctrine: 'assault', blurb: 'Floods the map with cheap mecha to grab and hold as many points as it can.', w: { aggro: 0.45, objective: 1.7, siege: 0.5, caution: 0.7, focus: 0.6, cohesion: 0.0, swarm: 1.0, tech: 0.3, hold: 0.6, overwatch: 0.4 } },
+  swarm: { name: 'Swarm', doctrine: 'assault', blurb: 'Floods the map with cheap mecha to grab and hold as many points as it can.', w: { aggro: 0.45, objective: 1.9, siege: 0.5, caution: 0.7, focus: 0.22, cohesion: 0.0, swarm: 0.88, tech: 0.62, hold: 0.6, overwatch: 0.4 } },
   striker: { name: 'Striker', doctrine: 'assault', blurb: 'Hits and runs: gangs up on stragglers, steals points and pressures the base.', w: { aggro: 0.9, objective: 1.65, siege: 0.5, caution: 0.6, focus: 1.4, cohesion: 0.5, swarm: 0.9, tech: 0.3, hold: 0.4, overwatch: 0.3 } },
   // Experimental: odd machines and tricks; ambushes and sabotage instead of a fair fight
-  trickster: { name: 'Trickster', doctrine: 'experimental', blurb: 'Leans on special weapons and tricks, sets ambushes and picks targets off.', w: { aggro: 0.75, objective: 1.35, siege: 0.6, caution: 1.0, focus: 1.4, cohesion: 0.5, swarm: 0.4, tech: 1.6, hold: 0.5, overwatch: 0.9 } },
+  trickster: { name: 'Trickster', doctrine: 'experimental', blurb: 'Leans on special weapons and tricks, sets ambushes and picks targets off.', w: { aggro: 1.1, objective: 1.85, siege: 0.83, caution: 1, focus: 1.4, cohesion: 0.15, swarm: 0.4, tech: 1.6, hold: 0.83, overwatch: 1.08 } },
   saboteur: { name: 'Saboteur', doctrine: 'experimental', blurb: 'Slips odd machines onto the objectives and disrupts whatever holds them.', w: { aggro: 0.5, objective: 1.45, siege: 0.6, caution: 0.8, focus: 0.8, cohesion: 0.2, swarm: 0.6, tech: 0.9, hold: 0.4, overwatch: 0.5 } },
   // a gentle opponent for learning: slow to attack, rarely goes for the base, short on Supply, and never learns
   recruit: { name: 'Recruit', easy: true, blurb: 'An easy opponent for learning: cautious, slow to attack, fields at most two mecha and builds with one action less.', w: { aggro: 0.2, objective: 0.8, siege: 0.15, caution: 1.2, focus: 0.2, cohesion: 0.5, swarm: 0.3, tech: 0.2, hold: 0.5, overwatch: 0.1 } },
@@ -1728,6 +1728,13 @@ function aiStance(pid) {
   a.vpGap = gap;
 }
 // where the enemy can hurt us next round: expected damage per tile
+// AI features, switchable for A/B duels: AIX[name] is true for every commander, or a list of the player ids that use it.
+// tough: designs avoid frames the enemy's hardest hit kills outright (won its duels: Assault 50% to 56-60%)
+// deploy: deploys where the enemy can hit least, nearest wanted ground (won its duels: 54% in mirrors)
+// brave / never: wounded mecha fight on; they only head home once disarmed or their core is gone (each step won its
+// duels: retreating later, then not at all, added 3 to 10 points for every doctrine)
+const AIX = { tough: true, deploy: true, brave: true, never: true };
+const aix = (pid, k) => AIX[k] === true || (Array.isArray(AIX[k]) && AIX[k].includes(pid));
 function threatMap(pid) {
   const key = S.round + ':' + S.mechs.map(m => m.uid + '@' + m.x + ',' + m.y + (m.activated ? 'a' : '')).join('|');
   if (S._threat && S._threat.pid === pid && S._threat.key === key) return S._threat.t;
@@ -1908,6 +1915,7 @@ function aiBestTile(m, tiles) {
     else if (ctl) for (const q of S.objectives) if (q.type !== 'repair' && q.owner !== m.owner && man(x, y, q.x, q.y) <= ctl) { v += 0.8 * (1 + objWorth(q, m.owner)) * aw.objective; break; }
     // look ahead: how much the enemy could pour into this tile next round, weighed by how much we can take
     if (threat) v -= aw.caution * 0.45 * (threat[k] || 0) * (1.6 - hpFrac);
+    // a tile where the enemy can finish this mech next round is a mech thrown away, unless it takes as much with it
     // never end a move where the turret would finish this mech, unless the base falls first; otherwise weigh the hit against what is left
     if (turret && man(x, y, eb.x, eb.y) <= C.TURRET_RANGE) {
       const weakest = !allies.some(f => man(f.x, f.y, eb.x, eb.y) <= C.TURRET_RANGE && hpOf(f) < hpOf(m));
@@ -1931,7 +1939,9 @@ function aiWantsRetreat(m) {
   if (hangarFull(p)) return false;
   // late in a long war, damaged mecha press on instead of cycling back to the hangar
   const aw = aiW(m.owner);
-  if (hpOf(m) <= maxHpOf(m) * (S.round > 20 ? 0.2 : clamp(0.35 + 0.08 * aw.caution - 0.1 * (aw.aggro - 0.5), 0.15, 0.6))) return true;
+  // mecha fight on longer before limping home: every cautious retreat rule lost its duels, this one won them
+  const brave = aix(m.owner, 'brave') ? 0.22 : 0;
+  if (!aix(m.owner, 'never') && hpOf(m) <= maxHpOf(m) * (S.round > 20 ? 0.2 : clamp(0.35 - brave + 0.08 * aw.caution - 0.1 * (aw.aggro - 0.5), 0.15, 0.6))) return true;
   if (m.slots.core && m.slots.core.hp <= 0) return true;
   return !hasWeapon(m);
 }
@@ -2056,6 +2066,9 @@ function aiDesign(p, m) {
   const BAS = { torso: ['b_torso'].concat(iss('torso')), legs: ['b_legs'].concat(iss('legs')), arm: ['b_gun'].concat(iss('arm')) };
   // artillery already in the force (on the field or in the hangar), not counting this mech
   const arty = fieldMechs(p.id).concat(p.hangar).filter(x => x !== m && anchoredLegs(x)).length;
+  // the hardest single hit the enemy can land right now: a frame that dies to it is a mech handed over
+  let bigHit = 0;
+  if (aix(p.id, 'tough')) for (const e of fieldMechs(1 - p.id).concat(S.players[1 - p.id].hangar)) { const es = stats(e); for (const wp of weaponsOf(e)) if (!wp.w.repair) bigHit = Math.max(bigHit, wp.w.dmg + es.dmgBonus); }
   let best = null;
   for (let t = 0; t < 300; t++) {
     const used = new Set(), pick = {};
@@ -2112,6 +2125,7 @@ function aiDesign(p, m) {
     score += mode === 'jump' ? 2 + aw.objective : mode === 'tracks' ? 1.5 :  mode === 'hover' ? 1.5 : mode === 'surefoot' ? 1 : 0;
     // an army wants one artillery emplacement behind its line, and the rest line mechs that can take ground
     if (DEFS[tmp.slots.legs.id].entrench) { if (arty) continue; score += 14; }
+    if (bigHit && td.hp + (DEFS[tmp.slots.legs.id].hull || 0) + st.plate <= bigHit) score -= 8 + 4 * aw.caution;
     if (!best || score > best.score) best = { score, pick };
   }
   return best && best.pick;
@@ -2175,7 +2189,13 @@ function aiDeploy(p) {
     if (hpOf(m) < maxHpOf(m) * (0.5 + 0.15 * aiW(p.id).caution - 0.15 * (aiW(p.id).aggro - 0.5))) continue;
     const free = deployTiles(p.id).filter(([x, y]) => !mechAt(x, y));
     if (!free.length) break;
-    const t = free[Math.floor(rnd() * free.length)];
+    let t = free[Math.floor(rnd() * free.length)];
+    // deploy where the enemy can pour in least, on the side nearest the ground worth taking
+    if (aix(p.id, 'deploy')) {
+      const aw = aiW(p.id), th = threatMap(p.id), want = S.objectives.filter(o => o.type !== 'repair' && o.owner !== p.id);
+      const near = (x, y) => want.length ? Math.min(...want.map(o => man(x, y, o.x, o.y))) : 0;
+      t = free.map(c => ({ c, v: -aw.caution * 0.5 * (th[K(c[0], c[1])] || 0) - near(c[0], c[1]) * (0.5 + 0.5 * aw.objective) + rnd() * 0.3 })).sort((a, b) => b.v - a.v)[0].c;
+    }
     deploy(p, m, t[0], t[1]);
   }
 }
@@ -2200,7 +2220,7 @@ const api = {
   get W() { return W; }, get H() { return H; }, C, DEFS, DOCTRINES, REQUIRED,
   get S() { return S; },
   load(s) { S = s; if (S) setMap(S.map || 'open'); return S; },
-  setMap, MAPS, MAP_IDS, get MAP() { return MAP; }, rule, objVp, START_CHASSIS,
+  AIX, setMap, MAPS, MAP_IDS, get MAP() { return MAP; }, rule, objVp, START_CHASSIS,
   setRng(f) { rnd = f; },
   newGame, concede, terrain, baseAt, turretTiles, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, slotName, slotType, effRange,
