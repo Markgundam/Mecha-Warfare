@@ -71,6 +71,11 @@ const DEFS = {};
   { id: 's_cryo', name: 'Cryo Lance', slot: 'arm', special: true, cost: 6, wt: 3, en: 3, hp: 5, weapon: { dmg: 4, range: 4, acc: 85, heat: 1, slow: 2 } },
   { id: 's_emp', name: 'EMP Projector', slot: 'arm', special: true, cost: 6, wt: 3, en: 4, hp: 4, weapon: { dmg: 3, range: 4, acc: 85, heat: 2, shock: true } },
   { id: 's_railgun', name: 'Heavy Railgun', slot: 'arm', special: true, cost: 8, wt: 8, en: 5, hp: 6, weapon: { dmg: 7, range: 6, acc: 90, heat: 3, ap: true, ammo: 4, needsEntrench: true } },
+  // combo weapons, one per doctrine: each works only when its mech is built and played a certain way, and hits hard
+  // when it does. Assault: a two-handed hammer, swung with everything the mech has left. Experimental: overclock
+  // and unload
+  { id: 's_hammer', name: 'Meteor Hammer', slot: 'arm', special: true, cost: 7, wt: 4, en: 3, hp: 6, weapon: { dmg: 7, range: 1, acc: 90, heat: 2, ap: true, melee: true, shock: true, twoHanded: true, allIn: true, apCost: 2 } },
+  { id: 's_overload', name: 'Overload Lance', slot: 'arm', special: true, cost: 7, wt: 3, en: 6, hp: 4, weapon: { dmg: 9, range: 4, acc: 85, heat: 3, ap: true, needsOverclock: true } },
   { id: 's_anchor', name: 'Siege Anchors', slot: 'legs', cost: 4, hp: 16, armor: 2, capacity: 26, move: 2, hull: 6, hidden: true },
   { id: 's_frame', name: 'Aegis Frame', slot: 'torso', special: true, cost: 7, wt: 6, hp: 13, armor: 1, auxSlots: 3, heatCap: 9 },
   { id: 's_core', name: 'Lattice Core', slot: 'core', special: true, cost: 6, wt: 2, hp: 7, power: 13, cooling: 4 },
@@ -133,7 +138,7 @@ const LOCO = {
   l_biped: { mode: 'surefoot', modeText: 'Reinforced: hits on the legs are reduced by 1' },
   l_boost: { mode: 'jump', modeText: 'Jump: moves over rocks, ruins and mecha' },
   l_treads: { mode: 'tracks', modeText: 'Armoured tracks: hits on the legs are reduced by 2' },
-  l_quad: { mode: 'entrench', modeText: 'Emplacement: long-range weapons only (range 4+). Fires only when dug in; dug in it is a turret with +1 range and +1 armour' },
+  l_quad: { mode: 'entrench', modeText: 'Emplacement: long-range weapons only (range 4+). Dig in to become a turret: +1 range and +1 armour' },
   l_hover: { mode: 'hover', modeText: 'Hover: immune to slowing' },
   s_anchor: { mode: null }
 };
@@ -144,7 +149,7 @@ const SIZE_NAME = ['', 'Light', 'Medium', 'Heavy'];
 const SIZE = { b_torso: 2, t_skirm: 1, t_light: 1, t_assault: 2, t_heavy: 3, t_fortress: 3, t_proto: 2, s_frame: 3, c_sing: 2, s_core: 2 };
 const CARRY = { b_legs: 2, l_boost: 2, l_hover: 2, l_biped: 3, l_treads: 3, l_quad: 3, s_anchor: 3 };
 const CAP = { b_torso: 3, t_skirm: 3, t_light: 3, t_assault: 4, t_heavy: 4, t_fortress: 5, t_proto: 5, s_frame: 5, c_sing: 6, s_core: 5 };
-const PIPS = { b_gun: 1, w_smg: 1, w_scatter: 1, w_blade: 1, w_ram: 1, w_shield: 1, w_repair: 1, w_gatling: 2, w_rail: 2, w_laser: 2, w_lance: 2, w_arc: 2, w_missile: 2, w_howitzer: 2, s_inferno: 2, s_cryo: 2, s_emp: 2, s_railgun: 3,
+const PIPS = { b_gun: 1, w_smg: 1, w_scatter: 1, w_blade: 1, w_ram: 1, w_shield: 1, w_repair: 1, w_gatling: 2, w_rail: 2, w_laser: 2, w_lance: 2, w_arc: 2, w_missile: 2, w_howitzer: 2, s_inferno: 2, s_cryo: 2, s_emp: 2, s_railgun: 3, s_hammer: 2, s_overload: 3,
   a_cool: 1, a_sink: 1, a_plate: 1, a_bulwark: 2, a_relay: 1, a_jump: 1, a_apu: 0, a_nano: 1, a_servo: 0, a_shield: 1, a_over: 1 };
 for (const id in SIZE) DEFS[id].size = SIZE[id];
 for (const id in CARRY) DEFS[id].carry = CARRY[id];
@@ -167,30 +172,30 @@ function capOf(m) {
 function pipsUsed(m) { return ['armL', 'armR'].map(k => m.slots[k]).concat(m.slots.aux).reduce((a, x) => a + (x ? DEFS[x.id].pips || 0 : 0), 0); }
 DEFS.l_boost.cost = 3;
 const locoMode = m => { const l = m.slots.legs; return l && l.hp > 0 ? DEFS[l.id].mode || null : null; };
-const WCAT = { w_smg: 'ballistic', b_gun: 'ballistic', w_blade: 'melee', w_rail: 'ballistic', w_missile: 'missile', w_howitzer: 'artillery', w_ram: 'siege', w_laser: 'energy', w_scatter: 'ballistic', w_gatling: 'ballistic', w_shield: 'shield', w_lance: 'energy', w_arc: 'energy', w_repair: 'support', s_inferno: 'incendiary', s_cryo: 'cryo', s_emp: 'energy', s_railgun: 'ballistic' };
+const WCAT = { w_smg: 'ballistic', b_gun: 'ballistic', w_blade: 'melee', w_rail: 'ballistic', w_missile: 'missile', w_howitzer: 'artillery', w_ram: 'siege', w_laser: 'energy', w_scatter: 'ballistic', w_gatling: 'ballistic', w_shield: 'shield', w_lance: 'energy', w_arc: 'energy', w_repair: 'support', s_inferno: 'incendiary', s_cryo: 'cryo', s_emp: 'energy', s_railgun: 'ballistic', s_hammer: 'melee', s_overload: 'energy' };
 Object.keys(WCAT).forEach(id => { DEFS[id].cat = WCAT[id]; if (DEFS[id].weapon) DEFS[id].weapon.cat = WCAT[id]; });
 
 const DOCTRINES = {
   assault: {
     name: 'Assault Doctrine',
     blurb: 'A swarm of light, fast mecha that overwhelm by numbers and speed.',
-    perks: ['Opening team: a Brawler (blade and shotgun), a Raider (the fastest, for objectives) and a Scout (evasive, the longest gun)', 'Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Pack tactics: +10% to hit for each other Assault mech within 2 tiles of the target (up to +20%)', 'Issue parts: Striker Chassis and Booster Legs (fast), Skirmisher Chassis and Twin SMGs (cheap), Scatter Cannon, Plasma Blade'],
+    perks: ['Opening team: a Brawler (blade and shotgun), a Raider (the fastest, for objectives) and a Scout (evasive, the longest gun)', 'Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Pack tactics: +10% to hit for each other Assault mech within 2 tiles of the target (up to +20%)', 'Combo weapon: the two-handed Meteor Hammer, a 2-action swing from a standing start', 'Issue parts: Striker Chassis and Booster Legs (fast), Skirmisher Chassis and Twin SMGs (cheap), Scatter Cannon, Plasma Blade'],
     traits: { fieldMax: 4, hangarMax: 4, move: 1, startMechs: 3, pack: 10 },
-    deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 3, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 2, w_smg: 2, w_gatling: 2, a_jump: 2, a_servo: 1, a_cool: 1, a_over: 1, s_inferno: 2, s_cryo: 1, s_emp: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
+    deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 3, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 2, w_smg: 2, w_gatling: 2, a_jump: 2, a_servo: 1, a_cool: 1, a_over: 1, s_hammer: 2, s_inferno: 1, s_cryo: 1, s_emp: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
   },
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Opening team: a Tank (shotgun and plating) that takes and holds objectives, and an Emplacement that carries the long guns', 'Up to 3 mecha on the field, every one 1 move slower, except on Heavy Treads and Quad Walkers', 'Heavy industry: 6 build actions a round instead of 4', 'Line mechs: +8 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers dig in and fire long guns as turrets, +1 range', '+10% accuracy when it has not moved', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    perks: ['Opening team: a Tank (shotgun and plating) that takes and holds objectives, and an Emplacement that carries the long guns', 'Up to 3 mecha on the field, every one 1 move slower, except on Heavy Treads and Quad Walkers', 'Heavy industry: 6 build actions a round instead of 4', 'Line mechs: +8 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers carry long guns, and dig in as turrets for +1 range and +1 armour', '+10% accuracy when it has not moved', 'Combo weapon: the Heavy Railgun, live on a dug-in Quad Walker', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
     traits: { ep: 6, fieldMax: 3, plate: 8, plateRegen: 0, steady: 10, move: -1, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 3, w_ram: 2, w_repair: 1, w_shield: 1, a_plate: 2, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_frame: 1, x_supply: 2, x_overtime: 1, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['Opening team: a Sniper (overclocked lasers at range 5) and an Infiltrator (phase jumps onto objectives)', 'Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 actions per mech instead of 2', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
+    perks: ['Opening team: a Sniper (overclocked lasers at range 5) and an Infiltrator (phase jumps onto objectives)', 'Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 actions per mech instead of 2', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Combo weapon: the Overload Lance, live after an overclock', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
     traits: { ap: 3, melt: 2, turretArc: 1 },
-    deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_emp: 2, s_cryo: 1, s_inferno: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
+    deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_overload: 2, s_emp: 1, s_cryo: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
 
@@ -485,10 +490,16 @@ const canEntrench = m => { const l = m.slots.legs; return !!l && l.hp > 0 && dig
 // a Quad Walker locks every weapon until the mech digs in; the railgun needs one
 function weaponLock(m, key) {
   const inst = getSlot(m, key);
-  if (!inst || !DEFS[inst.id].weapon || m.entrenched) return null;
-  const w = DEFS[inst.id].weapon, l = m.slots.legs, anchored = !!l && !!DEFS[l.id].entrench;
+  if (!inst || !DEFS[inst.id].weapon) return null;
+  if (m.entrenched && DEFS[inst.id].weapon.needsEntrench) return null;
+  // digging in is a bonus (+1 range, +1 armour): a Quad Walker fires on its feet too. Only a few emplacement
+  // weapons, marked needsEntrench (the Heavy Railgun), fire just when dug in
+  const w = DEFS[inst.id].weapon, l = m.slots.legs;
   if (w.needsEntrench && !(l && digsIn(l.id))) return 'Needs legs that dig in';
-  if (w.needsEntrench || anchored) return 'Entrench first';
+  if (w.needsEntrench) return 'Dig in first';
+  if (w.apCost && m.ap < w.apCost) return 'Needs ' + w.apCost + ' actions';
+  if (w.needsOverclock && trickOf(m) !== 'overclock') return 'Needs a chassis that overclocks';
+  if (w.needsOverclock && !m.overclocked) return 'Overclock first';
   return null;
 }
 function usable(m, key) {
@@ -684,6 +695,11 @@ function install(p, m, key, src) {
   if (key !== 'torso' && !m.slots.torso) return fail('Fit a chassis first: it decides what else can go on.');
   if (key.startsWith('arm') && !fitsMount(armMount(m, key), d)) return fail(d.name + ' needs a ' + MOUNT_NAME[mountOf(d)].toLowerCase() + ' mount: this arm is ' + MOUNT_NAME[armMount(m, key)].toLowerCase() + '.');
   if (key.startsWith('arm') && needsDigLegs(d) && !hasDigLegs(m)) return fail(d.name + ' only fires dug in: fit a Quad Walker first.');
+  if (key.startsWith('arm')) {
+    const other = m.slots[key === 'armL' ? 'armR' : 'armL'];
+    if (d.weapon && d.weapon.twoHanded && other) return fail(d.name + ' is two-handed: clear the other arm first.');
+    if (other && DEFS[other.id].weapon && DEFS[other.id].weapon.twoHanded) return fail('Both hands hold the ' + DEFS[other.id].name + '.');
+  }
   if (key.startsWith('arm') && anchoredLegs(m) && shortGun(d)) return fail('A Quad Walker carries long-range weapons only (range ' + LONG_RANGE + '+).');
   const cost = installCost(src, p);
   if (p.ep < cost) return fail(d.name + ' takes ' + actWord(cost) + '; ' + p.ep + ' left this round.');
@@ -836,7 +852,7 @@ function startCombat() {
     const st = stats(m);
     m.ap = (m.shutdown || st.underpowered) ? 1 : trait(m.owner, 'ap');
     if (m.shock) { m.ap = Math.max(1, m.ap - 1); m.shock = 0; }
-    m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false; m.tricked = false; m.cloak = 0;
+    m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false; m.tricked = false; m.cloak = 0; m.overclocked = false;
   }
   log('Combat begins.', 'sys');
   S.current = S.first;
@@ -1052,7 +1068,7 @@ function trickGuard(m, kind) {
 }
 function overclock(m) {
   const g = trickGuard(m, 'overclock'); if (g) return fail(g);
-  S.active = m.uid; m.tricked = true; m.ap++; m.heat += 3;
+  S.active = m.uid; m.tricked = true; m.overclocked = true; m.ap++; m.heat += 3;
   fxFloat(m.x, m.y, 'Overclock', 'warn');
   log(m.name + ' overclocks: one more action, +3 heat.', 'p' + m.owner);
   return OK;
@@ -1392,7 +1408,9 @@ function fire(m, key, target, part) {
   const t = validTargets(m, key).find(v => v.type === target.type && (v.type === 'base' || v.uid === target.uid));
   if (!t) return fail('That target is out of range or out of sight.');
   const st = stats(m);
-  S.active = m.uid; m.ap--; m.fired[key] = true;
+  S.active = m.uid; m.ap -= w.apCost || 1; m.fired[key] = true;
+  // an all-in weapon (the two-handed hammer) puts everything into the blow: no actions are left after it
+  if (w.allIn) m.ap = 0;
   if (inst.ammo != null) inst.ammo--;
   m.heat += w.heat + st.shotHeat;
   if (w.repair) {
@@ -1446,7 +1464,7 @@ function entrench(m) {
   if (m.entrenched) return fail(m.name + ' is already emplaced.');
   S.active = m.uid; m.ap--; m.entrenched = true;
   fx({ k: 'brace', x: m.x, y: m.y }); fxFloat(m.x, m.y, 'Entrenched', 'info');
-  log(m.name + ' emplaces at ' + coord(m.x, m.y) + '. Weapons online, +1 armour, +1 range.', 'p' + m.owner);
+  log(m.name + ' emplaces at ' + coord(m.x, m.y) + ': +1 armour, +1 range.', 'p' + m.owner);
   settle();
   return OK;
 }
@@ -1889,6 +1907,14 @@ function aiBestAttack(m) {
 }
 function aiAttackValue(m, x, y, n) {
   if (n <= 0) return 0;
+  const oo = m.overclocked, oap = m.ap;
+  if (aiCanOverclock(m)) m.overclocked = true;
+  m.ap = n;
+  try { return aiAttackValueAt(m, x, y, n); } finally { m.overclocked = oo; m.ap = oap; }
+}
+// an overclock still to spend, with the heat to spare for it and a shot after it
+const aiCanOverclock = m => !m.tricked && !m.overclocked && trickOf(m) === 'overclock' && m.heat + 3 + 3 <= stats(m).heatCap + 1;
+function aiAttackValueAt(m, x, y, n) {
   return withPos(m, x, y, () => {
     const st = stats(m);
     const evs = weaponsOf(m).map(wp => { const c = aiWeaponBest(m, wp, st); return c ? c.ev : 0; }).sort((a, b) => b - a);
@@ -2026,6 +2052,11 @@ function aiCombatStep() {
   // than walking would; cloak when standing where the enemy can pour fire in
   const trick = !m.tricked ? trickOf(m) : null, st0 = stats(m);
   // only once the mech has settled where it fires from, so the extra action goes into a shot, not a walk to overwatch
+  // an Overload Lance is only live once overclocked: overclock when that opens a shot nothing else has
+  if (trick === 'overclock' && aiCanOverclock(m) && weaponsOf(m).some(wp => wp.w.needsOverclock && wp.inst.hp > 0)) {
+    m.overclocked = true; const lance = aiBestAttack(m); m.overclocked = false;
+    if (lance && lance.ev > ((aiBestAttack(m) || {}).ev || 0) && overclock(m).ok) return true;
+  }
   if (trick === 'overclock' && m.ap >= 1 && m.heat + 3 + 2 <= st0.heatCap && aiBestAttack(m)) {
     const b = m.moves ? null : aiBestTile(m);
     if ((!b || (b.x === m.x && b.y === m.y)) && overclock(m).ok) return true;
@@ -2056,6 +2087,8 @@ function aiCombatStep() {
       endActivation(m);
       return true;
     }
+    // with a single action left, a shot now beats digging in for later
+    if (m.ap === 1) { const atk = aiBestAttack(m); if (atk && fire(m, atk.key, atk.target, atk.part).ok) return true; }
     if (aiEntrenchValue(m, m.x, m.y) > 0 && entrench(m).ok) return true;
     if (m.moves === 0) {
       const r = reachable(m);
@@ -2139,6 +2172,8 @@ function aiDesign(p, m) {
       if (key === 'torso' && tmp.slots.torso) tmp.slots.core = fixed.core && !pick.torso ? fixed.core : { id: 'r_' + tmp.slots.torso.id, hp: DEFS['r_' + tmp.slots.torso.id].hp };
     }
     if (!tmp.slots.torso) continue;
+    const twoH = k => tmp.slots[k] && DEFS[tmp.slots[k].id].weapon && DEFS[tmp.slots[k].id].weapon.twoHanded;
+    if ((twoH('armL') && tmp.slots.armR) || (twoH('armR') && tmp.slots.armL)) continue;
     if (!tmp.slots.core) tmp.slots.core = fixed.core || { id: 'r_' + tmp.slots.torso.id, hp: DEFS['r_' + tmp.slots.torso.id].hp };
     const nAux = DEFS[tmp.slots.torso.id].auxSlots || 0;
     for (let i = 0; i < nAux; i++) {
@@ -2157,6 +2192,7 @@ function aiDesign(p, m) {
       const w = wp.w;
       if (w.repair) continue;
       if (w.needsEntrench && !digsIn(tmp.slots.legs.id)) continue;
+      if (w.needsOverclock && !(tmp.slots.torso && DEFS[tmp.slots.torso.id].trick === 'overclock')) continue;
       fp += (w.dmg + st.dmgBonus) * (w.shots || 1) * Math.min(95, w.acc) / 100 * (1 + effRange(w, st) / 8) + (w.ap ? 1 : 0) + (w.siege ? 1 : 0) + (w.heatDmg ? 0.5 : 0);
       heat += w.heat + st.shotHeat;
       fp += (w.burn ? 1.5 : 0) + (w.slow ? 0.8 : 0) + (w.shock ? 1 : 0);

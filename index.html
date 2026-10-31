@@ -1849,7 +1849,7 @@ const CHASSIS_KW = { b_torso: 'Universal', t_skirm: 'Quick', t_light: 'Evasive',
 const LEG_KW = { jump: 'Jump', tracks: 'Armoured', stable: 'Stable', hover: 'Hover', surefoot: 'Reinforced', entrench: 'Entrench' };
 function keyword(d) {
   const w = d.weapon;
-  if (w) return w.needsEntrench ? 'Dug-in' : w.burn ? 'Burn' : w.slow ? 'Slow' : w.shock ? 'Shock' : w.heatDmg ? 'Scorch' : w.indirect ? 'Lob' : w.ap ? 'Pierce' : w.cat === 'energy' ? 'Melt' : w.siege ? 'Siege' : w.shots > 1 ? 'Twin' : '';
+  if (w) return w.needsEntrench ? 'Dug-in' : w.twoHanded ? 'Two-handed' : w.needsOverclock ? 'Overload' : w.burn ? 'Burn' : w.slow ? 'Slow' : w.shock ? 'Shock' : w.heatDmg ? 'Scorch' : w.indirect ? 'Lob' : w.ap ? 'Pierce' : w.cat === 'energy' ? 'Melt' : w.siege ? 'Siege' : w.shots > 1 ? 'Twin' : '';
   if (d.slot === 'torso') return CHASSIS_KW[d.id] || (d.trait ? d.trait.split(':')[0] : '');
   if (d.slot === 'legs') return LEG_KW[d.mode] || '';
   return '';
@@ -1936,7 +1936,9 @@ function statList(d) {
     if (w.burn) add('burn', 'Sets burning ' + w.burn + ' rounds', w.burn, 1);
     if (w.slow) add('slow', 'Slows: −2 move', 1, 1);
     if (w.shock) add('shock', 'Shocks: −1 action', 1, 1);
-    if (w.needsEntrench) add('needsEntrench', 'Only fires entrenched', 1, -1);
+    if (w.needsEntrench) add('needsEntrench', 'Combo: fires only dug in, on Quad Walker legs', 1, -1);
+    if (w.twoHanded) add('twoHanded', 'Combo: two-handed, takes both arms; a swing needs ' + (w.apCost || 2) + ' actions and ends the activation', 1, -1);
+    if (w.needsOverclock) add('needsOverclock', 'Combo: fires only after overclocking this activation', 1, -1);
   }
   if (d.slot === 'legs') { add('move', 'MOVE ' + d.move, d.move, 1, 'MOVE'); if (d.carry) add('carry', 'Carries ' + MW.SIZE_NAME[d.carry].toLowerCase() + ' chassis', d.carry, 1); if (d.entrench || d.dig) add('entrench', 'Can entrench', 1, 0); if (d.hull) add('hull', 'Hull +' + d.hull + ' HP', d.hull, 1, 'Hull'); }
   else { if (d.move) add('move', 'MOVE +' + d.move, d.move, 1, 'MOVE'); if (d.carryBonus) add('carryBonus', 'Legs carry one class heavier', 1, 1); if (d.capBonus) add('capBonus', 'Capacity +' + d.capBonus, d.capBonus, 1); }
@@ -2868,6 +2870,11 @@ function fitInfo(m, d) {
   if (d.slot === 'legs' && d.carry && d.carry < st.size) return { key, why: 'Can’t carry ' + MW.SIZE_NAME[st.size].toLowerCase() };
   if (d.weapon && d.weapon.needsEntrench && !(m.slots.legs && MW.digsIn(m.slots.legs.id))) return { key, why: 'Needs legs that dig in' };
   if (key && key.startsWith('arm') && MW.anchoredLegs(m) && MW.shortGun(d)) return { key, why: 'Anchors: range ' + MW.LONG_RANGE + '+ only' };
+  if (key && key.startsWith('arm')) {
+    const other = m.slots[key === 'armL' ? 'armR' : 'armL'], ow = other && D[other.id].weapon;
+    if (d.weapon && d.weapon.twoHanded && other) return { key, why: 'Two-handed: clear the other arm' };
+    if (ow && ow.twoHanded) return { key, why: 'Both hands hold the ' + D[other.id].name };
+  }
   if (cur && cur.id === d.id && cur.hp >= D[cur.id].hp) return { key, why: 'Already fitted' };
   return { key, why: '' };
 }
@@ -3150,7 +3157,9 @@ const NOTES = [
   { id: () => 'deploy-limit', when: () => S.phase === 'deploy' && S.current === viewer() && myMechs().length >= MW.fieldMax(viewer()),
     t: () => '<b>Field limit.</b> Your doctrine can field ' + MW.fieldMax(viewer()) + ' mecha at once. More can wait in the hangar and deploy when a slot frees up.' },
   { id: () => 'armored-hold', when: () => S.phase === 'combat' && S.players.some(p => p.doctrine === 'armored'),
-    t: () => { const a = S.players.find(p => p.doctrine === 'armored'); return '<b>' + a.name + ' is Armored.</b> Its mecha carry extra plating and fire straighter when they stand still. Its Quad Walker artillery must <b>emplace</b> to fire: the striped ring marks a turret.'; } },
+    t: () => { const a = S.players.find(p => p.doctrine === 'armored'); return '<b>' + a.name + ' is Armored.</b> Its mecha carry extra plating and fire straighter when they stand still. Its Quad Walker artillery fires on the move, and is deadlier <b>emplaced</b> (+1 range, +1 armour): the striped ring marks a turret.'; } },
+  { id: () => 'combo', when: () => { const p = S.players[viewer()]; return p.workshop.concat(...p.hangar.map(m => MW.partsOf(m).map(x => x.inst)), ...MW.fieldMechs(p.id).map(m => MW.partsOf(m).map(x => x.inst))).some(c => c && MW.DEFS[c.id].weapon && (MW.DEFS[c.id].weapon.twoHanded || MW.DEFS[c.id].weapon.needsOverclock || MW.DEFS[c.id].weapon.needsEntrench)); },
+    t: () => '<b>Combo weapon.</b> ' + ({ assault: 'The <b>Meteor Hammer</b> is two-handed: it takes both arms, and a swing needs ' + MW.DEFS.s_hammer.weapon.apCost + ' actions, so it cannot move and swing in one turn. End a turn next to the target, then smash for ' + MW.DEFS.s_hammer.weapon.dmg + ', piercing and shocking.', armored: 'The <b>Heavy Railgun</b> only fires from a dug-in Quad Walker: dig in, then fire ' + MW.DEFS.s_railgun.weapon.dmg + ' piercing at long range.', experimental: 'The <b>Overload Lance</b> only fires after the mech overclocks in the same activation: overclock, then fire ' + MW.DEFS.s_overload.weapon.dmg + ' piercing, and watch the heat.' }[S.players[viewer()].doctrine] || 'It only works in the right combination, and hits hard when it does.') },
   { id: () => 'heat', when: () => S.phase === 'combat' && myMechs().some(m => m.heat >= MW.stats(m).heatCap - 1),
     t: () => '<b>Running hot.</b> A mech of yours is near its heat limit (the flame). If it ends the round above the limit, its core takes damage and it shuts down next round. Hold fire or brace to let it cool.' },
   { id: () => 'crate', when: () => S.phase === 'combat' && (S.crates || []).length > 0,
@@ -3727,7 +3736,8 @@ function showRules() {
       ['Heat', 'Firing and boosting build heat; cooling removes some each round. Heat over capacity at Resolution damages the core and leaves one action next round.'],
       ['Weapons', Object.keys(CAT_NAME).map(k => '<span class="chip">' + ico(k, 'sm k-' + k) + ' ' + CAT_NAME[k] + '</span>').join(' ')]]],
     ['Special', [['Specials', '5 per deck, gold ★. Inferno Cannon burns (1 damage at each of 3 Resolutions), Cryo Lance slows (−2 move), EMP Projector shocks (one action next round). Aegis Frame and Lattice Core are tougher standard parts.'],
-      ['Artillery', 'The Quad Walker (Armored issue) is very slow, tough legs that add ' + MW.DEFS.l_quad.hull + ' HP and take long-range weapons only (range ' + MW.LONG_RANGE + '+). Their mech fires only after spending an action to dig in; dug in, it works as a turret with +1 range and +1 armour, and must pack up to move again. The Heavy Railgun fires only when dug in.']]],
+      ['Combo weapons', 'Each doctrine has one weapon that only works when its mech is built and played a certain way, and hits very hard when it does. <b>Meteor Hammer</b> (Assault): two-handed, so it takes both arms, and a swing needs ' + MW.DEFS.s_hammer.weapon.apCost + ' actions: get next to the target one turn, then smash for ' + MW.DEFS.s_hammer.weapon.dmg + ', piercing and shocking, the next. <b>Heavy Railgun</b> (Armored): on a Quad Walker, dig in, then fire ' + MW.DEFS.s_railgun.weapon.dmg + ' piercing at long range. <b>Overload Lance</b> (Experimental): on a chassis that overclocks, overclock, then fire ' + MW.DEFS.s_overload.weapon.dmg + ' piercing, but mind the heat. A locked combo weapon says what it is waiting for.'],
+      ['Artillery', 'The Quad Walker (Armored issue) is very slow, tough legs that add ' + MW.DEFS.l_quad.hull + ' HP and take long-range weapons only (range ' + MW.LONG_RANGE + '+). It fires on its feet like any mech; spending an action to dig in turns it into a turret with +1 range and +1 armour, and it must pack up to move again. Emplacement weapons such as the Heavy Railgun are the exception: they need Quad Walker legs and fire only when dug in.']]],
     ['AI', [['Commanders', 'The computer opponent is led by a commander with its own style, picked at random from those that suit its doctrine: ' + Object.keys(MW.DOCTRINE_COMMANDERS).map(d => MW.DOCTRINES[d].name.replace(' Doctrine', '') + ' by ' + MW.DOCTRINE_COMMANDERS[d].map(k => MW.PERSONAS[k].name).join(' or ')).join(', ') + '. ' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden && !MW.PERSONAS[k].easy).map(k => MW.PERSONAS[k].name + ': ' + MW.PERSONAS[k].blurb).join(' ')],
       ['Adapting', 'Each round a commander reads the board and picks a stance: defending its base when threatened, raiding objectives when behind, pressing the base when ahead, regrouping when outnumbered. It grows warier when it loses mecha and turns to defence when its base is hit.'],
       ['Learning', 'Commanders remember their wars in this browser. Each keeps a proven playbook and now and then tries a variation, keeping it if it wins more, and leaning away from whatever cost it past wars.']]],

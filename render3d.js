@@ -826,7 +826,7 @@ function gaitStep(st, R, dt, speed) {
 // the weapon kit's own paint, shared by every army: a dark body, grey barrels, orange caps and a red sight
 const KIT = { body: 0x2c2f34, grey: 0x7d8288, light: 0xa7acb1, orange: 0xd9892e, red: 0xb63a30 };
 // weapons a mech carries in its hand; the rest are built onto the forearm or the shoulder
-const HANDHELD = new Set(['b_gun', 'w_smg', 'w_scatter', 'w_gatling', 'w_rail', 'w_laser', 'w_lance', 's_inferno', 's_cryo', 'w_blade']);
+const HANDHELD = new Set(['b_gun', 'w_smg', 'w_scatter', 'w_gatling', 'w_rail', 'w_laser', 'w_lance', 's_inferno', 's_cryo', 'w_blade', 's_hammer', 's_overload']);
 function buildWeapon(p, id, tc, sx) {
   const D = toon(tc.metal), D2 = toon(tc.dark), mu = new T.Object3D();
   let z = 0.22, y = 0;
@@ -1104,6 +1104,55 @@ function buildWeapon(p, id, tc, sx) {
       mesh(sph(0.022, 16), glow(FX_COL.energy), p, [0, 0, 0.145], null, flat);
       z = 0.16; break;
     }
+    // Meteor Hammer, after rocket-hammer references (Reinhardt's hammer, the Super Sledge): a grip housing, a long
+    // haft with a fuel tank strapped to it, and a heavy chamfered head with an armour cap, a broad striking face on
+    // one side and three rocket nozzles on the other that fire the swing
+    case 's_hammer': {
+      mesh(profile('mh-grip', 0.05, [[-0.06, 0.0], [-0.05, 0.026], [0.0, 0.028], [0.02, 0.018], [0.02, -0.018], [0.0, -0.028], [-0.05, -0.026]]), toon(KIT.body), p);
+      mesh(turned('mh-haft', [[0.0, 0.0], [0.013, 0.0], [0.013, 0.42], [0.0, 0.42]], 16), toon(KIT.grey), p);
+      for (const zz of [0.03, 0.05, 0.07, 0.09]) mesh(turned('mh-wrap', [[0.0, -0.004], [0.015, -0.004], [0.015, 0.004], [0.0, 0.004]], 16), toon(INK), p, [0, 0, zz], null, flat);
+      mesh(turned('mh-tank', [[0.0, 0.0], [0.014, 0.0], [0.02, 0.012], [0.02, 0.1], [0.014, 0.112], [0.0, 0.112]], 18), toon(KIT.orange), p, [0, -0.03, 0.15]);
+      for (const zz of [0.18, 0.235]) mesh(turned('mh-strap', [[0.0, -0.004], [0.0205, -0.004], [0.0205, 0.004], [0.0, 0.004]], 18), toon(INK), p, [0, -0.03, zz], null, flat);
+      mesh(tube('mh-feed', [[0, -0.03, 0.262], [0, -0.022, 0.3], [0, -0.012, 0.34], [0, -0.004, 0.37]], 0.005, 12), toon(INK), p);
+      // the head: chamfered block across the haft, wider than it is deep
+      const h = new T.Group(); h.position.set(0, 0, 0.47); p.add(h);
+      mesh(profile('mh-head', 0.17, [[-0.06, -0.045], [-0.045, -0.06], [0.045, -0.06], [0.06, -0.045], [0.06, 0.045], [0.045, 0.06], [-0.045, 0.06], [-0.06, 0.045]]), toon(tc.main), h, [0, 0, 0], [0, Math.PI / 2, 0]);
+      mesh(box(0.15, 0.012, 0.1), toon(tc.second), h, [0, 0.066, 0], null, flat);
+      mesh(box(0.15, 0.006, 0.02), toon(KIT.orange), h, [0, 0.074, 0.036], null, flat);
+      // striking face, banded in hazard orange
+      mesh(box(0.014, 0.1, 0.1), toon(KIT.grey), h, [0.092, 0, 0], null, flat);
+      mesh(box(0.016, 0.104, 0.012), toon(KIT.orange), h, [0.092, 0, 0.0], null, flat);
+      for (const yy of [-0.03, 0.03]) mesh(box(0.004, 0.006, 0.09), toon(INK), h, [0.1, yy, 0], null, flat);
+      // three rocket nozzles out the back face, each with a hot throat
+      for (const [yy, zz] of [[0.024, 0.0], [-0.022, -0.026], [-0.022, 0.026]]) {
+        mesh(turned('mh-noz', [[0.0, 0.0], [0.015, 0.0], [0.024, 0.032], [0.02, 0.036], [0.0, 0.036]], 16), toon(INK), h, [-0.084, yy, zz], [0, -Math.PI / 2, 0]);
+        mesh(cyl(0.011, 0.011, 0.004, 12), glow(0xff8a3a), h, [-0.118, yy, zz], [0, 0, Math.PI / 2], flat);
+      }
+      for (const x of [-1, 1]) vents(h, toon(INK), 3, 0.05, 0.014, [0, 0, x * 0.061], [0, 0, 0]);
+      z = 0.47; break;
+    }
+    // Overload Lance, after capacitor-fed plasma lance references: a chamfered receiver with capacitor tubes riding
+    // its flanks, a long stepped barrel ringed by staged capacitor collars that glow, conduits along it, and a
+    // faceted emitter at the tip
+    case 's_overload': {
+      mesh(profile('ol-rcv', 0.08, [[-0.1, -0.02], [-0.085, 0.036], [0.07, 0.036], [0.09, 0.016], [0.09, -0.028], [0.07, -0.04], [-0.08, -0.04]]), toon(KIT.body), p);
+      for (const x of [-1, 1]) {
+        mesh(turned('ol-cap', [[0.0, -0.08], [0.012, -0.08], [0.017, -0.072], [0.017, 0.05], [0.012, 0.058], [0.0, 0.058]], 18), glow(FX_COL.energy, 0.7), p, [x * 0.052, 0.012, 0], null, flat);
+        for (const zz of [-0.06, 0.0, 0.04]) mesh(turned('ol-capb', [[0.0, -0.005], [0.019, -0.005], [0.019, 0.005], [0.0, 0.005]], 18), toon(INK), p, [x * 0.052, 0.012, zz], null, flat);
+      }
+      mesh(box(0.084, 0.012, 0.05), toon(KIT.orange), p, [0, 0.042, -0.03], null, flat);
+      mesh(turned('ol-brl', [[0.0, 0.09], [0.03, 0.09], [0.03, 0.14], [0.024, 0.15], [0.024, 0.44], [0.019, 0.45], [0.019, 0.6], [0.0, 0.6]], 20), toon(KIT.grey), p);
+      const stages = [0.18, 0.25, 0.32, 0.39, 0.48, 0.55];
+      stages.forEach((zz, i) => {
+        const r = i < 4 ? 0.036 : 0.03;
+        mesh(turned('ol-col' + i, [[0.0, -0.012], [r - 0.004, -0.012], [r, -0.008], [r, 0.008], [r - 0.004, 0.012], [0.0, 0.012]], 24), toon(i % 2 ? tc.second : KIT.body), p, [0, 0, zz], null, flat);
+        mesh(tor(r - 0.002, 0.004), glow(FX_COL.energy), p, [0, 0, zz + 0.014], null, flat);
+      });
+      for (const x of [-1, 1]) mesh(tube('ol-con' + x, [[x * 0.03, -0.026, 0.1], [x * 0.032, -0.03, 0.25], [x * 0.03, -0.028, 0.4], [x * 0.024, -0.022, 0.5]], 0.006, 24), toon(INK), p);
+      mesh(turned('ol-tip', [[0.0, 0.598], [0.026, 0.598], [0.026, 0.61], [0.012, 0.65], [0.0, 0.656]], 6), toon(KIT.orange), p);
+      mesh(sph(0.014, 10), glow(0xdff4ff), p, [0, 0, 0.66], null, flat);
+      z = 0.66; break;
+    }
     case 's_railgun': {
       mesh(profile('rg-breech', 0.12, [[-0.1, -0.02], ['q', -0.1, 0.05, -0.05, 0.056], [0.06, 0.05], ['q', 0.1, 0.048, 0.1, 0.02], [0.1, -0.04], ['q', 0.1, -0.056, 0.07, -0.056], [-0.07, -0.056], ['q', -0.1, -0.056, -0.1, -0.02]]), toon(KIT.body), p);
       for (const x of [-1, 1]) vents(p, toon(INK), 4, 0.07, 0.016, [x * 0.061, 0, -0.01], [0, Math.PI / 2, 0]);
@@ -1215,7 +1264,7 @@ function buildAux(bp, id, pos, tc) {
 
 /* Shoulders belong to the weapon, not the chassis: each arm slot is one module (shoulder, arm and weapon) and the
    chassis only offers a bare socket. The weapon's family picks the shoulder's shape; the doctrine still paints it. */
-const SHOULDER = { b_gun: 'gun', w_smg: 'gun', w_scatter: 'gun', w_rail: 'gun', w_gatling: 'rotary', w_laser: 'energy', w_lance: 'energy', w_arc: 'energy', s_emp: 'energy', s_cryo: 'energy', w_missile: 'mount', w_howitzer: 'mount', s_railgun: 'mount', w_blade: 'melee', w_ram: 'melee', w_shield: 'guard', w_repair: 'tool', s_inferno: 'tool' };
+const SHOULDER = { s_hammer: 'melee', s_overload: 'energy', b_gun: 'gun', w_smg: 'gun', w_scatter: 'gun', w_rail: 'gun', w_gatling: 'rotary', w_laser: 'energy', w_lance: 'energy', w_arc: 'energy', s_emp: 'energy', s_cryo: 'energy', w_missile: 'mount', w_howitzer: 'mount', s_railgun: 'mount', w_blade: 'melee', w_ram: 'melee', w_shield: 'guard', w_repair: 'tool', s_inferno: 'tool' };
 // the chassis' socket: a dark collar the arm module plugs into, all that is left when the arm is gone
 function shoulderSocket(sh, sx, tc, k, reach) {
   // the socket sits in the chest side: a chamfered flange in the hull colour set into the armour, a dark collar
@@ -2783,6 +2832,12 @@ const FIRE = {
     fire: c => { flash(c.from.clone(), 0xffffff, 0.5, 0.2); beam(c.from, c.to, 0xbfefff, 0.06, 0.55); for (let i = 0; i < 16; i++) BD.parts.spawn({ pos: c.from.clone().lerp(c.to, Math.random()), vel: new T.Vector3(rand(-0.3, 0.3), rand(0, 0.4), rand(-0.3, 0.3)), life: 0.7, size: 0.07, size1: 0.01, color: 0xffffff, color1: 0x8fdcff, op: 0.95 }); c.kick(0.9); return 0.08; } },
   w_blade: { wind: 0.6, pose: 'pull', charge: { col: 0xff9adf, size: 1.2 }, impact: 'slash', melee: true,
     fire: c => { slash(c.to, 0xff9adf, 0.02, false); slash(c.to, 0xffffff, 0.1, true); slash(c.to, 0xff9adf, 0.18, false); return 0.2; } },
+  // the hammer's rockets light as it winds up, then it comes down with a fireball and a hard shake
+  s_hammer: { wind: 0.8, pose: 'pull', charge: { col: 0xff8a3a, size: 1.8, flame: true }, impact: 'crush', melee: true,
+    fire: c => { slash(c.to, 0xffb060, 0.02, false); slash(c.to, 0xffffff, 0.08, true); schedule(0.16, () => { fireball(c.to.clone(), 0.5); shockRing(c.to.clone().setY(0.05), 0xffb060, 0.6, 0.4); shake(0.18); }); return 0.2; } },
+  // a lance overloaded: a long charge, then a thick beam with arcs crawling down it
+  s_overload: { wind: 1.3, pose: 'brace', long: true, charge: { col: 0x9fd8ff, size: 3.2, coil: true, ring: true }, impact: 'pierce',
+    fire: c => { longShot(c, 0x9fd8ff, 0.7); beam(c.from, c.to, 0x7fd0ff, 0.13, 0.8); beam(c.from, c.to, 0xffffff, 0.05, 0.6); beamArcs(c.from, c.to, 0xbfe8ff, 0.95, 0.24, 6); c.kick(2.2); return 0.06; } },
   w_ram: { wind: 0.7, pose: 'pull', charge: { col: 0xffc080, size: 1 }, spin: true, impact: 'crush', melee: true,
     fire: c => { slash(c.to, 0xffd08a, 0.05, false); return 0.22; } },
   w_repair: { wind: 0.5, pose: 'aim', charge: { col: 0x9fd8b4, size: 1 }, impact: 'light',
@@ -2807,7 +2862,7 @@ function backBlast(c, o) {
   for (let i = 0; i < 4; i++) BD.parts.spawn({ pos: o.clone(), vel: back.clone().multiplyScalar(rand(0.3, 0.8)).add(new T.Vector3(rand(-0.2, 0.2), rand(0.05, 0.3), rand(-0.2, 0.2))), add: false, life: rand(1.6, 2.6), size: 0.1, size1: 0.45, color: 0xd8d4ce, color1: 0x8f8a84, op: 0.55, op1: 0, drag: 0.45 });
 }
 // seconds from the shot leaving the muzzle to the impact, per weapon
-const FLIGHT = { b_gun: 0.3, w_smg: 0.38, w_gatling: 0.62, w_scatter: 0.16, w_rail: 0.06, s_railgun: 0.06, w_missile: 0.95, w_howitzer: 0.88, w_laser: 0.06, w_lance: 0.06, w_arc: 0.12, s_emp: 0.32, s_inferno: 0.5, s_cryo: 0.08, w_blade: 0.2, w_ram: 0.22, w_repair: 0.08 };
+const FLIGHT = { s_hammer: 0.2, s_overload: 0.06, b_gun: 0.3, w_smg: 0.38, w_gatling: 0.62, w_scatter: 0.16, w_rail: 0.06, s_railgun: 0.06, w_missile: 0.95, w_howitzer: 0.88, w_laser: 0.06, w_lance: 0.06, w_arc: 0.12, s_emp: 0.32, s_inferno: 0.5, s_cryo: 0.08, w_blade: 0.2, w_ram: 0.22, w_repair: 0.08 };
 // volleys, as the profiles above fire them: how many rounds, seconds between them, and each one's flight time
 const SALVO = { w_missile: [4, 0.1, 0.62], w_gatling: [12, 0.045, 0.12], w_smg: [6, 0.045, 0.12], b_gun: [3, 0.07, 0.14], turret: [3, 0.05, 0.16] };
 // fallbacks by weapon class, for anything without its own profile
