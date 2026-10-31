@@ -56,6 +56,10 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 .newbie { margin: -6px 0 0; font-size: 14px; color: var(--muted); }
 .newbie b { color: var(--good); }
 body.first .mode.train { order: -1; border-color: var(--good); }
+.roleinfo { margin: 2px 0 6px; font-size: 12px; color: var(--muted); line-height: 1.35; }
+.snd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.snd-sl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.snd-sl input { width: 110px; accent-color: var(--accent); }
 /* the training coach: a card that says what to do next, and a pulse on what to tap */
 #coach, #fnote { position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 34; width: min(440px, calc(100vw - 24px)); background: #16202a; color: #e7eef3; border: 1px solid #33424f; border-left: 4px solid var(--good); border-radius: 4px; padding: 9px 12px 8px; box-shadow: 0 8px 22px rgba(0,0,0,.4); font-size: 14px; line-height: 1.4; }
 #coach.low { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
@@ -1682,6 +1686,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="audio.js"></script>
 <script src="engine.js"></script>
 <script src="render3d.js"></script>
 <script>
@@ -1852,7 +1857,34 @@ if (R3on) window.R3.setLevel(FXLEVEL);
 const isHuman = () => S && S.phase !== 'over' && !S.players[S.current].isAI && (!net || S.current === net.seat);
 const othersTurn = () => S.players[S.current].isAI || (!!net && S.current !== net.seat);
 function viewer() { if (net) return net.seat; const c = S.players[S.current]; if (!c.isAI) return c.id; const h = S.players.find(p => !p.isAI); return h ? h.id : 0; }
+/* ---------- Sound: what each button sounds like, and which music fits the moment ---------- */
+const snd = (n, o) => { if (window.SFX) window.SFX.play(n, o); };
+const UI_SND = { install: 'install', remove: 'remove', slotClear: 'remove', repair: 'repair', fixMech: 'repair', scrap: 'scrap', dismantle: 'scrap',
+  acceptDraw: 'draw', requisition: 'draw', play: 'draw', endBuild: 'confirm', endDeploy: 'confirm', passAll: 'confirm', coachNext: 'confirm', noteOk: 'confirm',
+  closeOverlay: 'back', closeWin: 'back', cancelFire: 'back', deselect: 'back', toStart: 'back', wtab: 'tab', itab: 'tab', ruleTab: 'tab', pf: 'tab', pg: 'tab', lpg: 'tab', step: 'tab',
+  weapon: 'aim', pickTarget: 'aim', phaseArm: 'aim', nukeArm: 'aim', hangar: 'select', selField: 'select', pickDeploy: 'select', warnDeploy: 'select', slot: 'select', plus: 'select', partInfo: 'select',
+  rules: 'panel', recent: 'panel', battleMenu: 'panel', concedeAsk: 'panel', openLog: 'panel', openShop: 'panel', details: 'panel', balance: 'panel', deckList: 'panel',
+  // these make their own sound on the battlefield
+  shoot: null, brace: null, overclock: null, cloak: null, nuke: null, strip: null, overwatch: null, entrench: null, sndMute: null };
+// the score follows the war: calm while building, driving in combat, harder when the end is near
+function musicFor() {
+  if (!window.SFX) return;
+  // captures sound bright for the side this screen plays, darker for the enemy's
+  window.SFX_ME = S && S.players.some(p => !p.isAI) ? viewer() : null;
+  if (!S || $('#game').hidden) return window.SFX.music('menu');
+  if (S.phase === 'over') return window.SFX.music(null);
+  if (S.phase !== 'combat') return window.SFX.music('build');
+  const close = S.players.some(p => (p.vp || 0) >= C.VP_WIN - 3 || p.base.hp <= (p.base.max || C.BASE_HP) * 0.4);
+  window.SFX.music(close ? 'tense' : 'combat');
+}
+function soundRow() {
+  const P = window.SFX ? window.SFX.prefs : null;
+  if (!P) return '';
+  const sl = (k, label) => '<label class="snd-sl"><span>' + label + '</span><input type="range" min="0" max="100" value="' + Math.round(P[k] * 100) + '" data-snd="' + k + '" aria-label="' + label + ' volume"></label>';
+  return '<div class="snd"><button type="button" class="btn" data-act="sndMute">Sound: ' + (P.mute ? 'off' : 'on') + '</button>' + sl('music', 'Music') + sl('sfx', 'Effects') + '</div>';
+}
 function toast(msg, good) {
+  if (!good) snd('error');
   const t = $('#toast');
   t.textContent = msg; t.className = good ? 'good' : ''; t.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 2800);
@@ -2423,6 +2455,7 @@ function showEnd() {
   // the side this screen cheers for: yours against the AI, the winner's when two people (or two AIs) shared it
   const human = S.players.find(p => !p.isAI), me = net ? net.seat : human && S.players.some(p => p.isAI) ? human.id : S.winner;
   const won = me === S.winner, hot = !net && !S.players.some(p => p.isAI);
+  if (window.SFX) { window.SFX.music(null); window.SFX.sting(won ? 'victory' : 'defeat'); }
   const why = S.winReason === 'points' ? w.name + ' reached ' + w.vp + ' victory points' : S.winReason === 'concede' ? l.name + ' conceded' : l.name + '’s base was destroyed';
   const row = p => '<div class="es-row p' + p.id + '"><b>' + p.name + '</b><span>' + ico('star', 'sm') + (p.vp || 0) + '</span><span>' + ico('base', 'sm') + p.base.hp + '</span><span title="Kills">✕ ' + (p.kills || 0) + '</span></div>';
   const o = $('#overlay');
@@ -2472,6 +2505,7 @@ function celebrate(cols) {
   requestAnimationFrame(step);
 }
 function vpFly(f) {
+  snd('vp');
   const p = S.players[f.pid], stage = document.querySelector('.stage').getBoundingClientRect();
   const el = document.createElement('div');
   el.className = 'vpfly p' + f.pid;
@@ -2509,10 +2543,21 @@ function announce() {
   const t = over ? S.players[S.winner].name + ' wins' : combat ? 'Combat' : 'Round ' + S.round;
   const sub = over ? (S.winReason === 'points' ? C.VP_WIN + ' victory points' : S.winReason === 'concede' ? S.players[1 - S.winner].name + ' conceded' : 'Enemy base destroyed') : S.players[S.current].name + (combat ? ' activates first' : ' builds first');
   $('#announce').innerHTML = '<div class="announce' + (over ? ' p' + S.winner : '') + '">' + t + '<small>' + sub + '</small></div>';
+  if (window.SFX) window.SFX.sting(combat ? 'combat' : 'round');
 }
 function playFx(list) {
   if (!list.length) return;
   if (R3on) return playFx3(list);
+  // the flat board animates quicker and all at once, so its sounds follow a simple timeline
+  { let t = 0; const W = MW.W || 9, pan = x => (x / Math.max(1, W - 1) * 2 - 1) * 0.7;
+    for (const f of list) {
+      if (f.k === 'move') { const e = f.path[f.path.length - 1]; snd(f.phase ? 'phase' : f.jump ? 'jump' : 'walk', { steps: f.path.length - 1, dur: 0.13 * (f.path.length - 1) + 0.12, pan: pan(e[0]) }); }
+      else if (f.k === 'shot') { const m = f.uid && MW.fieldMech(f.uid), wi = m && f.key && MW.getSlot(m, f.key); snd('fire', { delay: t, cat: f.cat, wid: wi && wi.id, pan: pan(f.x0) }); snd('impact', { delay: t + 0.26, cat: f.cat, hit: f.hit, pan: pan(f.x1) }); t += 0.15; }
+      else if (['deploy', 'enter', 'brace', 'boom', 'strip', 'drop'].includes(f.k)) snd(f.k, { delay: f.k === 'boom' ? t + 0.3 : 0, pan: pan(f.x) });
+      else if (f.k === 'nuke') { snd('charge', { pan: pan(f.x) }); snd('nuke', { delay: 0.7, pan: pan(f.x) }); }
+      else if (f.k === 'capture') snd('capture', { pan: pan(f.x), mine: f.owner === viewer() });
+      else if (f.k === 'float') { const c = { Overclock: 'overclock', Cloaked: 'cloak', Overwatch: 'overwatch' }[f.t] || (f.c === 'good' ? (/HP/.test(f.t) ? 'heal' : 'pickup') : null); if (c) snd(c, { pan: pan(f.x) }); }
+    } }
   const board = $('#board'), tileEl = (x, y) => board.children[dr(x, y) * COLS + dc(x, y)];
   const step = board.children[1].getBoundingClientRect().left - board.children[0].getBoundingClientRect().left;
   const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -2857,7 +2902,8 @@ function panelBase(p) {
   };
   const frameBody = () => {
     let h = '';
-    h += '<div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '" aria-label="' + x.name + ', ' + { empty: 'empty', building: 'not ready', ready: 'ready' }[stt] + '"><b>' + x.name + '</b></button>'; }).join('') + '</div>';
+    h += '<div class="tabs frames" style="grid-template-columns:repeat(' + Math.max(1, p.hangar.length) + ',minmax(0,1fr))">' + p.hangar.map(x => { const stt = MW.isBlank(x) ? 'empty' : MW.issues(x).length ? 'building' : 'ready'; return '<button type="button" class="tab ftab ' + stt + (m === x ? ' on' : '') + '" data-act="hangar" data-uid="' + x.uid + '" aria-label="' + x.name + ', ' + { empty: 'empty', building: 'not ready', ready: 'ready' }[stt] + (stt === 'ready' ? ', ' + MW.role(x) : '') + '"><b>' + x.name + '</b>' + '</button>'; }).join('') + '</div>' +
+      (m && !MW.isBlank(m) && !MW.issues(m).length ? roleLine(m) : '');
     if (m) {
       const is = MW.issues(m);
       const missing = MW.isBlank(m) ? [] : ['torso', 'legs'].filter(k => !m.slots[k] || m.slots[k].hp <= 0);
@@ -2868,7 +2914,7 @@ function panelBase(p) {
       h += R3on ? '<div class="h3d" id="h3d">' + top + bin + '</div>' : warn + blueprint(m, build);
       if (R3on) h += partList(m, build);
       const issue = is.length && !MW.isBlank(m) ? '<span class="note warn">' + is[0] + (is.length > 1 ? ' (+' + (is.length - 1) + ' more)' : '') + '</span>' : '';
-      if (!build && !deploying) h += '<div class="slotline">' + (issue || '<span class="note">' + m.name + ' · ' + (MW.isBlank(m) ? 'empty frame' : MW.role(m)) + '</span>') + '</div>';
+      if (!build && !deploying) h += '<div class="slotline">' + (issue || '<span class="note">' + m.name + ' · ' + (MW.isBlank(m) ? 'empty frame' : MW.role(m) + (MW.ROLE_INFO[MW.role(m)] ? ': ' + MW.ROLE_INFO[MW.role(m)] : '')) + '</span>') + '</div>';
       if (build) {
         const inst = ui.slotSel && MW.getSlot(m, ui.slotSel);
         if (ui.slotSel) {
@@ -3014,7 +3060,7 @@ function renderWin() {
     const p = S.players[viewer()];
     title = 'Base'; pc = ' p' + p.id; html = panelBase(p); head = baseRes(p);
     if (uiPhase() === 'build' && isHuman()) extra = '<button type="button" class="btn sm primary" data-act="endBuild">End build ›</button>';
-  } else if (k === 'mech') { title = sm.name; pc = ' p' + sm.owner; html = '<span class="lbl">' + S.players[sm.owner].name + ' · ' + MW.role(sm) + (sm.x != null ? ' · ' + MW.coord(sm.x, sm.y) : ' · hangar') + ' · HP ' + MW.hpOf(sm) + '/' + MW.maxHpOf(sm) + '</span>' + hpBar(sm, 'mdhp') + (R3on ? '<div class="h3d" id="h3d"><span class="h3d-hint">Drag to turn</span></div>' : blueprint(sm, false)) + statBlock(sm, sm.x != null); }
+  } else if (k === 'mech') { title = sm.name; pc = ' p' + sm.owner; html = '<span class="lbl">' + S.players[sm.owner].name + ' · ' + MW.role(sm) + (sm.x != null ? ' · ' + MW.coord(sm.x, sm.y) : ' · hangar') + ' · HP ' + MW.hpOf(sm) + '/' + MW.maxHpOf(sm) + '</span>' + roleLine(sm) + hpBar(sm, 'mdhp') + (R3on ? '<div class="h3d" id="h3d"><span class="h3d-hint">Drag to turn</span></div>' : blueprint(sm, false)) + statBlock(sm, sm.x != null); }
   else { title = 'Battle'; ui.itab = ui.itab || 'log'; html = tabs([['log', 'Log'], ['forces', 'Forces']], ui.itab, 'itab') + '<div class="tabbody">' + (ui.itab === 'log' ? logHTML() : fieldLists()) + '</div>'; }
   el.className = (k ? 'open' : 'idle') + pc;
   $('#game').dataset.win = k || '';
@@ -3024,15 +3070,20 @@ function renderWin() {
   ui.winShown = k;
 }
 
+// a mech's role and what it is for, in one muted line
+const roleLine = m => { const r = MW.role(m), t = MW.ROLE_INFO[r]; return t ? '<p class="roleinfo"><b>' + r + ':</b> ' + t + '</p>' : ''; };
+
 /* ---------- Training: a scripted first battle with a coach ---------- */
 // each step says what to do; it moves on by itself once the player has done it (done), or on Next
 const myMechs = () => S.mechs.filter(m => m.owner === viewer());
 // a part the player fitted themselves, rather than one the army was issued
 const fittedNew = () => S.mechs.filter(m => m.owner === viewer()).concat(S.players[viewer()].hangar).some(m => ['torso', 'legs', 'armL', 'armR'].some(k => m.slots[k] && !m.slots[k].issued) || m.slots.aux.some(Boolean));
+// how many enemy mecha destroyed score a point on this map (0 when kills score nothing)
+const killEvery = () => { const k = MW.MAP && MW.MAP.effects && MW.MAP.effects.killVp; return k ? Math.round(1 / k) : 0; };
 const COACH = [
   { t: 'Welcome, commander. You win by reaching <b>' + C.VP_WIN + ' victory points</b> or by destroying the enemy base. This training walks you through one round. You command <b>Azure</b>, at the bottom of the map. The strip under the map shows the phase you are in: <b>Build, Deploy, Combat</b>.', next: 'Start' },
   { t: 'Every round opens with new cards from your Arsenal. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
-  { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. Tap a gold <b>+</b> on an empty part to see what fits there.', hl: '.plist', next: 'Next' },
+  { t: 'This is your <b>Workshop</b>. Your hangar already holds mecha ready to fight, each with its own <b>role</b>, shown under the mech tabs: one might hold objectives while another fights from range. A mech is built in order: <b>chassis</b> first, then <b>legs</b> and <b>weapons</b>. Tap a gold <b>+</b> on an empty part to see what fits there.', hl: '.plist', next: 'Next' },
   { t: 'Not sure what something means? <b>Tap any stat or icon</b> for an explanation. Try the heart (HP) or the flame (heat).', hl: '.stats', next: 'Next' },
   { t: 'Your mecha are ready, so tap <b>End build</b>. (You will fit new parts in later rounds.)', hl: '[data-act=endBuild]', done: () => S.phase !== 'build' || uiPhase() === 'wait' },
   { t: 'Waiting for the enemy to finish building…', wait: true, done: () => S.phase !== 'build' },
@@ -3041,7 +3092,7 @@ const COACH = [
   { t: 'Waiting for the enemy to deploy…', wait: true, done: () => S.phase === 'combat' && isHuman() },
   { t: '<b>Combat.</b> Commanders take turns activating one mech. Tap one of your mecha on the map: the highlighted tiles show where it can move. Tap a tile to move there.', hl: '.mrow', done: () => myMechs().some(m => m.moves > 0 || m.activated || Object.keys(m.fired || {}).length) },
   { t: 'Now pick a <b>weapon</b>. Tiles in reach light up and each target shows your hit chance. Tap an enemy in range to fire, or finish this mech if nothing is close yet.', hl: '[data-act=weapon]', done: () => myMechs().some(m => m.activated || Object.keys(m.fired || {}).length) },
-  { t: '<b>Objectives</b> score points. Hold a <b>radar</b> (or an uplink) at the end of a round, or a <b>depot on the enemy half</b> (marked ★), and you score. Depots also give an extra build action every round. Move onto one to take it.', next: 'Got it' },
+  { t: '<b>Objectives</b> score points. Hold a <b>radar</b> (or an uplink) at the end of a round, or a <b>depot on the enemy half</b> (marked ★), and you score. Depots also give an extra build action every round. Move onto one to take it.' + (killEvery() ? ' Destroying enemy mecha scores too: every <b>' + killEvery() + ' kills</b> is worth a point.' : ''), next: 'Got it' },
   { t: 'Activate your other mecha the same way. When you are done, they can hold position. The round ends once everyone has acted.', done: () => S.round >= 2 || S.phase === 'over' },
   { t: '<b>Resolution</b> just played: heat cooled, base turrets fired, and points were scored. Your points are the ★ at the top. Keep an eye on <b>heat</b>: a mech over its limit at round end is damaged and shuts down.', next: 'Next', low: true },
   { t: 'Round 2 begins. Tap <b>Add to Workshop</b> for this round\'s cards.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
@@ -3052,18 +3103,18 @@ const COACH = [
 const NOTES = [
   { id: () => 'doc-' + S.players[viewer()].doctrine, when: () => S.round === 1 && uiPhase() === 'build',
     t: () => { const d = MW.DOCTRINES[S.players[viewer()].doctrine]; return 'You command <b>' + d.name.replace(' Doctrine', '') + '</b>. ' + (d.perks || []).slice(0, 4).join('. ') + '.'; } },
-  { id: () => 'map-' + S.map, when: () => S.map && S.map !== 'open' && S.round <= 2,
-    t: () => '<b>' + MW.MAP.name + '</b>: ' + MW.MAP.blurb },
+  { id: () => 'map-' + S.map, when: () => S.map && S.round <= 2,
+    t: () => '<b>' + MW.MAP.name + '</b>: ' + MW.MAP.blurb + (MW.MAP.notes ? ' ' + MW.MAP.notes : '') },
   { id: () => 'fit', when: () => uiPhase() === 'build' && S.round >= 2,
     t: () => '<b>Fitting parts.</b> Tap a step on the strip (chassis, legs, arms, aux), then pick a card and tap Fit. Each fit takes 1 build action (big parts 2, specials 3). Removing a part is free.' },
   { id: () => 'deploy-limit', when: () => S.phase === 'deploy' && S.current === viewer() && myMechs().length >= MW.fieldMax(viewer()),
     t: () => '<b>Field limit.</b> Your doctrine can field ' + MW.fieldMax(viewer()) + ' mecha at once. More can wait in the hangar and deploy when a slot frees up.' },
   { id: () => 'armored-hold', when: () => S.phase === 'combat' && S.players.some(p => p.doctrine === 'armored'),
-    t: () => { const a = S.players.find(p => p.doctrine === 'armored'); return '<b>' + a.name + ' is Armored.</b> It holds an objective, and grabs a crate, from the next tile over, as long as no enemy stands as close: watch for the <b>Held</b> tag. Its Quad Walker artillery must <b>emplace</b> to fire: the striped ring marks a turret.'; } },
+    t: () => { const a = S.players.find(p => p.doctrine === 'armored'); return '<b>' + a.name + ' is Armored.</b> Its mecha carry extra plating and fire straighter when they stand still. Its Quad Walker artillery must <b>emplace</b> to fire: the striped ring marks a turret.'; } },
   { id: () => 'heat', when: () => S.phase === 'combat' && myMechs().some(m => m.heat >= MW.stats(m).heatCap - 1),
     t: () => '<b>Running hot.</b> A mech of yours is near its heat limit (the flame). If it ends the round above the limit, its core takes damage and it shuts down next round. Hold fire or brace to let it cool.' },
   { id: () => 'crate', when: () => S.phase === 'combat' && (S.crates || []).length > 0,
-    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> are the points on this map: end a move on one to grab it, for a victory point plus a build action or a special part.' : '<b>Crate.</b> A crate has dropped. The first mech to end a move on it grabs an extra build action or a special part.' },
+    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> score on this map: end a move on one to grab it, for a victory point plus a build action or a special part.' + (MW.rule('crateStops', false) ? ' Loading a crate ends that mech\'s turn.' : '') + (MW.MAP.obj.some(o => o[2] === 'radar') ? ' The radars on the scrap pile score too.' : '') : '<b>Crate.</b> A crate has dropped. The first mech to end a move on it grabs an extra build action or a special part.' },
   { id: () => 'overwatch', when: () => S.phase === 'combat' && S.mechs.some(m => m.owner !== viewer() && m.overwatch),
     t: () => '<b>Enemy overwatch.</b> A mech on overwatch shoots the first enemy that ends a move in its range. Those tiles are striped when you move. Wait it out, or send something tough first.' },
   { id: () => 'damaged', when: () => myMechs().concat(S.players[viewer()].hangar).some(m => ['armL', 'armR', 'legs', 'core'].some(k => m.slots[k] && m.slots[k].hp <= 0)),
@@ -3076,8 +3127,8 @@ const NOTES = [
     t: () => '<b>Behind on points.</b> The side that is behind gets an extra build action each round, two when 3 or more points behind.' },
   { id: () => 'lead', when: () => (S.players[viewer()].vp || 0) - (S.players[1 - viewer()].vp || 0) >= C.LEAD_GAP,
     t: () => '<b>In the lead.</b> While ' + C.LEAD_GAP + ' or more points ahead, objectives score at most ' + C.LEAD_CAP + ' a round. Kills and damage to the enemy base still count in full: press the advantage.' },
-  { id: () => 'base-threat', when: () => S.phase === 'combat' && S.mechs.some(m => m.owner !== viewer() && Math.abs(m.x - S.players[viewer()].base.x) + Math.abs(m.y - S.players[viewer()].base.y) <= C.TURRET_RANGE),
-    t: () => '<b>Enemy at your base.</b> Your base turret fires on the closest enemy within ' + C.TURRET_RANGE + ' tiles at the end of the round. Every ' + C.BASE_VP_PER + ' damage to a base also scores the attacker a point.' }
+  { id: () => 'base-threat', when: () => S.phase === 'combat' && (S.mechs.some(m => m.owner !== viewer() && Math.abs(m.x - S.players[viewer()].base.x) + Math.abs(m.y - S.players[viewer()].base.y) <= C.TURRET_RANGE) || Object.values(S.players[viewer()].siegedBy || {}).some(r => r >= S.round - 1)),
+    t: () => '<b>Enemy at your base.</b> Your base turret fires on the closest enemy within ' + C.TURRET_RANGE + ' tiles at the end of the round' + (C.COUNTER_BATTERY ? ', and returns fire on anything that shelled the base, at any range' : '') + '. Every ' + C.BASE_VP_PER + ' damage to a base also scores the attacker a point.' }
 ];
 function notesSeen() { try { return JSON.parse(localStorage.getItem('mw-notes') || '[]'); } catch (e) { return []; } }
 function tipsOff() { try { return localStorage.getItem('mw-tips') === 'off'; } catch (e) { return false; } }
@@ -3111,7 +3162,7 @@ function coachEnd(done) {
   if (done && S) {
     S.coach = COACH.length;
     // what the training already taught needs no field note
-    try { localStorage.setItem('mw-trained', '1'); const seen = notesSeen(); ['fit', 'doc-' + S.players[viewer()].doctrine].forEach(k => { if (seen.indexOf(k) < 0) seen.push(k); }); localStorage.setItem('mw-notes', JSON.stringify(seen)); } catch (e) { /* storage unavailable */ }
+    try { localStorage.setItem('mw-trained', '1'); const seen = notesSeen(); ['fit', 'doc-' + S.players[viewer()].doctrine, 'map-' + S.map].forEach(k => { if (seen.indexOf(k) < 0) seen.push(k); }); localStorage.setItem('mw-notes', JSON.stringify(seen)); } catch (e) { /* storage unavailable */ }
   }
 }
 function coachNext() { if (!S || S.coach == null) return; S.coach++; if (S.coach >= COACH.length) coachEnd(true); render(); }
@@ -3151,6 +3202,7 @@ function renderCoach() {
 function render() {
   S = MW.S;
   if (!S) return;
+  musicFor();
   if (ui.sel != null && !selMech()) { ui.sel = null; ui.mode = 'idle'; ui.pendingTarget = null; }
   announce();
   renderTop(); renderFlow(); renderTrack(); renderBoard(); renderDock(); renderWin(); renderReveal();
@@ -3332,6 +3384,7 @@ function onTile(x, y) {
 }
 function onAct(el) {
   const a = el.dataset.act;
+  if (a === 'sndMute') { window.SFX.set('mute', !window.SFX.prefs.mute); el.textContent = 'Sound: ' + (window.SFX.prefs.mute ? 'off' : 'on'); if (!window.SFX.prefs.mute) { musicFor(); snd('confirm'); } return; }
   if (a === 'simSpeed') { ui.simSpeed = ui.simSpeed === 'fast' ? 'normal' : 'fast'; try { localStorage.setItem('mw-simspeed', ui.simSpeed); } catch (e) { /* storage unavailable */ } return tick(); }
   if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } if (!$('#overlay').hidden) showBattleMenu(); return renderTop(); }
   if (a === 'rules') { ui.ruleTab = 0; return showRules(); }
@@ -3480,18 +3533,19 @@ function onAct(el) {
 function showRules() {
   const T = [
     ['Basics', [
-      ['Win', 'Reach <b>' + C.VP_WIN + ' victory points</b>, or destroy the enemy base. Points come from holding objectives at the end of each round and from damaging the enemy base.'],
+      ['Win', 'Reach <b>' + C.VP_WIN + ' victory points</b>, or destroy the enemy base. Points come from holding objectives at the end of each round, destroying enemy mecha and damaging the enemy base.'],
       ['A round', '<b>Draw</b> new cards, <b>build</b> and repair mecha in the Workshop, <b>deploy</b> them next to your base, then <b>fight</b>: you and your opponent take turns activating one mech each. <b>Resolution</b> scores points and cools heat.'],
+      ['Roles', 'A mech’s parts give it a role, shown in the Workshop and in its details. ' + Object.keys(MW.ROLE_INFO).map(r => '<b>' + r + '</b>: ' + MW.ROLE_INFO[r]).join(' ')],
       ['Mecha', 'Each mech is a <b>chassis</b> (HP and two weapon mounts), <b>legs</b> (movement) and <b>weapons</b>. Fit them in that order. Tap any stat or icon in the game to see what it means.'],
       ['On the map', 'Stand on a <b>radar</b> or <b>uplink</b>, or on a <b>depot</b> on the enemy half (★), to score at the end of the round. Depots also give build actions. Ruins give cover; rocks block shots.'],
       ['New?', 'Play <b>Training</b> for a guided first round against an easy opponent. Field notes explain each new mechanic the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Start Training</button>']]],
-    ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point. Holding your own depots gives build actions but no points. Azure holds the bottom of the map, Ember the top.'],
-      ['Comebacks', 'Whoever is behind on points gets +1 build action next round, +2 when 3 or more points behind. A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Base damage always scores in full.'],
+    ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point, and so are enemy mecha destroyed (' + MW.MAP_IDS.filter(id => (MW.MAPS[id].effects || {}).killVp).map(id => MW.MAPS[id].name + ': every ' + Math.round(1 / MW.MAPS[id].effects.killVp)).join(', ') + '). Holding your own depots gives build actions but no points. Azure holds the bottom of the map, Ember the top.'],
+      ['Comebacks', 'Whoever is behind on points gets +1 build action next round, +2 when 3 or more points behind. A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Kills and base damage always score in full.'],
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
-    ['Build', [['Start', 'Each side starts with mecha ready to deploy, each on a different chassis from its doctrine (Assault brings an extra one), and ' + C.EP + ' build actions a round (Armored 6, Experimental 3). Up to ' + C.CARRY_MAX + ' unused ones carry over to the next round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) wait in the Workshop until you play them: Spare Parts and Overtime Shift (extra build actions), Tech Requisition (more cards), Field Repairs.'],
+    ['Build', [['Start', 'Each side starts with mecha ready to deploy, each built for its own role (Assault brings an extra one), and ' + C.EP + ' build actions a round (Armored ' + MW.DOCTRINES.armored.traits.ep + '). Up to ' + C.CARRY_MAX + ' unused ones carry over to the next round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) wait in the Workshop until you play them: Spare Parts and Overtime Shift (extra build actions), Tech Requisition (more cards), Field Repairs.'],
       ['Build', 'You get ' + C.EP + ' build actions a round. Fitting a part takes 1 (big chassis and heavy guns 2, specials 3); repairing takes 1; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads have armoured tracks, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
       ['Aiming', 'Pick where a shot goes. Body: no penalty, full damage to the hull. Weapon arm (−15%): knocks that weapon offline for the rest of the round and the next (it restarts at half strength), half the damage reaches the hull. Legs (−10%): slows the mech, 1 move once destroyed, half to the hull. The reactor sits inside the chassis and cannot be aimed at.'],
-      ['Energy weapons', 'Lasers, lances and projectors melt through 1 point of armour (2 for the Experimental doctrine). Pierce ignores armour completely.'],
+      ['Energy weapons', 'Lasers, lances and projectors melt through 1 point of armour (3 for the Experimental doctrine). Pierce ignores armour completely.'],
       ['Reading a card', 'Every card has the same layout. Top left: its type (chassis, legs, aux, or the weapon mount it needs: gun, energy, melee, heavy). Middle: two numbers (weapons: damage and range; chassis: HP and size; legs: move and the heaviest chassis they carry). Bottom left: its one special rule as a word. Bottom right: its weight in capacity pips, and a flame if it runs hot. Tap i for every detail.'],
       ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Scrap unused cards from their i details for 1 build action each. Short on cards? Requisition one more from the Arsenal for ' + MW.actWord(C.REQ_COST) + '.']]],
     ['Fight', [['Turns', 'Mecha on the field at once: Assault 4, Armored 3, Experimental 3. Commanders alternate activating one mech, two actions each (Experimental three): move, fire a weapon (each once per activation), overwatch, brace, salvage, or return to base.'],
@@ -3504,8 +3558,7 @@ function showRules() {
       ['Heat', 'Firing and boosting build heat; cooling removes some each round. Heat over capacity at Resolution damages the core and leaves one action next round.'],
       ['Weapons', Object.keys(CAT_NAME).map(k => '<span class="chip">' + ico(k, 'sm k-' + k) + ' ' + CAT_NAME[k] + '</span>').join(' ')]]],
     ['Special', [['Specials', '5 per deck, gold ★. Inferno Cannon burns (1 damage at each of 3 Resolutions), Cryo Lance slows (−2 move), EMP Projector shocks (one action next round). Aegis Frame and Lattice Core are tougher standard parts.'],
-      ['Artillery', 'The Quad Walker (Armored issue) is very slow, tough legs that add ' + MW.DEFS.l_quad.hull + ' HP and take long-range weapons only (range ' + MW.LONG_RANGE + '+). Their mech fires only after spending an action to dig in; dug in, it works as a turret with +1 range and +1 armour, and must pack up to move again. The Heavy Railgun fires only when dug in.'],
-      ['Fortified', 'Armored scores no points for kills. Instead, while it holds an objective it already held last round, it scores up to 1 more point that round (within the usual cap).']]],
+      ['Artillery', 'The Quad Walker (Armored issue) is very slow, tough legs that add ' + MW.DEFS.l_quad.hull + ' HP and take long-range weapons only (range ' + MW.LONG_RANGE + '+). Their mech fires only after spending an action to dig in; dug in, it works as a turret with +1 range and +1 armour, and must pack up to move again. The Heavy Railgun fires only when dug in.']]],
     ['AI', [['Commanders', 'The computer opponent is led by a commander with its own style, picked at random from those that suit its doctrine: ' + Object.keys(MW.DOCTRINE_COMMANDERS).map(d => MW.DOCTRINES[d].name.replace(' Doctrine', '') + ' by ' + MW.DOCTRINE_COMMANDERS[d].map(k => MW.PERSONAS[k].name).join(' or ')).join(', ') + '. ' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden && !MW.PERSONAS[k].easy).map(k => MW.PERSONAS[k].name + ': ' + MW.PERSONAS[k].blurb).join(' ')],
       ['Adapting', 'Each round a commander reads the board and picks a stance: defending its base when threatened, raiding objectives when behind, pressing the base when ahead, regrouping when outnumbered. It grows warier when it loses mecha and turns to defence when its base is hit.'],
       ['Learning', 'Commanders remember their wars in this browser. Each keeps a proven playbook and now and then tries a variation, keeping it if it wins more, and leaning away from whatever cost it past wars.']]],
@@ -3513,12 +3566,12 @@ function showRules() {
     ['Map', [['Battlefields', MW.MAP_IDS.map(id => '<b>' + MW.MAPS[id].name + '</b> (' + MW.MAPS[id].goal.toLowerCase() + '): ' + MW.MAPS[id].blurb + (MW.MAPS[id].notes ? ' <i>' + MW.MAPS[id].notes + '</i>' : '')).join('<br>') + (S && S.map ? '<br>This battle: <b>' + MW.MAP.name + '</b>.' : '')],
       ['Objectives', 'End a round on a depot or radar to hold it. Each depot adds ' + C.DEPOT + ' build action to your next build (up to ' + C.DEPOT_FULL + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
       ['Crates', 'Every other round a crate drops on the centre line: +' + MW.actWord(C.CRATE_SUPPLY) + ' or a special card, taken by the first mech to end a move on it.'],
-      ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution; its reach is tinted and outlined in the base\'s colour on the map. Returning to base vents heat and restocks ammo.'],
+      ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution' + (C.COUNTER_BATTERY ? ', and returns fire on any mech that shelled the base that round, however far away' : '') + '; its reach is tinted and outlined in the base\'s colour on the map. Returning to base vents heat and restocks ammo.'],
       ['Salvage', 'Salvaging a wreck gives an extra build action plus any special parts that survived, which refit for 1.']]]
   ];
   const cur = Math.min(ui.ruleTab || 0, T.length - 1);
   const o = $('#overlay');
-  o.innerHTML = '<div class="sheet" role="dialog" aria-label="Rules"><div class="phead"><h2>Field manual</h2><span class="row"><button type="button" class="btn sm ghost" data-act="tipsToggle">' + (tipsOff() ? 'Field notes: off' : 'Field notes: on') + '</button><button type="button" class="btn sm" data-act="closeOverlay">Close</button></span></div>' +
+  o.innerHTML = '<div class="sheet" role="dialog" aria-label="Rules"><div class="phead"><h2>Field manual</h2><span class="row"><button type="button" class="btn sm ghost" data-act="sndMute">Sound: ' + (window.SFX && window.SFX.prefs.mute ? 'off' : 'on') + '</button><button type="button" class="btn sm ghost" data-act="tipsToggle">' + (tipsOff() ? 'Field notes: off' : 'Field notes: on') + '</button><button type="button" class="btn sm" data-act="closeOverlay">Close</button></span></div>' +
     '<div class="wtabs">' + T.map((t, i) => '<button type="button" class="wtab' + (i === cur ? ' on' : '') + '" data-act="ruleTab" data-tab="' + i + '">' + t[0] + '</button>').join('') + '</div>' +
     '<dl>' + T[cur][1].map(([a, b]) => '<dt>' + a + '</dt><dd>' + b + '</dd>').join('') + '</dl></div>';
   o.hidden = false;
@@ -3532,7 +3585,7 @@ function showBattleMenu(confirm) {
       ? '<p>' + (hot ? S.players[viewer()].name + ' gives up and ' : 'You give up and ') + '<b>' + foe.name + '</b> wins the war. It counts as a loss.</p>' +
         '<div class="row"><button type="button" class="btn ghost" data-act="battleMenu">Back</button><button type="button" class="btn danger grow" data-act="concede">Concede the war</button></div>'
       : '<p class="note">' + (net ? 'Leave the match and come back to it from Online match.' : 'The battle is saved: pick it up again from Continue last battle or Recent games.') + '</p>' +
-        '<div class="bm-acts"><button type="button" class="btn" data-act="rules">How to play</button>' + (R3on ? '<button type="button" class="btn" data-act="fxToggle">Effects: ' + (FXLEVEL === 'low' ? 'low' : 'full') + '</button>' : '') + '<button type="button" class="btn primary" data-act="toStart">Main menu</button>' +
+        '<div class="bm-acts"><button type="button" class="btn" data-act="rules">How to play</button>' + (R3on ? '<button type="button" class="btn" data-act="fxToggle">Effects: ' + (FXLEVEL === 'low' ? 'low' : 'full') + '</button>' : '') + '<button type="button" class="btn primary" data-act="toStart">Main menu</button>' + soundRow() +
         (over ? '' : '<button type="button" class="btn danger" data-act="concedeAsk">Concede</button>') +
         '<button type="button" class="btn ghost" data-act="closeOverlay">Back to the battle</button></div>') + '</div>';
   o.hidden = false;
@@ -3553,6 +3606,7 @@ function showStart() {
   document.body.classList.toggle('first', fresh);
   coachEnd(false);
   const fn = document.getElementById('fnote'); if (fn) fn.remove();
+  if (window.SFX) window.SFX.music('menu');
 }
 function showGame() {
   if (R3on) endMapPreview();
@@ -3568,9 +3622,9 @@ function showGame() {
 const TAGS = { assault: 'Fast frames, blades and close-range guns.', armored: 'Heavy hulls, shields and long guns.', experimental: 'Energy weapons and unstable reactors.' };
 // how each doctrine plays, in plain words, for the doctrine picker
 const PLAY = {
-  assault: { style: 'Swarm', line: 'Many fast, light mecha. Grab objectives and overwhelm.' },
-  armored: { style: 'Fortress', line: 'Two near-unkillable mecha. Hold ground and grind them down.' },
-  experimental: { style: 'Overclock', line: 'Prototypes with extra actions and cards. Mind the heat.' }
+  assault: { style: 'Swarm', line: 'A brawler, a raider and a scout, all fast. Grab objectives and overwhelm.' },
+  armored: { style: 'Fortress', line: 'A tank on the objective, a dug-in gun behind it. Grind them down.' },
+  experimental: { style: 'Overclock', line: 'A sniper and an infiltrator with extra actions and tricks. Mind the heat.' }
 };
 const DOC_ORDER = () => Object.keys(MW.DOCTRINES);
 function docStats(id) {
@@ -3804,7 +3858,7 @@ function tourSteps(id) {
   if (of('uplink').length) st.push(Object.assign({ t: 'The uplink', f: ['uplink'], x: 'Worth ' + (M.rules.uplinkVp || 2) + ' victory points every round to whoever holds it. Expect the whole battle to be fought here.' }, spot(of('uplink'))));
   if (of('repair').length) st.push(Object.assign({ t: 'Repair stations', f: ['repair'], x: 'End a round here and the station repairs ' + C0.STATION_REPAIR + ' HP on a damaged part.' }, spot(of('repair'))));
   st.push(Object.assign(salvage
-    ? { t: 'Salvage crates', f: ['crate'], x: 'A pair of crates drops inside the lit area every round. The first mech to reach one scores a victory point and takes what is inside.' }
+    ? { t: 'Salvage crates', f: ['crate'], x: 'A pair of crates drops inside the lit area ' + ((M.rules.crateEvery || 1) > 1 ? 'every other round' : 'every round') + (M.rules.crateMax ? ', up to ' + M.rules.crateMax + ' on the yard at once' : '') + '. The first mech to end a move on one scores a victory point and takes what is inside.' }
     : { t: 'Crate drops', f: ['crate'], x: 'Every other round a crate lands on the lit centre line: a build action or a special card for the first mech to reach it.' },
     { focus: band, tiles: band, crates }));
   if (M.rocks.length) st.push(Object.assign({ t: BIOME_ROCK[id] || 'Rocks', f: ['rock'], x: 'Block movement and direct fire. Booster Legs jump over them, and artillery fires over them.' }, spot(M.rocks)));
@@ -3926,6 +3980,10 @@ document.querySelectorAll('.dcar').forEach(car => {
   car.addEventListener('pointerup', end);
   car.addEventListener('pointercancel', () => { x0 = null; });
 });
+document.addEventListener('input', e => {
+  const r = e.target.closest && e.target.closest('[data-snd]');
+  if (r && window.SFX) { window.SFX.set(r.dataset.snd, r.value / 100); if (r.dataset.snd === 'sfx') snd('tab'); }
+});
 document.addEventListener('keydown', e => {
   const f = $('#setup');
   if (f.hidden || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
@@ -3943,6 +4001,7 @@ function updateNetDeck() {
 
 document.addEventListener('click', e => {
   const st = e.target.closest('[data-start]');
+  { const a0 = e.target.closest('[data-act]'); if (a0 && !a0.disabled) { const k = a0.dataset.act, n = k in UI_SND ? UI_SND[k] : 'click'; if (n) snd(n); } else if (st || e.target.closest('button, .tile')) snd(e.target.closest('.tile') ? 'tab' : 'click'); }
   if (st) return openSetup(st.dataset.start);
   const t = e.target.closest('.tile');
   if (t) return onTile(+t.dataset.x, +t.dataset.y);
@@ -4190,7 +4249,7 @@ const GLOSSARY = [
   [/^Accurate/, 'Hits more often than most weapons.'], [/^Inaccurate/, 'Misses more often than most weapons.'],
   [/^Pierces/, 'Ignores the target\'s armour.'], [/^Fires over/, 'Indirect fire: rocks and other mecha do not block it.'],
   [/^Limited ammo/, 'Runs out after this many shots. Returning to base restocks it.'],
-  [/^Build actions/, 'What you build with: fitting a part takes 1 (big chassis and heavy guns 2, specials 3), a repair 1. You get 4 a round (Armored 6, Experimental 3), plus 1 for each depot you hold, crates, salvage, and a bonus when behind. Up to 3 unused carry over.'],
+  [/^Build actions/, 'What you build with: fitting a part takes 1 (big chassis and heavy guns 2, specials 3), a repair 1. You get ' + C.EP + ' a round (Armored ' + MW.DOCTRINES.armored.traits.ep + '), plus 1 for each depot you hold, crates, salvage, and a bonus when behind. Up to 3 unused carry over.'],
   [/^Engineering/, 'Fitting or repairing a part uses one action. They refill every build phase.'],
   [/^Mecha on the field/, 'How many of your mecha are deployed, and how many your doctrine allows at once.'],
   [/^Cards left/, 'Cards still in your Arsenal deck. You draw new ones each round.'],

@@ -2762,6 +2762,8 @@ function backBlast(c, o) {
 }
 // seconds from the shot leaving the muzzle to the impact, per weapon
 const FLIGHT = { b_gun: 0.3, w_smg: 0.38, w_gatling: 0.62, w_scatter: 0.16, w_rail: 0.06, s_railgun: 0.06, w_missile: 0.95, w_howitzer: 0.88, w_laser: 0.06, w_lance: 0.06, w_arc: 0.12, s_emp: 0.32, s_inferno: 0.5, s_cryo: 0.08, w_blade: 0.2, w_ram: 0.22, w_repair: 0.08 };
+// volleys, as the profiles above fire them: how many rounds, seconds between them, and each one's flight time
+const SALVO = { w_missile: [4, 0.1, 0.62], w_gatling: [12, 0.045, 0.12], w_smg: [6, 0.045, 0.12], b_gun: [3, 0.07, 0.14], turret: [3, 0.05, 0.16] };
 // fallbacks by weapon class, for anything without its own profile
 const FIRE_CAT = { ballistic: 'b_gun', energy: 'w_laser', missile: 'w_missile', artillery: 'w_howitzer', melee: 'w_blade', siege: 'w_ram', support: 'w_repair', incendiary: 's_inferno', cryo: 's_cryo' };
 
@@ -2861,6 +2863,10 @@ function shoot(f, start, follow) {
   return { fire: wind, land: wind + travel };
 }
 
+// sound rides the same timeline as the pictures: a cue at the moment its animation happens, panned to its column
+const sfx = (at, name, o) => { const S = window.SFX; if (S) S.play(name, Object.assign({ delay: Math.max(0, at) }, o)); };
+const panX = x => { const W = window.MW.W || 9; return W > 1 ? (x / (W - 1) * 2 - 1) * 0.7 : 0; };
+const legMode = uid => { const m = window.MW.fieldMech(uid), l = m && m.slots.legs && window.MW.DEFS[m.slots.legs.id]; return { mode: l ? (l.entrench ? 'entrench' : l.mode) : null, heavy: !!(m && m.slots.torso && window.MW.DEFS[m.slots.torso.id].size >= 3) }; };
 R3.fx = function (list) {
   if (!BD) return [];
   const spots = [];
@@ -2901,15 +2907,19 @@ R3.fx = function (list) {
       // a jump is a single hop, high enough to clear what it passes over
       const pts = f.jump ? [all[0], all[all.length - 1]] : all;
       rec.walk = { pts, t0: clock() + base, dur: f.jump ? 0.35 + 0.12 * (all.length - 1) : 0.4 * (pts.length - 1), hop: f.jump ? 1.1 + 0.1 * (all.length - 1) : 0 };
+      const lm = legMode(f.uid), ex = f.path[f.path.length - 1][0];
+      sfx(base, f.phase ? 'phase' : f.jump ? 'jump' : 'walk', Object.assign({ steps: f.path.length - 1, dur: rec.walk.dur, pan: panX(ex) }, lm));
       rec.R.root.position.copy(pts[0]);
       tShot = Math.max(tShot, base + rec.walk.dur + 0.1);
     } else if (f.k === 'deploy') {
       const rec = BD.recs[f.uid]; if (!rec) return;
       rec.drop = { t0: clock() + base, dur: 0.6 };
+      sfx(base, 'deploy', { pan: panX(f.x) });
       tShot = Math.max(tShot, base + 0.7);
     } else if (f.k === 'enter') {
       const rec = Object.values(BD.recs).find(r => r.uid === f.uid);
       if (rec) { rec.claimed = true; const b = window.MW.S.players[f.owner].base; rec.leave = { t0: clock() + base, dur: 0.7, to: tp(b.x, b.y) }; tShot = Math.max(tShot, base + 0.75); }
+      sfx(base, 'enter', { pan: panX(f.x) });
     } else if (f.k === 'boom' || f.k === 'nuke' || f.k === 'strip') {
       const rec = (f.uid && BD.recs[f.uid]) || recAt(f.x, f.y, true);
       if (rec) rec.claimed = true;
@@ -2924,6 +2934,12 @@ R3.fx = function (list) {
     const follow = n > 1 && prev != null;
     const start = follow ? prev + 0.18 : Math.max(tShot, ...Object.values(fired).map(v => v + 0.35));
     const r = shoot(f, follow ? start - 0.05 : start, follow);
+    const att = f.uid && window.MW.fieldMech(f.uid), wi = att && f.key && window.MW.getSlot(att, f.key);
+    // one sound per projectile the animation launches, each landing when its own round or missile does
+    const wid = f.cat === 'turret' ? 'turret' : (wi && wi.id) || FIRE_CAT[f.cat || 'ballistic'], sv = !follow && SALVO[wid];
+    const t0 = (follow ? start - 0.05 : start) + r.fire, so = { cat: f.cat, wid: wi && wi.id, n: sv ? sv[0] : 1, gap: sv ? sv[1] : 0 };
+    sfx(t0, 'fire', Object.assign({ pan: panX(f.x0) }, so));
+    sfx(sv ? t0 + sv[2] : (follow ? start - 0.05 : start) + r.land, 'impact', Object.assign({ hit: f.hit, pan: panX(f.x1) }, so));
     fired[pk] = start + r.fire;
     const k = key(f.x1, f.y1);
     impact[k] = Math.max(impact[k] || 0, start + r.land);
@@ -2931,32 +2947,43 @@ R3.fx = function (list) {
   endP = Math.max(endP, tShot, ...Object.values(impact));
   sub.forEach((f, j) => {
     const i = idx[j], k = key(f.x, f.y);
-    if (f.k === 'float') { delays[i] = Math.round(1000 * (impact[k] != null ? impact[k] : tShot)); return; }
+    if (f.k === 'float') {
+      delays[i] = Math.round(1000 * (impact[k] != null ? impact[k] : tShot));
+      const cue = { Overclock: 'overclock', Cloaked: 'cloak', Overwatch: 'overwatch' }[f.t] || (f.c === 'good' && impact[k] == null ? (/HP/.test(f.t) ? 'heal' : 'pickup') : null);
+      if (cue) sfx(delays[i] / 1000, cue, { pan: panX(f.x) });
+      return;
+    }
     const at = (impact[k] != null ? impact[k] + 0.15 : tShot) + 0.05;
     if (f.k === 'boom' || f.k === 'nuke') endP = Math.max(endP, at + (f.k === 'nuke' ? 2 : 2.2));
     if (f.k === 'boom') {
       delays[i] = at * 1000;
       const rec = (f.uid && BD.recs[f.uid]) || recAt(f.x, f.y, true) || null;
       schedule(at, () => destroyMech(rec, tp(f.x, f.y, 0.4)));
+      sfx(at, 'boom', { pan: panX(f.x) });
     } else if (f.k === 'nuke') {
       const rec = (f.uid && BD.recs[f.uid]) || recAt(f.x, f.y, true);
       if (rec) rec.charging = clock();
       schedule(at + 0.7, () => nuke(f, rec));
+      sfx(at, 'charge', { pan: panX(f.x) }); sfx(at + 0.7, 'nuke', { pan: panX(f.x) });
     } else if (f.k === 'strip') {
       const rec = (f.uid && BD.recs[f.uid]) || recAt(f.x, f.y, true);
       schedule(at, () => { if (rec) rec.strip = { t0: clock() }; sparks(tp(f.x, f.y, 0.4), 0xffe2a0, 10); });
+      sfx(at, 'strip', { pan: panX(f.x) });
     } else if (f.k === 'brace') {
       const rec = recAt(f.x, f.y, false);
       schedule(at, () => { if (rec) rec.braceT = clock(); });
+      sfx(at, 'brace', { pan: panX(f.x) });
     } else if (f.k === 'capture') {
       // "Captured" shows with its light pillar, not before
       delays[i] = Math.round(tShot * 1000);
       schedule(tShot, () => pillar(tp(f.x, f.y), TEAM[f.owner].ring));
+      sfx(tShot, 'capture', { pan: panX(f.x), mine: window.SFX_ME == null || f.owner === window.SFX_ME });
       endP = Math.max(endP, tShot + 0.8);
     } else if (f.k === 'drop') {
       delays[i] = Math.round(tShot * 1000);
       const cr = BD.crates[k];
       // the crate stays out of sight until its drop begins
+      sfx(tShot, 'drop', { pan: panX(f.x) });
       if (cr) { cr.visible = false; schedule(tShot, () => { cr.visible = true; cr.userData.dropT = clock(); cr.userData.body.position.y = 4; cr.userData.chute.visible = true; }); }
       endP = Math.max(endP, tShot + 1);
     }
