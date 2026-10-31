@@ -795,7 +795,7 @@ function gaitStep(st, R, dt, speed) {
   st.phase = ((st.phase || 0) + Math.min(2.2, vLocal * 0.6 / rg.stride) * dt) % 1;
   const w = st.w, ph = st.phase, out = { swing: [0, 0], bob: 0 };
   // knees soft at rest and bent while walking: the pelvis drops so the feet can reach a full stride
-  const drop = 0.015 + 0.04 * w + (st.crouch || 0);
+  const drop = 0.015 + 0.04 * w + (st.crouch || 0) + (R.stance ? R.stance.crouch : 0);
   R.legs.forEach((hip, i) => {
     const p = (ph + (i ? 0.5 : 0)) % 1;
     let z, y, pitch;
@@ -812,6 +812,7 @@ function gaitStep(st, R, dt, speed) {
     const hipY = rg.hipH - drop + (st.bob || 0);
     const shin = legIK(hip, (rg.sole + y) - hipY, z, rg.L1, rg.L2);
     if (hip.userData.ankle) hip.userData.ankle.rotation.x = -shin + pitch;
+    if (R.stance) { const sp = Math.sign(hip.position.x || (i ? 1 : -1)) * R.stance.splay; hip.rotation.z = sp; if (hip.userData.ankle) hip.userData.ankle.rotation.z = -sp; }
     out.swing[i] = z / rg.stride;                                     // -0.5 (back) .. 0.5 (forward)
   });
   // pelvis: lowest just after each heel strike (down), highest at passing (up)
@@ -823,10 +824,118 @@ function gaitStep(st, R, dt, speed) {
   return out;
 }
 
+/* ---------- the rig: one skeleton for every mech ---------- */
+// Every mech is built on the same named joints, whatever its parts:
+//   root > legs (the drive: tracks, hover bell, quad hub or the hips of walking legs)
+//   root > pelvis > spine > head, pack; spine > shoulder.L/R > arm.L/R > elbow.L/R > hand.L/R > grip.L/R
+//   walking legs: thigh.L/R > shin.L/R > foot.L/R; a quad walker: coxa/femur/tibia/foot.FL/FR/BR/BL
+//   a two-handed weapon hangs from spine > control, and both hands reach for its haft
+// Each part is built onto the joint it moves with, so posing a joint carries everything on it. R.rest keeps every
+// joint's rest pose; animations pose joints (or the control) and IK keeps the hands on what they hold
+const SIDE = sx => (sx < 0 ? 'L' : 'R');
+function rigRest(R) { R.rest = {}; for (const n in R.joints) { const j = R.joints[n]; R.rest[n] = { p: j.position.clone(), q: j.quaternion.clone() }; } }
+// arm bones: the shortest upper arm and forearm, and the rule that lengthens them: an arm reaches at least ARM_REACH
+// times the distance from its shoulder to a point ARM_SPAN above the middle of the shoulder line
+const ARM_L1 = 0.15, ARM_L2 = 0.165, ARM_REACH = 1.05, ARM_SPAN = 0.25;
+// where a bent elbow points, in shoulder space (x outward)
+const ARM_POLE = [1, -0.3, 0.6];
+// two-bone IK for an arm: bend the elbow, then swing the arm from its rest direction so the hand reaches a world point
+function armIK(a, world) {
+  const t = a.sh.worldToLocal(world.clone()), L1 = a.L1, L2 = a.L2;
+  const d = Math.min(L1 + L2 - 1e-4, Math.max(Math.abs(L1 - L2) + 1e-3, t.length()));
+  const b = Math.PI - Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + L2 * L2 - d * d) / (2 * L1 * L2))));
+  a.el.rotation.set(-b, 0, 0);
+  const v = new T.Vector3(0, -L1 - L2 * Math.cos(b), L2 * Math.sin(b)).applyQuaternion(a.q0).normalize();
+  a.arm.quaternion.setFromUnitVectors(v, t.normalize()).multiply(a.q0);
+  // then turn the arm about the shoulder-to-hand line until the elbow points out and forward, the way an arm swings
+  // a weapon, instead of tucking behind the body
+  const e = new T.Vector3(0, -L1, 0).applyQuaternion(a.arm.quaternion), pole = new T.Vector3(a.sx * ARM_POLE[0], ARM_POLE[1], ARM_POLE[2]);
+  e.addScaledVector(t, -e.dot(t)); pole.addScaledVector(t, -pole.dot(t));
+  if (e.lengthSq() > 1e-8 && pole.lengthSq() > 1e-8) {
+    const ang = Math.atan2(e.clone().cross(pole).dot(t), e.dot(pole));
+    a.arm.quaternion.premultiply(new T.Quaternion().setFromAxisAngle(t, ang));
+  }
+}
+// both fists on the two-handed haft: the main hand at the foot of the grip, the other a hand-width further up
+function rigHands(R) {
+  if (!R.ctrl) return;
+  R.root.updateMatrixWorld(true);
+  const C = R.ctrl.j, G = HAMMER_CLIP.grip;
+  armIK(R.arms[R.twoHand.main], C.localToWorld(new T.Vector3(0, 0, G[0])));
+  armIK(R.arms[R.twoHand.off], C.localToWorld(new T.Vector3(0, 0, G[1])));
+}
+// the two-handed hammer's leaping smash, timed in seconds from the start of the wind-up. References: Veloren's hammer
+// "Judgement" (the hammer swings up overhead as the body springs, the chest arches back, then folds forward over the
+// blow), the leap frame the user gave (hammer overhead, knees tucked at the peak), and jump body-mechanics guides: a
+// heavy body crouches deep to anticipate, extends fully to push off, flies a true arc that slows to a hang at the apex,
+// reaches down with its legs for the ground, absorbs the landing low (harder landings sink lower and recover longer),
+// then rises and settles with a small overshoot into its guard. The blow and the landing are one moment: the hammer
+// and the feet meet the ground together.
+// Grip poses place the main fist (from the middle of the shoulder line, in body space, x toward the main hand), tilt
+// the haft back from upright (a) and lean it across toward the other hand (r). The carry is the guard the user's carry
+// references showed: the butt low at the main hip, the haft rising across the body, the head up by the far shoulder.
+// Channels are keyframe lists of [seconds, value, ease]; the flight between take-off and landing is a parabola
+const HAMMER_CLIP = {
+  grip: [0.06, 0.18], wind: 0.85, takeoff: 0.55, land: 1.15, end: 2.2, height: 0.45,
+  poses: {
+    carry: { p: [0.1, -0.16, 0.12], a: -0.2, r: 0.6 },
+    cocked: { p: [0.12, -0.2, -0.02], a: 2.0, r: 0.25 },     // drawn down and back in the crouch
+    raised: { p: [0, 0.17, 0.02], a: 0.75, r: 0 },           // overhead at the apex
+    impact: { p: [0, 0.02, 0.1], a: -2.15, r: 0 },           // driven into the ground in front
+    settle: { p: [0.09, -0.12, 0.12], a: -0.35, r: 0.55 },   // a touch past the guard as it comes back up
+  },
+  pose: [[0, 'carry'], [0.42, 'cocked'], [0.85, 'raised', 'out'], [0.93, 'raised'], [1.15, 'impact', 'in'], [1.4, 'impact'], [1.8, 'settle'], [2.2, 'carry']],
+  // knee bend: the crouch, full extension at push-off, the tuck at the apex, legs reaching down for contact, the
+  // landing absorbed low, then up with a small overshoot and settle
+  crouch: [[0, 0], [0.42, 0.17], [0.55, -0.01, 'out'], [0.85, 0.13], [1.1, 0.0], [1.15, 0.0], [1.27, 0.2, 'out'], [1.55, 0.08], [1.85, -0.015], [2.05, 0.008], [2.2, 0]],
+  // chest pitch, forward positive: over the knees in the crouch, arched back in the air, folded over the blow
+  lean: [[0, 0], [0.42, 0.2], [0.55, -0.06, 'out'], [0.85, -0.3], [1.15, 0.55, 'in'], [1.3, 0.62], [1.6, 0.2], [1.85, -0.05], [2.05, 0.02], [2.2, 0]],
+  // share of the way toward the target: a steady glide in the air (no thrust once airborne), held while it recovers,
+  // then a short hop back onto its own ground
+  fwd: [[0, 0], [0.55, 0], [1.15, 1, 'lin'], [1.55, 1], [1.95, 0]],
+  hop: [1.55, 1.95, 0.06],
+  jets: [0.8, 0.9, 1.27],   // the rockets catch, burn at full through the downswing, and die after the blow
+};
+// a grip pose as the control's place and turn in body space: the haft runs along the control's z, the striking face
+// along its x, leading the swing
+function hammerKey(C, k) {
+  const a = k.a, r = k.r, d = new T.Vector3(-C.sx * Math.sin(r), Math.cos(r) * Math.cos(a), -Math.cos(r) * Math.sin(a));
+  const x = new T.Vector3(0, Math.sin(a), Math.cos(a)), y = d.clone().cross(x).normalize(); x.copy(y).cross(d);
+  const fist = new T.Vector3(C.sx * k.p[0], C.shY + k.p[1], k.p[2]);
+  return { p: fist.addScaledVector(d, -HAMMER_CLIP.grip[0]), q: new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(x, y, d)) };
+}
+// seconds after the blow is thrown (the end of the wind-up) until the head and the feet meet the ground
+const hammerHit = () => HAMMER_CLIP.land - HAMMER_CLIP.wind;
+// pose the hammer and body at clip time s (seconds); returns the body's lift, crouch, lean and share of the way
+// toward the target for the caller to apply
+function hammerPose(R, s) {
+  const C = R.ctrl, H = HAMMER_CLIP, K = H.pose;
+  if (!C.poses) { C.poses = {}; for (const n in H.poses) C.poses[n] = hammerKey(C, H.poses[n]); }
+  let i = 1; while (i < K.length - 1 && s > K[i][0]) i++;
+  const A = K[i - 1], B = K[i], v0 = Math.max(0, Math.min(1, (s - A[0]) / (B[0] - A[0])));
+  const v = B[2] === 'out' ? 1 - Math.pow(1 - v0, 3) : B[2] === 'in' ? v0 * v0 * v0 : v0 * v0 * (3 - 2 * v0);
+  const PA = C.poses[A[1]], PB = C.poses[B[1]];
+  C.j.position.lerpVectors(PA.p, PB.p, v); C.j.quaternion.slerpQuaternions(PA.q, PB.q, v);
+  const jets = R.muzzles[R.twoHand.main] && R.muzzles[R.twoHand.main].jets, J = H.jets;
+  if (jets) {
+    const j = s < J[0] ? 0 : s < J[1] ? 0.45 * (s - J[0]) / (J[1] - J[0]) : s < H.land ? 1 : Math.max(0, 1 - (s - H.land) / (J[2] - H.land));
+    jets.forEach(g => { g.visible = j > 0.01; g.scale.set(0.75 + 0.25 * j, j * (0.8 + 0.4 * Math.random()), 0.75 + 0.25 * j); });
+  }
+  // the flight: a parabola from take-off to landing, slowing to a hang at the apex; then the short hop back
+  const mid = (H.takeoff + H.land) / 2, half = (H.land - H.takeoff) / 2;
+  let lift = s > H.takeoff && s < H.land ? H.height * (1 - Math.pow((s - mid) / half, 2)) : 0;
+  if (s > H.hop[0] && s < H.hop[1]) lift += H.hop[2] * Math.sin(Math.PI * (s - H.hop[0]) / (H.hop[1] - H.hop[0]));
+  return { lift, crouch: kf(s, H.crouch), lean: kf(s, H.lean), fwd: kf(s, H.fwd) };
+}
+
 // the weapon kit's own paint, shared by every army: a dark body, grey barrels, orange caps and a red sight
 const KIT = { body: 0x2c2f34, grey: 0x7d8288, light: 0xa7acb1, orange: 0xd9892e, red: 0xb63a30 };
 // weapons a mech carries in its hand; the rest are built onto the forearm or the shoulder
 const HANDHELD = new Set(['b_gun', 'w_smg', 'w_scatter', 'w_gatling', 'w_rail', 'w_laser', 'w_lance', 's_inferno', 's_cryo', 'w_blade', 's_hammer', 's_overload']);
+// how a two-handed hammer is carried: arm swing-in (radians), forearm rest angles, and the haft's tilt in the fist
+// carried after two-handed hammer references (the carry places the control joint; the arm angles are only IK hints): a wide, bent-knee stance, the butt end low at one hip, the haft rising
+// across the body through the other fist, the head up by the far shoulder
+const TWO_HAND = { mainZ: 0.05, armZ: 0.45, armY: 0.15, mainRest: -0.95, offRest: -0.9, wgX: 1.1, wgY: -1.9, crouch: 0.06, splay: 0.22 };
 function buildWeapon(p, id, tc, sx) {
   const D = toon(tc.metal), D2 = toon(tc.dark), mu = new T.Object3D();
   let z = 0.22, y = 0;
@@ -1109,13 +1218,15 @@ function buildWeapon(p, id, tc, sx) {
     // one side and three rocket nozzles on the other that fire the swing
     case 's_hammer': {
       mesh(profile('mh-grip', 0.05, [[-0.06, 0.0], [-0.05, 0.026], [0.0, 0.028], [0.02, 0.018], [0.02, -0.018], [0.0, -0.028], [-0.05, -0.026]]), toon(KIT.body), p);
-      mesh(turned('mh-haft', [[0.0, 0.0], [0.013, 0.0], [0.013, 0.42], [0.0, 0.42]], 16), toon(KIT.grey), p);
+      mesh(turned('mh-haft', [[0.0, 0.0], [0.013, 0.0], [0.013, 0.61], [0.0, 0.61]], 16), toon(KIT.grey), p);
+      mesh(turned('mh-pommel', [[0.0, -0.03], [0.02, -0.03], [0.024, -0.02], [0.024, 0.0], [0.0, 0.0]], 12), toon(INK), p);
       for (const zz of [0.03, 0.05, 0.07, 0.09]) mesh(turned('mh-wrap', [[0.0, -0.004], [0.015, -0.004], [0.015, 0.004], [0.0, 0.004]], 16), toon(INK), p, [0, 0, zz], null, flat);
-      mesh(turned('mh-tank', [[0.0, 0.0], [0.014, 0.0], [0.02, 0.012], [0.02, 0.1], [0.014, 0.112], [0.0, 0.112]], 18), toon(KIT.orange), p, [0, -0.03, 0.15]);
-      for (const zz of [0.18, 0.235]) mesh(turned('mh-strap', [[0.0, -0.004], [0.0205, -0.004], [0.0205, 0.004], [0.0, 0.004]], 18), toon(INK), p, [0, -0.03, zz], null, flat);
-      mesh(tube('mh-feed', [[0, -0.03, 0.262], [0, -0.022, 0.3], [0, -0.012, 0.34], [0, -0.004, 0.37]], 0.005, 12), toon(INK), p);
+      mesh(turned('mh-tank', [[0.0, 0.0], [0.014, 0.0], [0.02, 0.012], [0.02, 0.1], [0.014, 0.112], [0.0, 0.112]], 18), toon(KIT.orange), p, [0, -0.03, 0.34]);
+      for (const zz of [0.37, 0.425]) mesh(turned('mh-strap', [[0.0, -0.004], [0.0205, -0.004], [0.0205, 0.004], [0.0, 0.004]], 18), toon(INK), p, [0, -0.03, zz], null, flat);
+      for (const zz of [0.22, 0.24, 0.26, 0.28]) mesh(turned('mh-wrap2', [[0.0, -0.004], [0.015, -0.004], [0.015, 0.004], [0.0, 0.004]], 16), toon(INK), p, [0, 0, zz], null, flat);
+      mesh(tube('mh-feed', [[0, -0.03, 0.452], [0, -0.022, 0.49], [0, -0.012, 0.53], [0, -0.004, 0.56]], 0.005, 12), toon(INK), p);
       // the head: chamfered block across the haft, wider than it is deep
-      const h = new T.Group(); h.position.set(0, 0, 0.47); p.add(h);
+      const h = new T.Group(); h.position.set(0, 0, 0.66); p.add(h);
       mesh(profile('mh-head', 0.17, [[-0.06, -0.045], [-0.045, -0.06], [0.045, -0.06], [0.06, -0.045], [0.06, 0.045], [0.045, 0.06], [-0.045, 0.06], [-0.06, 0.045]]), toon(tc.main), h, [0, 0, 0], [0, Math.PI / 2, 0]);
       mesh(box(0.15, 0.012, 0.1), toon(tc.second), h, [0, 0.066, 0], null, flat);
       mesh(box(0.15, 0.006, 0.02), toon(KIT.orange), h, [0, 0.074, 0.036], null, flat);
@@ -1127,9 +1238,17 @@ function buildWeapon(p, id, tc, sx) {
       for (const [yy, zz] of [[0.024, 0.0], [-0.022, -0.026], [-0.022, 0.026]]) {
         mesh(turned('mh-noz', [[0.0, 0.0], [0.015, 0.0], [0.024, 0.032], [0.02, 0.036], [0.0, 0.036]], 16), toon(INK), h, [-0.084, yy, zz], [0, -Math.PI / 2, 0]);
         mesh(cyl(0.011, 0.011, 0.004, 12), glow(0xff8a3a), h, [-0.118, yy, zz], [0, 0, Math.PI / 2], flat);
+        // the jet it fires on the downswing, after rocket exhaust references: a white-hot core at the nozzle inside a
+        // longer orange cone, with bright shock-diamond knots along the axis. Hidden until the swing lights it
+        const jg = new T.Group(); jg.position.set(-0.12, yy, zz); jg.rotation.z = Math.PI / 2; jg.visible = false; h.add(jg);
+        const add = c => new T.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
+        mesh(cone(0.03, 0.27, 12), add(0xff6a1e), jg, [0, 0.135, 0], null, flat);
+        mesh(cone(0.017, 0.11, 10), add(0xfff3c0), jg, [0, 0.055, 0], null, flat);
+        for (const [y, r] of [[0.09, 0.011], [0.16, 0.008]]) mesh(sph(r, 8), add(0xffe08a), jg, [0, y, 0], null, flat);
+        (p.userData.jets = p.userData.jets || []).push(jg);
       }
       for (const x of [-1, 1]) vents(h, toon(INK), 3, 0.05, 0.014, [0, 0, x * 0.061], [0, 0, 0]);
-      z = 0.47; break;
+      z = 0.66; break;
     }
     // Overload Lance, after capacitor-fed plasma lance references: a chamfered receiver with capacitor tubes riding
     // its flanks, a long stepped barrel ringed by staged capacitor collars that glow, conduits along it, and a
@@ -1580,15 +1699,18 @@ function buildMech(m, owner, doctrine, opt) {
   const style = doctrine === 'armored' ? 'armored' : doctrine === 'experimental' ? 'experimental' : 'assault';
   const S = m.slots, Dd = DEFS();
   const root = new T.Group();
-  const R = { root, slots: {}, muzzles: {}, arms: {}, sparks: [], style, owner, kneel: isKO(S.legs) };
+  const R = { root, slots: {}, muzzles: {}, arms: {}, joints: { root }, sparks: [], style, owner, kneel: isKO(S.legs) };
   const tag = (obj, key) => { obj.traverse(o => { if (o.isMesh && !o.userData.outline) o.userData.slot = key; }); (R.slots[key] = R.slots[key] || []).push(obj); };
   const legsG = new T.Group(); root.add(legsG);
   buildLegs(R, legsG, S.legs ? S.legs.id : null, tc, style, !S.legs);
   if (S.legs || opt.ghosts) tag(legsG, 'legs');
   if (!S.legs && !opt.ghosts) legsG.visible = false;
   if (isHurt(S.legs)) R.sparks.push(legsG);
-  const hips = new T.Group(); hips.position.y = R.hipY; root.add(hips); R.hips = hips;
-  const torso = new T.Group(); hips.add(torso); R.torso = torso;
+  R.joints.legs = legsG;
+  if (R.kind === 'biped') R.legs.forEach(hip => { const sd = SIDE(hip.position.x); R.joints['thigh.' + sd] = hip; R.joints['shin.' + sd] = hip.userData.knee; R.joints['foot.' + sd] = hip.userData.ankle; });
+  if (R.quad) R.quad.legs.forEach((L, i) => { const n = ['FL', 'FR', 'BR', 'BL'][i]; R.joints['coxa.' + n] = L.coxa; R.joints['femur.' + n] = L.femur; R.joints['tibia.' + n] = L.tibia; R.joints['foot.' + n] = L.ankle; });
+  const hips = new T.Group(); hips.position.y = R.hipY; root.add(hips); R.hips = R.joints.pelvis = hips;
+  const torso = new T.Group(); hips.add(torso); R.torso = R.joints.spine = torso;
   const fid = S.torso ? S.torso.id : 'b_torso';
   const [w0, h0, dp] = FRAME_DIM[fid] || FRAME_DIM.b_torso;
   const h = h0 * (style === 'armored' ? 1.2 : 1);   // armoured hulls stand tall, like a dreadnought sarcophagus
@@ -1607,7 +1729,7 @@ function buildMech(m, owner, doctrine, opt) {
     const htype = HEAD_TYPE[fid];
     if (htype !== 'none') {
       const hz = style === 'armored' ? 0.02 : 0, boxes = frameBoxes(frame);
-      const hd = new T.Group(); hd.position.set(0, restTop(boxes, -0.06, 0.06, hz - 0.06, hz + 0.07, 0.08 + h) + 0.004, hz); frame.add(hd); R.head = hd;
+      const hd = new T.Group(); hd.position.set(0, restTop(boxes, -0.06, 0.06, hz - 0.06, hz + 0.07, 0.08 + h) + 0.004, hz); frame.add(hd); R.head = R.joints.head = hd;
       let eye = buildHead(hd, tc, style);
       if (shapeHead(hd, tc, style, htype, h) === null) eye = null;
       if (eye) R.monoEye = eye;
@@ -1634,12 +1756,17 @@ function buildMech(m, owner, doctrine, opt) {
   // arms: upper arm, elbow, forearm with a plate, and the weapon in hand (or on the shoulder)
   root.updateMatrixWorld(true);
   const sideBoxes = S.torso ? frameBoxes(frame) : [];
+  // a two-handed weapon (the Meteor Hammer) is held in both fists: the empty arm is built too, as its second hand
+  const twoKey = ['armL', 'armR'].find(k => S[k] && !isKO(S[k]) && Dd[S[k].id].weapon && Dd[S[k].id].weapon.twoHanded);
+  const offKey = twoKey ? (twoKey === 'armL' ? 'armR' : 'armL') : null;
+  if (twoKey && !S[offKey]) R.twoHand = { main: twoKey, off: offKey };
   for (const [key, sx] of [['armL', -1], ['armR', 1]]) {
     const armHalf = style === 'armored' ? 0.066 : style === 'experimental' ? 0.042 : 0.044;
     const bodyX = S.torso ? sideExtent(sideBoxes, cy - h * 0.5, cy + h * 0.32, w / 2) : w / 2;
     const shX = Math.max(w / 2 + 0.055, bodyX + armHalf + 0.012);
-    const sh = new T.Group(); sh.position.set(sx * shX, cy + h * 0.3, 0); torso.add(sh);
-    const inst = S[key];
+    const sh = new T.Group(); sh.position.set(sx * shX, cy + h * 0.3, 0); torso.add(sh); R.joints['shoulder.' + SIDE(sx)] = sh;
+    const offHand = !!(R.twoHand && key === R.twoHand.off);
+    const inst = offHand ? S[R.twoHand.main] : S[key];
     const sk = fid === 't_skirm' ? k * 0.6 : k;
     if (S.torso) shoulderSocket(sh, sx, tc, sk, shX - bodyX);
     if (!inst) {
@@ -1647,7 +1774,7 @@ function buildMech(m, owner, doctrine, opt) {
       tag(sh, key);
       continue;
     }
-    if (isKO(inst)) {
+    if (isKO(inst) && !offHand) {
       mesh(cyl(0.028, 0.034, 0.05, 8), toon(INK), sh, [0, -0.04, 0]);
       R.sparks.push(sh); tag(sh, key);
       continue;
@@ -1655,26 +1782,41 @@ function buildMech(m, owner, doctrine, opt) {
     const def = Dd[inst.id], cat = def.cat;
     armShoulder(sh, sx, tc, style, inst.id, sk);
     const ak = style === 'armored' ? 1.45 : style === 'experimental' ? 0.85 : 1;
-    const arm = new T.Group(); sh.add(arm);
-    if (style === 'assault') mesh(profile('as-uarm', 0.064, [[-0.034, 0.0], [0.034, 0.0], ['q', 0.04, -0.075, 0.034, -0.15], [-0.034, -0.15], ['q', -0.04, -0.075, -0.034, 0.0]], 0.012), toon(tc.main), arm);
-    else mesh(wedge(0.065 * ak, 0.15, 0.075 * ak, 1.15, 1.1), toon(style === 'experimental' ? tc.second : tc.main), arm, [0, -0.075, 0]);
-    mesh(cyl(0.007, 0.007, 0.12, 5), toon(tc.metal), arm, [sx * 0.035 * ak, -0.08, -0.02], null, flat);
+    const arm = new T.Group(); sh.add(arm); R.joints['arm.' + SIDE(sx)] = arm;
+    // the rig sizes the arm to the body: long enough that both hands can meet a hand-span above the shoulders, so a
+    // broad hull gets longer arms. The plating stretches along the bone; joints, fists and weapons keep their size
+    const reach = Math.max(ARM_L1 + ARM_L2, ARM_REACH * Math.hypot(shX, ARM_SPAN)), ks = reach / (ARM_L1 + ARM_L2);
+    const upper = new T.Group(); upper.scale.y = ks; arm.add(upper);
+    if (style === 'assault') mesh(profile('as-uarm', 0.064, [[-0.034, 0.0], [0.034, 0.0], ['q', 0.04, -0.075, 0.034, -0.15], [-0.034, -0.15], ['q', -0.04, -0.075, -0.034, 0.0]], 0.012), toon(tc.main), upper);
+    else mesh(wedge(0.065 * ak, 0.15, 0.075 * ak, 1.15, 1.1), toon(style === 'experimental' ? tc.second : tc.main), upper, [0, -0.075, 0]);
+    mesh(cyl(0.007, 0.007, 0.12, 5), toon(tc.metal), upper, [sx * 0.035 * ak, -0.08, -0.02], null, flat);
     // Assault stands at ease: arms hang a little out from the body, elbows slightly bent, guns held low. Only a gun
     // in the hand on walking legs, though: a weapon built onto the forearm, or a hull riding low on tracks, a hover
     // skirt or a quad hub, would carry it down into the legs, so those hold the forearm up like everyone else
     const atEase = style === 'assault' && HANDHELD.has(inst.id) && cat !== 'melee' && R.kind === 'biped';
     const rest = atEase ? -0.85 : -Math.PI / 2;
     if (style === 'assault') arm.rotation.z = sx * 0.14;
-    const el = new T.Group(); el.position.y = -0.15; el.rotation.x = rest; arm.add(el);
+    const el = new T.Group(); el.position.y = -ARM_L1 * ks; el.rotation.x = rest; arm.add(el); R.joints['elbow.' + SIDE(sx)] = el;
     mesh(sph(0.036 * ak, 8), toon(tc.dark), el, [0, 0, 0]);
-    if (style === 'assault') mesh(profile('as-farm', 0.082, [[-0.038, -0.01], [0.036, -0.01], ['q', 0.054, -0.07, 0.05, -0.14], [-0.046, -0.145], ['q', -0.054, -0.07, -0.038, -0.01]], 0.012), toon(tc.main), el);
-    else mesh(wedge(0.08 * ak, 0.14, 0.09 * ak, 1.2, 1.15), toon(style === 'armored' ? tc.second : tc.main), el, [0, -0.075, 0]);
-    mesh(wedge(0.07 * ak, 0.09, 0.022, 1.1, 1), toon(style === 'assault' ? tc.second : style === 'armored' ? tc.accent : tc.accent), el, [sx * 0.0, -0.07, 0.048 * ak]);
-    mesh(box(0.05 * ak, 0.04, 0.05 * ak), toon(tc.dark), el, [0, -0.152, 0]);
-    if (style === 'experimental') mesh(box(0.006, 0.1, 0.006), glow(tc.glow), el, [sx * 0.04, -0.07, 0.02], null, flat);
-    const hand = new T.Group(); hand.position.y = -0.165; hand.rotation.x = Math.PI / 2; el.add(hand);
+    const fore = new T.Group(); fore.scale.y = ks; el.add(fore);
+    if (style === 'assault') mesh(profile('as-farm', 0.082, [[-0.038, -0.01], [0.036, -0.01], ['q', 0.054, -0.07, 0.05, -0.14], [-0.046, -0.145], ['q', -0.054, -0.07, -0.038, -0.01]], 0.012), toon(tc.main), fore);
+    else mesh(wedge(0.08 * ak, 0.14, 0.09 * ak, 1.2, 1.15), toon(style === 'armored' ? tc.second : tc.main), fore, [0, -0.075, 0]);
+    mesh(wedge(0.07 * ak, 0.09, 0.022, 1.1, 1), toon(style === 'assault' ? tc.second : style === 'armored' ? tc.accent : tc.accent), fore, [sx * 0.0, -0.07, 0.048 * ak]);
+    if (style === 'experimental') mesh(box(0.006, 0.1, 0.006), glow(tc.glow), fore, [sx * 0.04, -0.07, 0.02], null, flat);
+    mesh(box(0.05 * ak, 0.04, 0.05 * ak), toon(tc.dark), el, [0, -0.152 * ks - 0.013 * (ks - 1), 0]);
+    const hand = new T.Group(); hand.position.y = -ARM_L2 * ks; hand.rotation.x = Math.PI / 2; el.add(hand); R.joints['hand.' + SIDE(sx)] = hand;
     const onShoulder = cat === 'missile' || cat === 'artillery' || inst.id === 's_railgun';
     let wg = hand;
+    // the second hand on a two-handed haft: a bare fist, arm angled in across the chest to meet the haft
+    if (offHand) {
+      const fm = style === 'armored' ? tc.second : tc.dark;
+      mesh(box(0.05, 0.05, 0.055), toon(fm), hand, [0, 0, 0.02]);
+      mesh(box(0.054, 0.018, 0.026), toon(tc.metal), hand, [0, 0.022, 0.044]);
+      arm.rotation.z = -sx * TWO_HAND.armZ; arm.rotation.y = -sx * TWO_HAND.armY; el.rotation.x = TWO_HAND.offRest;
+      R.arms[key] = { sh, arm, el, rest: TWO_HAND.offRest, off: true, z0: arm.rotation.z, sx, q0: arm.quaternion.clone(), L1: ARM_L1 * ks, L2: ARM_L2 * ks };
+      tag(sh, key);
+      continue;
+    }
     if (onShoulder) { wg = new T.Group(); wg.position.set(sx * 0.01, 0.09, -0.02); sh.add(wg); }
     else if (HANDHELD.has(inst.id)) {
       // a fist closed round the grip: guns ride above it, barrel forward; a blade is held by its hilt and raised
@@ -1683,17 +1825,42 @@ function buildMech(m, owner, doctrine, opt) {
       mesh(box(0.054, 0.018, 0.026), toon(tc.metal), hand, [0, 0.022, 0.044]);
       mesh(box(0.016, 0.03, 0.032), toon(fm), hand, [sx * 0.031, 0.006, 0.028]);
       wg = new T.Group(); hand.add(wg);
-      if (cat === 'melee') { wg.position.set(0, 0.0, -0.005); wg.rotation.x = -0.55; }
+      if (R.twoHand && key === R.twoHand.main) {
+        // the haft rises from the low fist across the body, the head up by the other shoulder
+        wg.position.set(0, 0, -0.01); wg.rotation.set(TWO_HAND.wgX, sx * TWO_HAND.wgY, 0);
+        arm.rotation.z = -sx * TWO_HAND.mainZ; el.rotation.x = TWO_HAND.mainRest;
+      } else if (cat === 'melee') { wg.position.set(0, 0.0, -0.005); wg.rotation.x = -0.55; }
       else { wg.position.set(0, 0.048, -0.05); mesh(box(0.024, 0.06, 0.03), toon(KIT.body), wg, [0, -0.04, 0.072], [0.3, 0, 0]); }
     }
-    R.muzzles[key] = { o: buildWeapon(wg, inst.id, tc, sx), id: inst.id, cat: cat || 'ballistic', spin: wg.userData.spin || null };
+    R.muzzles[key] = { o: buildWeapon(wg, inst.id, tc, sx), id: inst.id, cat: cat || 'ballistic', spin: wg.userData.spin || null, jets: wg.userData.jets || null };
     wg.userData.weapon = true;
-    R.arms[key] = { sh, arm, el, rest };
+    if (wg !== hand) R.joints['grip.' + SIDE(sx)] = wg;
+    R.arms[key] = { sh, arm, el, rest: R.twoHand && key === R.twoHand.main ? TWO_HAND.mainRest : rest, z0: arm.rotation.z, wg, sx, q0: arm.quaternion.clone(), L1: ARM_L1 * ks, L2: ARM_L2 * ks };
     tag(sh, key);
     if (isHurt(inst)) R.sparks.push(sh);
   }
+  // a two-handed weapon leaves the hand for the control joint on the chest; from here on the weapon is posed by the
+  // hammer's grip poses and both hands follow it
+  if (R.twoHand && R.arms[R.twoHand.main] && R.arms[R.twoHand.off]) {
+    root.updateMatrixWorld(true);
+    const a = R.arms[R.twoHand.main], ctrl = a.wg; torso.attach(ctrl); delete R.joints['grip.' + SIDE(a.sx)];
+    R.joints.control = ctrl;
+    R.ctrl = { j: ctrl, shY: a.sh.position.y, sx: a.sx };
+    hammerPose(R, 0);
+  } else R.twoHand = null;
+  // a two-handed weapon is carried from a wide, low stance
+  if (R.twoHand && R.kind === 'biped' && R.rig && R.legs.length === 2) {
+    R.stance = { crouch: TWO_HAND.crouch, splay: TWO_HAND.splay };
+    const rg = R.rig;
+    R.legs.forEach((hip, i) => {
+      hip.position.y = rg.hipH - 0.015 - R.stance.crouch;
+      const shin = legIK(hip, rg.sole - hip.position.y, 0, rg.L1, rg.L2);
+      const sp = Math.sign(hip.position.x || (i ? 1 : -1)) * R.stance.splay; hip.rotation.z = sp;
+      if (hip.userData.ankle) { hip.userData.ankle.rotation.x = -shin; hip.userData.ankle.rotation.z = -sp; }
+    });
+  }
   // backpack and aux systems
-  const bp = new T.Group(); bp.position.set(0, cy + h * 0.1, -dp / 2 - 0.02); torso.add(bp);
+  const bp = new T.Group(); bp.position.set(0, cy + h * 0.1, -dp / 2 - 0.02); torso.add(bp); R.joints.pack = bp;
   if (S.torso) {
     buildPack(bp, tc, style, w, h, R);
     const n = S.torso ? (Dd[S.torso.id].auxSlots || 0) : 0;
@@ -1736,6 +1903,8 @@ function buildMech(m, owner, doctrine, opt) {
   const foot = Math.max(bs.x, bs.z);
   if (foot > 0) scale = Math.min(scale, 0.8 / foot);
   root.scale.setScalar(scale);
+  rigRest(R);
+  rigHands(R);
   return R;
 }
 function signature(m) {
@@ -2833,8 +3002,16 @@ const FIRE = {
   w_blade: { wind: 0.6, pose: 'pull', charge: { col: 0xff9adf, size: 1.2 }, impact: 'slash', melee: true,
     fire: c => { slash(c.to, 0xff9adf, 0.02, false); slash(c.to, 0xffffff, 0.1, true); slash(c.to, 0xff9adf, 0.18, false); return 0.2; } },
   // the hammer's rockets light as it winds up, then it comes down with a fireball and a hard shake
-  s_hammer: { wind: 0.8, pose: 'pull', charge: { col: 0xff8a3a, size: 1.8, flame: true }, impact: 'crush', melee: true,
-    fire: c => { slash(c.to, 0xffb060, 0.02, false); slash(c.to, 0xffffff, 0.08, true); schedule(0.16, () => { fireball(c.to.clone(), 0.5); shockRing(c.to.clone().setY(0.05), 0xffb060, 0.6, 0.4); shake(0.18); }); return 0.2; } },
+  s_hammer: { wind: HAMMER_CLIP.wind, pose: 'overhead', leap: true, charge: { col: 0xff8a3a, size: 1.8, flame: true }, impact: 'crush', melee: true,
+    fire: c => {
+      if (c.att) c.att.slamT = clock();
+      // the strike plays out first: the blast goes off when the head meets the ground, where it lands
+      schedule(hammerHit(), () => {
+        const p = c.att && !c.att.gone ? muzzleWorld(c.att, 'melee', c.f && c.f.key) : c.to.clone(); p.y = 0.05;
+        fireball(p.clone().setY(0.14), 0.5); shockRing(p.clone(), 0xffb060, 0.6, 0.4); dust(p.clone(), 10, 0.3, 0.7); shake(0.18);
+      });
+      return hammerHit();
+    } },
   // a lance overloaded: a long charge, then a thick beam with arcs crawling down it
   s_overload: { wind: 1.3, pose: 'brace', long: true, charge: { col: 0x9fd8ff, size: 3.2, coil: true, ring: true }, impact: 'pierce',
     fire: c => { longShot(c, 0x9fd8ff, 0.7); beam(c.from, c.to, 0x7fd0ff, 0.13, 0.8); beam(c.from, c.to, 0xffffff, 0.05, 0.6); beamArcs(c.from, c.to, 0xbfe8ff, 0.95, 0.24, 6); c.kick(2.2); return 0.06; } },
@@ -2862,7 +3039,7 @@ function backBlast(c, o) {
   for (let i = 0; i < 4; i++) BD.parts.spawn({ pos: o.clone(), vel: back.clone().multiplyScalar(rand(0.3, 0.8)).add(new T.Vector3(rand(-0.2, 0.2), rand(0.05, 0.3), rand(-0.2, 0.2))), add: false, life: rand(1.6, 2.6), size: 0.1, size1: 0.45, color: 0xd8d4ce, color1: 0x8f8a84, op: 0.55, op1: 0, drag: 0.45 });
 }
 // seconds from the shot leaving the muzzle to the impact, per weapon
-const FLIGHT = { s_hammer: 0.2, s_overload: 0.06, b_gun: 0.3, w_smg: 0.38, w_gatling: 0.62, w_scatter: 0.16, w_rail: 0.06, s_railgun: 0.06, w_missile: 0.95, w_howitzer: 0.88, w_laser: 0.06, w_lance: 0.06, w_arc: 0.12, s_emp: 0.32, s_inferno: 0.5, s_cryo: 0.08, w_blade: 0.2, w_ram: 0.22, w_repair: 0.08 };
+const FLIGHT = { s_hammer: 0.3, s_overload: 0.06, b_gun: 0.3, w_smg: 0.38, w_gatling: 0.62, w_scatter: 0.16, w_rail: 0.06, s_railgun: 0.06, w_missile: 0.95, w_howitzer: 0.88, w_laser: 0.06, w_lance: 0.06, w_arc: 0.12, s_emp: 0.32, s_inferno: 0.5, s_cryo: 0.08, w_blade: 0.2, w_ram: 0.22, w_repair: 0.08 };
 // volleys, as the profiles above fire them: how many rounds, seconds between them, and each one's flight time
 const SALVO = { w_missile: [4, 0.1, 0.62], w_gatling: [12, 0.045, 0.12], w_smg: [6, 0.045, 0.12], b_gun: [3, 0.07, 0.14], turret: [3, 0.05, 0.16] };
 // fallbacks by weapon class, for anything without its own profile
@@ -2940,7 +3117,8 @@ function shoot(f, start, follow) {
     else if (cat === 'turret') { flash(from.clone(), 0xff7050, 0.35, wind); arcsAround(() => from, 0xff7050, wind); }
     reticle(tp(f.x1, f.y1), wind + 0.3);
   });
-  if (P && P.melee && att) att.lunge = { t0: clock() + start + wind - 0.12, to };
+  // a leaping weapon carries the body through its own clip; other melee weapons lunge
+  if (P && P.melee && att) { if (P.leap) att.leap = to.clone(); else att.lunge = { t0: clock() + start + wind - 0.12, to }; }
   let travel = 0.2;
   // the flight time is known up front for each profile, so impacts and damage numbers line up
   const est = FLIGHT;
@@ -3453,6 +3631,18 @@ function updateRec(rec, t, dt) {
   }
   if (!rec.walk && !rec.leave) root.position.copy(rec.pos);
   if (lungeOff) root.position.add(lungeOff);
+  // the two-handed hammer's leaping slam, after hammer-attack references: a crouch, a spring into the air with the
+  // hammer raised overhead and the knees tucked, then it drops onto the target with the blow and sinks into a landing
+  if (R.ctrl) {
+    const H = HAMMER_CLIP;
+    let sc = 0;
+    if (rec.wind && rec.wind.pose === 'overhead') sc = Math.min(1, (t - rec.wind.t0) / rec.wind.dur) * H.wind;
+    if (rec.slamT != null) { sc = H.wind + Math.max(0, t - rec.slamT); if (sc >= H.end) { rec.slamT = null; rec.leap = null; sc = 0; } }
+    const b = hammerPose(R, sc);
+    y += b.lift; lean += b.lean;
+    (rec.gait || (rec.gait = {})).crouch = b.crouch;
+    if (rec.leap && b.fwd) root.position.add(rec.leap.clone().sub(rec.pos).setY(0).multiplyScalar(b.fwd * 0.55));
+  }
   // turning
   if (rec.faceT != null) {
     let d = rec.faceT - rec.face; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
@@ -3561,6 +3751,7 @@ function updateRec(rec, t, dt) {
   // weapons: recoil and spinning barrels
   for (const k in R.arms) {
     const a = R.arms[k];
+    if (R.twoHand) continue;
     let rx = 0;
     if (rec.recoil && rec.lastArm === k) { const q = (t - rec.recoil) / (0.22 + 0.06 * amp); if (q < 1) rx = Math.sin(q * Math.PI) * 0.3 * (0.7 + 0.5 * amp); }
     // the wind-up on the arm that is about to fire: cocked back, lifted, or trembling as it charges
@@ -3587,6 +3778,7 @@ function updateRec(rec, t, dt) {
   if (R.core && R.coreLive && !rec.charging) R.core.scale.setScalar(1 + 0.15 * Math.sin(t * 4 + rec.phase));
   root.position.y = y;
   if (!rec.dying && !rec.strip) R.torso.rotation.x = lean;
+  rigHands(R);
   // brace shield shimmer
   if (rec.braceT && t - rec.braceT < 0.7) { const q = (t - rec.braceT) / 0.7; rec.bubble.material.opacity = 0.6 * (1 - q); rec.bubble.scale.setScalar(0.8 + q * 0.3); }
   else rec.bubble.material.opacity = rec.m && rec.m.braced ? 0.12 : 0;
@@ -3768,6 +3960,21 @@ R3.partShot = function (id, doctrine, owner) {
   PART_SHOTS[ck] = R3.snapshot(L, style, owner || 0, { w: 200, h: 140, only: want, rot: d.slot === 'arm' ? 1.15 : d.slot === 'legs' ? 0.7 : 0.6 });
   return PART_SHOTS[ck];
 };
+// a mech record from a loadout of part ids, at full health
+function loadoutMech(L, owner) {
+  const D = DEFS(), mk = id => (id ? { id, hp: D[id].hp } : null);
+  return { owner: owner || 0, slots: { torso: mk(L.torso), core: mk(L.core), legs: mk(L.legs), armL: mk(L.armL), armR: mk(L.armR), aux: (L.aux || []).map(mk) } };
+}
+// the rig a loadout is built on, for building animations: its joints and where each sits on its parent, and any mesh
+// hung straight off the root instead of a joint (there should be none)
+R3.rig = function (L, doctrine, owner) {
+  const R = buildMech(loadoutMech(L, owner), owner || 0, doctrine, {}), loose = [];
+  R.root.children.forEach(o => { if (o.isMesh) loose.push(o.geometry && o.geometry.type); });
+  const at = {}; for (const n in R.rest) at[n] = R.rest[n].p.toArray().map(v => +v.toFixed(3));
+  return { kind: R.kind, joints: Object.keys(R.joints), at, loose, control: !!R.ctrl };
+};
+// the clips, open for tuning while comparing frames with their references
+R3.clips = { hammer: HAMMER_CLIP };
 R3.snapshot = function (L, doctrine, owner, opt) {
   opt = opt || {};
   try {
@@ -3780,18 +3987,22 @@ R3.snapshot = function (L, doctrine, owner, opt) {
       const holder = new T.Group(); scene.add(holder);
       PR = { renderer, scene, cam, holder, ink: { weight: 1.2 } };
     }
-    const D = DEFS();
-    const mk = id => (id ? { id, hp: D[id].hp } : null);
-    const m = { owner: owner || 0, slots: { torso: mk(L.torso), core: mk(L.core), legs: mk(L.legs), armL: mk(L.armL), armR: mk(L.armR), aux: (L.aux || []).map(mk) } };
     while (PR.holder.children.length) PR.holder.remove(PR.holder.children[0]);
-    const R = buildMech(m, owner || 0, doctrine, {});
+    const R = buildMech(loadoutMech(L, owner), owner || 0, doctrine, {});
     R.root.rotation.y = opt.rot != null ? opt.rot : 0.55;
     const sw = opt.w || 240, shh = opt.h || 300;
     PR.renderer.setSize(sw, shh, false); PR.cam.aspect = sw / shh; PR.cam.updateProjectionMatrix();
     // a slight stride and raised weapon arm so the pose reads as ready for battle
     if (R.legs[0] && R.kind === 'biped') { R.legs[0].rotation.x = -0.18; R.legs[1].rotation.x = 0.14; }
-    if (R.arms.armR && R.style !== 'assault') R.arms.armR.sh.rotation.x = -0.35;
+    if (R.arms.armR && R.style !== 'assault' && !R.twoHand) R.arms.armR.sh.rotation.x = -0.35;
+    // a frame of the hammer's clip (seconds from the start of the wind-up), for building and checking the animation
+    if (R.ctrl && opt.pose != null) {
+      const b = hammerPose(R, opt.pose);
+      R.root.position.y = b.lift; R.torso.rotation.x = b.lean;
+      if (R.kind === 'biped') { const st = { crouch: b.crouch }; gaitStep(st, R, 0, 0); R.hips.position.y += st.bob - (0.015 + b.crouch + (R.stance ? R.stance.crouch : 0)) * R.legsG.scale.y; }
+    }
     PR.holder.add(R.root);
+    rigHands(R);
     PR.scene.updateMatrixWorld(true);
     let bb;
     if (opt.only) {
@@ -3975,7 +4186,9 @@ function pvLoop() {
     PV.zoomK = (PV.zoomK || 1) + ((wide ? 1.75 : 1) - (PV.zoomK || 1)) * Math.min(1, dt * 2.5);
     const f = PV.frame, dist = (show ? Math.max(f.ht * 1.12, f.w * 1.05 / PV.cam.aspect) / tn * 1.15 : f.h / tn * (PV.view === 'front' ? 1.5 : 1.7)) * (show ? 1 : PV.zoomK);
     const el2 = PV.view === 'top' ? 1.35 : PV.view === 'iso' ? 0.62 : show ? 0.12 : 0.18, az = PV.view === 'front' || show ? 0 : 0.785;
-    PV.cam.position.set(f.c.x + Math.sin(az) * Math.cos(el2) * dist, f.c.y + Math.sin(el2) * dist, f.c.z + Math.cos(az) * Math.cos(el2) * dist); PV.cam.lookAt(f.c.x, show ? f.c.y : f.c.y * 0.8, f.c.z);
+    // the camera rises with a leap (the hammer's smash, a jump), so the body stays in the frame
+    PV.fy = (PV.fy || 0) + (Math.max(0, PV.R.root.position.y) * 0.75 - (PV.fy || 0)) * Math.min(1, dt * 6);
+    PV.cam.position.set(f.c.x + Math.sin(az) * Math.cos(el2) * dist, f.c.y + PV.fy + Math.sin(el2) * dist, f.c.z + Math.cos(az) * Math.cos(el2) * dist); PV.cam.lookAt(f.c.x, (show ? f.c.y : f.c.y * 0.8) + PV.fy, f.c.z);
     if (PV.ctx.shake > 0.002) { PV.cam.position.add(new T.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(PV.ctx.shake * 0.6)); PV.ctx.shake *= 0.86; }
     PV.renderer.render(PV.scene, PV.cam);
     inkPass(PV.renderer, PV.scene, PV.cam, PV.holder, PV.ink);
@@ -4050,7 +4263,7 @@ function pvAnimate(t, dt) {
   R.torso.rotation.set(0, 0, 0); R.hips.rotation.z = 0;
   let hipY = R.hipY, moving = false, crouch = 0, speed = 0;
   // rest pose first; each action then layers its own keyframes on top
-  for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; a.arm.rotation.z = R.style === 'assault' ? (k === 'armL' ? -0.14 : 0.14) : 0; a.el.rotation.x = a.rest != null ? a.rest : -Math.PI / 2; }
+  for (const k in R.arms) { const a = R.arms[k]; a.arm.rotation.x = -Math.sin(t * 1.3) * 0.03; a.arm.rotation.z = a.z0 != null ? a.z0 : R.style === 'assault' ? (k === 'armL' ? -0.14 : 0.14) : 0; a.el.rotation.x = a.rest != null ? a.rest : -Math.PI / 2; }
   if (R.legs && R.kind !== 'biped') R.legs.forEach(hip => { hip.rotation.x = 0; if (hip.userData.knee) hip.userData.knee.rotation.x = 0; });
   if (R.stakes && act !== 'entrench') R.stakes.forEach(st2 => { st2.g.rotation.z = 0; st2.g.position.y = -0.06; });
   PV.bubble.material.opacity = 0; PV.bubble.scale.setScalar(1);
@@ -4103,7 +4316,14 @@ function pvAnimate(t, dt) {
   } else if (act === 'melee') {
     // anticipation: crouch and coil away; the strike: lunge and sweep; follow-through: overswing, then recover
     const k = Object.keys(R.muzzles).find(kk => R.muzzles[kk].cat === 'melee' || R.muzzles[kk].cat === 'siege') || pvArmKey(R);
-    if (k) {
+    const H = HAMMER_CLIP;
+    if (k && R.ctrl) {
+      // the two-handed hammer's leaping smash, played from its clip
+      const b = hammerPose(R, Math.min(q, H.end));
+      root.position.y = b.lift; R.torso.rotation.x = b.lean; crouch = b.crouch; root.position.z = b.fwd * 0.3;
+      if (q >= H.wind) once('shot', () => { const mz = R.muzzles[k], P = FIRE[mz.id]; if (P && P.fire) P.fire({ att: pvAtt(), from: muzzleAt(k), to: muzzleAt(k), col: FX_COL.melee, dir: fwd, f: {}, jitter: () => muzzleAt(k), kick: () => {} }); });
+      if (q > H.end + 0.2) PV.act = 'idle';
+    } else if (k) {
       const a = R.arms[k], sd = side(k);
       R.torso.rotation.y = kf(q, [[0, 0], [0.32, 0.75 * sd, 'in'], [0.44, -0.85 * sd, 'out'], [0.7, -0.55 * sd], [1.25, 0]]);
       a.arm.rotation.x = kf(q, [[0, 0], [0.32, 0.9, 'in'], [0.44, -1.5, 'out'], [0.62, -1.1], [1.25, 0]]);
@@ -4214,6 +4434,7 @@ function pvAnimate(t, dt) {
     if (g) { R.legsG.position.set(g.hubX, g.hubY, g.hubZ); R.hips.position.x = g.bodyX; R.hips.position.z = g.bodyZ; hipY += g.bob - st.crouch * R.legsG.scale.y; R.hips.rotation.z += g.roll; R.hips.rotation.x = g.pitch; R.torso.rotation.y += g.yaw; }
   } else hipY -= crouch * (R.legsG ? R.legsG.scale.y : 1);
   if (R.hips) R.hips.position.y = hipY + (moving ? 0 : Math.sin(t * 1.6) * 0.004);
+  if (R.ctrl) { if (act !== 'melee') hammerPose(R, 0); rigHands(R); }
   if (R.head) R.head.rotation.y = Math.sin(t * 0.9) * 0.3 + R.torso.rotation.y * -0.4;
   if (R.halo) R.halo.rotation.z = t * 0.7;
   if (R.gyro) { R.gyro.rotation.y = t * 1.1; R.gyro.rotation.x = 0.4 * Math.sin(t * 0.7); }

@@ -2321,7 +2321,11 @@ function lessonPlace(pid, m, x, y) {
 }
 const lessonCard = (pid, id) => { const c = mk(id); S.players[pid].workshop.push(c); return c; };
 
+// the game's version, shown on the main menu and written into exported war logs. Bump it with each release
+const VERSION = '0.9.0';
+
 const api = {
+  VERSION,
   lessonMech, lessonPlace, lessonCard, startCombat, startBuildPhase,
   PERSONAS, DOCTRINE_COMMANDERS, aiW,
   getAIMemory() { return AIMEM; },

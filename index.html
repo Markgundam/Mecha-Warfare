@@ -47,7 +47,8 @@ h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; letter-spacing: 
 .stack { display: flex; flex-direction: column; gap: 12px; }
 
 /* Start screen */
-#start { height: 100%; overflow-y: auto; display: flex; flex-direction: column; padding-block: 16px; }
+#start { height: 100%; overflow-y: auto; display: flex; flex-direction: column; padding-block: 16px; position: relative; }
+#ver { position: absolute; top: 12px; right: 16px; margin: 0; font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; pointer-events: none; }
 #start > .menu { margin-block: auto; }
 .menu { display: flex; flex-direction: column; gap: 18px; width: 100%; max-width: 760px; margin: 0 auto; }
 .modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -1563,6 +1564,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 
 <div id="app">
   <section id="start">
+    <p id="ver" aria-label="Game version"></p>
     <div id="menu" class="menu">
       <div>
         <h1>Mecha <span>Warfare</span></h1>
@@ -1875,6 +1877,7 @@ function uiPhase() {
   return st === 'draw' ? 'draw' : st === 'done' ? 'wait' : 'build';
 }
 const R3on = !!(window.R3 && window.R3.ok);
+document.getElementById('ver').textContent = 'v' + MW.VERSION;
 let FXLEVEL = 'full';
 try { FXLEVEL = localStorage.getItem('mw-fx') === 'low' ? 'low' : 'full'; } catch (e) { /* storage unavailable */ }
 if (R3on) window.R3.setLevel(FXLEVEL);
@@ -2452,7 +2455,7 @@ function exportSimLog(id) {
   let rec = null;
   try { rec = JSON.parse(localStorage.getItem(SIMLOG(id)) || 'null'); } catch (e) { /* unreadable */ }
   if (!rec || !rec.head) return toast('No log was kept for that war.');
-  const out = { format: 'mecha-warfare-simlog', v: 1, exportedAt: new Date().toISOString(), host: location.host || 'file', head: rec.head,
+  const out = { format: 'mecha-warfare-simlog', v: 1, version: MW.VERSION, exportedAt: new Date().toISOString(), host: location.host || 'file', head: rec.head,
     rounds: Object.keys(rec.rounds).map(Number).sort((a, b) => a - b).map(r => rec.rounds[r]), aiMemory: MW.getAIMemory() };
   const blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }), url = URL.createObjectURL(blob);
   const a = document.createElement('a');
