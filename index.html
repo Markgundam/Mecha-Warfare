@@ -60,6 +60,17 @@ body.first .mode.train { order: -1; border-color: var(--good); }
 .snd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .snd-sl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .snd-sl input { width: 110px; accent-color: var(--accent); }
+.lessons { display: flex; flex-direction: column; gap: 8px; }
+.lesson { display: flex; align-items: center; gap: 12px; padding: 10px 12px; text-align: left; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 4px; }
+.lesson .ln { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); font-family: var(--mono); font-weight: 700; }
+.lesson .lt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lesson .lt small { color: var(--muted); font-size: 13px; line-height: 1.3; }
+.lesson .ls { flex: none; font-size: 13px; color: var(--muted); }
+.lesson.done .ln { background: var(--good); color: var(--bg); border-color: var(--good); }
+.lesson.done .ls { color: var(--good); }
+.lesson.next { border-color: var(--accent); }
+.lesson.next .ls { color: var(--accent); font-weight: 700; }
+.lesson-done p { margin: 6px 0 12px; }
 /* the training coach: a card that says what to do next, and a pulse on what to tap */
 #coach, #fnote { position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 34; width: min(440px, calc(100vw - 24px)); background: #16202a; color: #e7eef3; border: 1px solid #33424f; border-left: 4px solid var(--good); border-radius: 4px; padding: 9px 12px 8px; box-shadow: 0 8px 22px rgba(0,0,0,.4); font-size: 14px; line-height: 1.4; }
 #coach.low { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
@@ -1569,6 +1580,11 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
       <p class="note">Every battle is saved as you play. Continue one that is still going, or open a finished one to look over the battlefield.</p>
       <div class="netlist" id="recent-list"></div>
     </div>
+    <div id="lessons" class="menu" hidden>
+      <div class="phead"><h2>Training</h2><button type="button" class="btn sm" data-act="toStart">Back</button></div>
+      <p class="note">Short lessons, one part of the game at a time, each against a training dummy that stands still. Play them in order, or jump to any one. The last is a guided first battle.</p>
+      <div class="lessons" id="lesson-list"></div>
+    </div>
     <div id="balance" class="menu" hidden>
       <div class="phead"><h2>Balance check</h2><button type="button" class="btn sm" data-act="toStart">Back</button></div>
       <p class="note">Plays quick AI vs AI wars out of sight: every doctrine pair on every map, sides swapped, commanders drawn as usual and playing with what they have learned so far. Nothing they learn here is kept, and your games are untouched.</p>
@@ -2369,7 +2385,7 @@ function queueEnd() {
 async function saveHistory() {
   try {
     await netReady;
-    if (!NETDB || !ME || !S) return;
+    if (!NETDB || !ME || !S || S.lesson) return;
     const st = S, sum = gameSummary(st);
     await NETDB.doc('data/users/' + ME + '/mw/history/' + sum.id).set(Object.assign(sum, {
       v: 2,
@@ -3134,7 +3150,7 @@ function notesSeen() { try { return JSON.parse(localStorage.getItem('mw-notes') 
 function tipsOff() { try { return localStorage.getItem('mw-tips') === 'off'; } catch (e) { return false; } }
 function renderNotes() {
   const old = document.getElementById('fnote');
-  const coaching = S && S.training && S.coach != null && S.coach < COACH.length;
+  const coaching = S && S.training && S.coach != null && S.coach < coachSteps().length;
   if (!S || $('#game').hidden || coaching || tipsOff() || S.phase === 'over' || !isHuman() || !$('#overlay').hidden) { if (old) old.remove(); return; }
   if (old) return;
   const seen = notesSeen(), n = NOTES.find(x => { try { return seen.indexOf(x.id()) < 0 && x.when(); } catch (e) { return false; } });
@@ -3149,31 +3165,152 @@ function noteDone(off) {
   el.remove();
   if (!off) setTimeout(renderNotes, 400);
 }
-function startTraining() {
-  MW.newGame({ map: 'open', players: [{ name: 'Azure', doctrine: 'assault', isAI: false }, { name: 'Ember', doctrine: 'armored', isAI: true, persona: 'recruit' }] });
-  MW.S.startedAt = Date.now(); MW.S.gameId = 'training-' + MW.S.startedAt; MW.S.training = true; MW.S.coach = 0;
-  ui.endShown = null; ui.histKey = null; ui.viewMeta = null;
-  showGame();
+/* ---------- Lessons: training one mechanic at a time, each a small set piece with one goal ---------- */
+const LESSONS_KEY = 'mw-lessons';
+const lessonsDone = () => { try { return JSON.parse(localStorage.getItem(LESSONS_KEY) || '[]') || []; } catch (e) { return []; } };
+const did = a => !!(ui.acts && ui.acts[a]);
+const mine = () => MW.S.mechs.filter(m => m.owner === 0), foes = () => MW.S.mechs.filter(m => m.owner === 1);
+const frame = () => MW.S.players[0].hangar[0];
+const lead = () => mine()[0];
+// a fresh board: Azure (you, Assault) against a training dummy that never moves or fires
+function lessonBoard() {
+  MW.newGame({ map: 'open', players: [{ name: 'Azure', doctrine: 'assault', isAI: false }, { name: 'Ember', doctrine: 'assault', isAI: true, persona: 'recruit' }] });
+  const st = MW.S; st.players[1].dummy = true; st.first = 0; st.current = 0;
+  return st;
+}
+// straight to combat, with only what the lesson places on the board
+function lessonField(place) {
+  const st = lessonBoard();
+  for (const p of st.players) { p.stage = 'done'; p.incoming = []; p.hangar = p.hangar.filter(MW.isBlank); }
+  place(st);
+  st.phase = 'deploy'; MW.startCombat();
+  return st;
+}
+const LESSONS = [
+  { id: 'cards', title: 'Drawing Cards', learn: 'Your Arsenal, your Workshop, and how to read a card.',
+    setup() { lessonBoard(); },
+    steps: [
+      { t: 'Every part you can fit comes from your <b>Arsenal</b>, your doctrine\'s own deck. Each round opens with new cards from it. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
+      { t: 'Cards wait in your <b>Workshop</b> until you fit them to a mech. Open the <b>Parts</b> tab to see them.', hl: '[data-act=wtab][data-tab=cards]', done: () => ui.wtab === 'cards' },
+      { t: 'Every card reads the same way. Top left: its type. Middle: its two key numbers (a weapon shows damage and range). Bottom left: its special rule. Bottom right: its weight in capacity pips. Tap <b>i</b> on a card to read all of it.', hl: '[data-act=partInfo]', done: () => did('partInfo') },
+      { t: 'Short of parts? <b>Requisition</b> one more card from the Arsenal for 1 build action, the wrench counter at the top. Try it.', hl: '[data-act=requisition]', done: () => did('requisition') },
+      { t: 'Tap <b>Add to Workshop</b> to take it.', hl: '[data-act=acceptDraw]', done: () => did('requisition') && uiPhase() !== 'draw' },
+      { t: 'The Workshop holds up to ' + C.WORKSHOP_MAX + ' cards. A card you will never use can be <b>scrapped</b> from its i details for a build action. Standard parts never run out.', next: 'Got it' }
+    ] },
+  { id: 'build', title: 'Build your First Mecha', learn: 'Chassis, legs and weapons, mounts, and build actions.',
+    setup() { const st = lessonBoard(), p = st.players[0]; MW.acceptDraw(p); p.hangar = p.hangar.filter(MW.isBlank); p.ep = p.epMax = 6; ui.hangarSel = frame() && frame().uid; },
+    steps: [
+      { t: 'This empty frame is a mech waiting to be built. Every mech needs a <b>chassis</b>, then <b>legs</b>, then a <b>weapon</b>. Tap the gold <b>+</b> on the chassis, then <b>Fit</b> one.', hl: '[data-act=plus]', done: () => !!frame().slots.torso },
+      { t: 'The chassis sets the mech\'s HP and armour and gives it two weapon mounts. Now fit <b>legs</b>: pick a card and tap its <b>Fit legs</b> button. Legs set how far it moves, and how heavy a chassis they can carry.', hl: '[data-act=install]', prefer: b => /Fit legs/.test(b.textContent), done: () => !!frame().slots.legs },
+      { t: 'Now a <b>weapon</b>: tap a <b>Fit L arm</b> or <b>Fit R arm</b> button. A weapon only fits a matching mount (Gun, Energy, Melee or Heavy) or a Universal one, so each card only offers the arms it fits.', hl: '[data-act=install]', prefer: b => /Fit [LR] arm/.test(b.textContent), done: () => !!(frame().slots.armL || frame().slots.armR) },
+      { t: 'Every fit costs <b>build actions</b>, the wrench counter at the top: most parts 1, big ones 2, specials 3. Up to ' + C.CARRY_MAX + ' unused actions carry over to the next round.', next: 'Got it' },
+      { t: 'Your mech is ready to fight once it shows no warnings. Fill its other arm too, if you like.', done: () => !MW.isBlank(frame()) && !MW.issues(frame()).length && MW.hasWeapon(frame()), next: 'Finish' }
+    ] },
+  { id: 'deploy', title: 'Deployment', learn: 'Moving mecha from the hangar onto the battlefield.',
+    setup() { const st = lessonBoard(); for (const p of st.players) { MW.acceptDraw(p); p.stage = 'done'; } st.phase = 'deploy'; st.current = 0; },
+    steps: [
+      { t: '<b>Deployment.</b> Built mecha wait in your hangar and only fight once deployed. Pick one from the strip.', hl: '.dchip, [data-act=pickDeploy]', done: () => ui.mode === 'deploy' || mine().length > 0 },
+      { t: 'The lit tiles beside your base are where it can land. Tap one.', done: () => mine().length > 0 },
+      { t: () => 'Your doctrine fields up to ' + MW.fieldMax(0) + ' mecha at once. Deploy a second one.', hl: '.dchip, [data-act=pickDeploy]', done: () => mine().length > 1 },
+      { t: 'Mecha left in the hangar stay safe, and can be refitted next round. Tap <b>End deployment</b>.', hl: '[data-act=endDeploy]', done: () => S.phase !== 'deploy' || S.current !== 0 }
+    ] },
+  { id: 'fire', title: 'Move and Fire', learn: 'Activations, actions, moving, hit chance and aiming.', combat: true,
+    setup() { lessonField(() => { MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_assault', legs: 'l_boost', armL: 'w_blade', armR: 'w_scatter' }), 1, 5); MW.lessonPlace(1, MW.lessonMech(1, { torso: 't_light', legs: 'b_legs', armL: 'b_gun' }), 5, 4); }); },
+    steps: [
+      { t: '<b>Combat.</b> Commanders take turns activating one mech at a time. Each mech has <b>2 actions</b>: a move is one, firing a weapon is one. Tap your mech.', done: () => (lead() && (ui.sel === lead().uid || S.active === lead().uid)) || !foes().length },
+      { t: 'The lit tiles show how far it can move. Its Scatter Cannon reaches 2 tiles: move to a tile within 2 of the training dummy.', done: () => (lead() && lead().moves > 0) || !foes().length },
+      { t: 'Pick a <b>weapon</b>. Enemies in reach light up with your chance to hit.', hl: '[data-act=weapon]', done: () => ui.mode === 'fire' || (lead() && Object.keys(lead().fired || {}).length > 0) || !foes().length },
+      { t: 'Tap the dummy, then choose where to aim. The <b>body</b> takes full damage. An <b>arm</b> or <b>legs</b> are harder to hit, but knock that part out.', done: () => (lead() && Object.keys(lead().fired || {}).length > 0) || !foes().length },
+      { t: 'Each round your mech gets its actions back. Keep firing until the dummy is destroyed.', done: () => !foes().length }
+    ] },
+  { id: 'capture', title: 'Capture Points', learn: 'Holding objectives and scoring victory points.', combat: true,
+    setup() { lessonField(() => { MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_skirm', legs: 'l_boost', armL: 'w_smg', armR: 'w_smg' }), 1, 1); }); },
+    steps: [
+      { t: 'A <b>radar</b> scores a victory point every round for whoever holds it when the round ends. Move your mech onto the radar at the top edge of the map.', done: () => S.objectives.some(o => o.type === 'radar' && lead() && lead().x === o.x && lead().y === o.y) || (S.players[0].vp || 0) > 0 },
+      { t: 'Use its last action to <b>brace</b>: it takes less damage until next round while it holds the point.', hl: '[data-act=brace]', done: () => (lead() && lead().activated) || (S.players[0].vp || 0) > 0 },
+      { t: 'The round ends with <b>Resolution</b>: held points score. Watch your points at the top.', wait: true, done: () => (S.players[0].vp || 0) > 0 },
+      { t: () => 'Points also come from <b>depots on the enemy half</b> (marked ★), from <b>destroying enemy mecha</b> and from <b>damaging the enemy base</b>. First to ' + C.VP_WIN + ' wins.', next: 'Got it' }
+    ] },
+  { id: 'base', title: 'Your Base', learn: 'The base turret, counter-battery fire, and why the base matters.', combat: true,
+    setup() { lessonField(() => { MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_light', legs: 'l_boost', armL: 'b_gun' }), 1, 0); const d = MW.lessonPlace(1, MW.lessonMech(1, { torso: 't_light', legs: 'b_legs', armL: 'b_gun' }), 2, 4); d.slots.torso.hp = 1; }); },
+    steps: [
+      { t: () => 'Your <b>base turret</b> covers the tinted area, ' + C.TURRET_RANGE + ' tiles around the base. When the round ends it fires on the closest enemy inside it.', next: 'Next' },
+      { t: 'It also <b>returns fire</b> on anything that shelled your base that round, however far away it stood. Shelling a base is never free.', next: 'Next' },
+      { t: () => 'If your base is destroyed you lose the war. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base scores you a point.', next: 'Next' },
+      { t: 'A training dummy has walked into your turret\'s reach. Hold your fire: tap <b>Hold with all remaining</b> and watch the turret finish it when the round ends.', hl: '[data-act=passAll]', done: () => !foes().length }
+    ] },
+  { id: 'battle', title: 'First Battle', learn: 'Everything together: a guided first round, then win the war.', battle: true,
+    setup() { MW.newGame({ map: 'open', players: [{ name: 'Azure', doctrine: 'assault', isAI: false }, { name: 'Ember', doctrine: 'armored', isAI: true, persona: 'recruit' }] }); },
+    steps: null }
+];
+const lessonOf = id => LESSONS.find(l => l.id === id);
+const coachSteps = () => (S && S.lesson && lessonOf(S.lesson) && lessonOf(S.lesson).steps) || COACH;
+function startLesson(id) {
+  const L = lessonOf(id) || LESSONS[0];
+  ui.acts = {}; ui.wtab = null; ui.sel = null; ui.hangarSel = null;
+  L.setup();
+  MW.S.startedAt = Date.now(); MW.S.gameId = 'training-' + MW.S.startedAt; MW.S.training = true; MW.S.coach = 0; MW.S.lesson = L.id;
+  ui.endShown = null; ui.histKey = null; ui.viewMeta = null; $('#overlay').hidden = true;
+  const keep = ui.hangarSel; showGame(); if (keep) ui.hangarSel = keep;
+  tick();
+}
+// the old way in still works: the full guided battle
+function startTraining() { startLesson('battle'); }
+// combat lessons skip the build and deploy in between rounds: there is nothing there to learn yet
+function lessonSkip() {
+  const L = S && S.lesson && lessonOf(S.lesson);
+  if (!L || !L.combat) return;
+  let g = 0;
+  while ((S.phase === 'build' || S.phase === 'deploy') && g++ < 30) {
+    if (S.phase === 'build') { for (const p of S.players) if (!p.isAI) { if (p.stage === 'draw') MW.acceptDraw(p); if (p.stage === 'build') MW.endBuild(p); } if (!MW.aiStep()) MW.finishBuildPhase(); }
+    else if (!S.players[S.current].isAI) MW.endDeploy(); else MW.aiStep();
+  }
+}
+function lessonComplete() {
+  if (!S || !S.lesson || S.lessonDone) return;
+  S.lessonDone = true;
+  const L = lessonOf(S.lesson);
+  try { const d = lessonsDone(); if (d.indexOf(L.id) < 0) { d.push(L.id); localStorage.setItem(LESSONS_KEY, JSON.stringify(d)); } } catch (e) { /* storage unavailable */ }
+  if (L.battle) return;   // the battle plays on to the end
+  snd('confirm');
+  const next = LESSONS[LESSONS.indexOf(L) + 1], o = $('#overlay');
+  o.innerHTML = '<div class="sheet lesson-done" role="dialog" aria-label="Lesson complete"><div class="phead"><h2>Lesson complete</h2></div>' +
+    '<p><b>' + (LESSONS.indexOf(L) + 1) + '. ' + L.title + '</b>: ' + L.learn + '</p>' +
+    (next ? '<p class="note">Next: <b>' + next.title + '</b>. ' + next.learn + '</p>' : '') +
+    '<div class="row">' + '<button type="button" class="btn ghost" data-act="lessons">All lessons</button>' +
+    (next ? '<button type="button" class="btn primary grow" data-act="lessonGo" data-id="' + next.id + '">Next lesson</button>' : '') + '</div></div>';
+  o.hidden = false;
+}
+function showLessons() {
+  showStart();
+  $('#menu').hidden = true; $('#lessons').hidden = false;
+  const done = lessonsDone(), nextId = (LESSONS.find(l => done.indexOf(l.id) < 0) || {}).id;
+  $('#lesson-list').innerHTML = LESSONS.map((l, i) => {
+    const st = done.indexOf(l.id) >= 0 ? 'done' : l.id === nextId ? 'next' : '';
+    return '<button type="button" class="lesson ' + st + '" data-act="lessonGo" data-id="' + l.id + '"><span class="ln">' + (i + 1) + '</span><span class="lt"><b>' + l.title + '</b><small>' + l.learn + '</small></span><span class="ls">' + (st === 'done' ? 'Done' : st === 'next' ? 'Start' : 'Play') + '</span></button>';
+  }).join('');
 }
 function coachEnd(done) {
   clearTimeout(ui.coachT);
   const el = document.getElementById('coach'); if (el) el.remove();
   document.querySelectorAll('.coach-hl').forEach(x => x.classList.remove('coach-hl'));
   if (done && S) {
-    S.coach = COACH.length;
+    S.coach = coachSteps().length;
+    if (S.lesson) lessonComplete();
     // what the training already taught needs no field note
     try { localStorage.setItem('mw-trained', '1'); const seen = notesSeen(); ['fit', 'doc-' + S.players[viewer()].doctrine, 'map-' + S.map].forEach(k => { if (seen.indexOf(k) < 0) seen.push(k); }); localStorage.setItem('mw-notes', JSON.stringify(seen)); } catch (e) { /* storage unavailable */ }
   }
 }
-function coachNext() { if (!S || S.coach == null) return; S.coach++; if (S.coach >= COACH.length) coachEnd(true); render(); }
+function coachNext() { if (!S || S.coach == null) return; S.coach++; if (S.coach >= coachSteps().length) coachEnd(true); render(); }
 function renderCoach() {
   document.querySelectorAll('.coach-hl').forEach(x => x.classList.remove('coach-hl'));
-  if (!S || !S.training || S.coach == null || S.coach >= COACH.length || $('#game').hidden) { const el = document.getElementById('coach'); if (el) el.remove(); return; }
+  const CS = coachSteps();
+  if (!S || !S.training || S.coach == null || S.coach >= CS.length || $('#game').hidden) { const el = document.getElementById('coach'); if (el) el.remove(); return; }
   // steps that are already done move on by themselves
   let guard = 0;
-  while (S.coach < COACH.length && COACH[S.coach].done && COACH[S.coach].done() && guard++ < COACH.length) S.coach++;
-  if (S.coach >= COACH.length) return coachEnd(true);
-  const st = COACH[S.coach];
+  while (S.coach < CS.length && CS[S.coach].done && CS[S.coach].done() && !CS[S.coach].next && guard++ < CS.length) S.coach++;
+  if (S.coach >= CS.length) return coachEnd(true);
+  const st = CS[S.coach];
   let el = document.getElementById('coach');
   if (!el) { el = document.createElement('div'); el.id = 'coach'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
   // the dock redraws on its own, so the coach checks back every half second
@@ -3191,10 +3328,14 @@ function renderCoach() {
     const a = el.getBoundingClientRect(), b = target.getBoundingClientRect();
     if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) el.classList.toggle('low');
   };
-  if (el.dataset.step === String(S.coach)) { place(); return; }
-  el.dataset.step = S.coach;
-  el.innerHTML = '<div class="ch"><b>Training</b> step ' + (S.coach + 1) + ' of ' + COACH.length + '</div><div' + (st.wait ? ' class="wait"' : '') + '>' + st.t + '</div>' +
-    '<div class="cr"><button type="button" data-act="coachSkip">Skip training</button>' + (st.next ? '<button type="button" class="go" data-act="coachNext">' + st.next + '</button>' : '') + '</div>';
+  const sig = S.coach + ':' + (!st.done || st.done());
+  if (el.dataset.step === sig) { place(); return; }
+  el.dataset.step = sig;
+  const L = S.lesson && lessonOf(S.lesson), head = L ? 'Lesson ' + (LESSONS.indexOf(L) + 1) + ' · ' + L.title : 'Training';
+  // a step with both a goal and a button only offers the button once the goal is met
+  const ready = !st.done || st.done();
+  el.innerHTML = '<div class="ch"><b>' + head + '</b> step ' + (S.coach + 1) + ' of ' + CS.length + '</div><div' + (st.wait ? ' class="wait"' : '') + '>' + (typeof st.t === 'function' ? st.t() : st.t) + '</div>' +
+    '<div class="cr"><button type="button" data-act="coachSkip">' + (L && !L.battle ? 'Leave lesson' : 'Skip training') + '</button>' + (st.next && ready ? '<button type="button" class="go" data-act="coachNext">' + st.next + '</button>' : '') + '</div>';
   place();
 }
 
@@ -3209,7 +3350,7 @@ function render() {
   if (R3on) mountHangar();
   ui.flash = null; ui.logN = S.logN || 0;
   renderCoach(); renderNotes();
-  saveGameLocal(S);
+  if (!S.lesson) saveGameLocal(S);
   const hk = gameId(S) + ':' + S.round + ':' + (S.phase === 'over');
   if (ui.histKey !== hk) { ui.histKey = hk; saveHistory(); }
   if (gameMode(S) === 'watch') simRecord();
@@ -3299,6 +3440,7 @@ function tick() {
   clearTimeout(ui.timer);
   S = MW.S;
   if (!S) return;
+  lessonSkip();
   if (S.phase === 'build') {
     // AI commanders build instantly; this screen then works on its own seat
     let guard = 0;
@@ -3384,15 +3526,18 @@ function onTile(x, y) {
 }
 function onAct(el) {
   const a = el.dataset.act;
+  (ui.acts = ui.acts || {})[a] = true;
+  if (a === 'lessons') { $('#overlay').hidden = true; return showLessons(); }
+  if (a === 'lessonGo') return startLesson(el.dataset.id);
   if (a === 'sndMute') { window.SFX.set('mute', !window.SFX.prefs.mute); el.textContent = 'Sound: ' + (window.SFX.prefs.mute ? 'off' : 'on'); if (!window.SFX.prefs.mute) { musicFor(); snd('confirm'); } return; }
   if (a === 'simSpeed') { ui.simSpeed = ui.simSpeed === 'fast' ? 'normal' : 'fast'; try { localStorage.setItem('mw-simspeed', ui.simSpeed); } catch (e) { /* storage unavailable */ } return tick(); }
   if (a === 'fxToggle') { FXLEVEL = FXLEVEL === 'low' ? 'full' : 'low'; window.R3.setLevel(FXLEVEL); try { localStorage.setItem('mw-fx', FXLEVEL); } catch (e) { /* storage unavailable */ } if (!$('#overlay').hidden) showBattleMenu(); return renderTop(); }
   if (a === 'rules') { ui.ruleTab = 0; return showRules(); }
   if (a === 'recent') return showRecent();
   if (a === 'balance') return showBalance();
-  if (a === 'training') { $('#overlay').hidden = true; return startTraining(); }
+  if (a === 'training') { $('#overlay').hidden = true; return showLessons(); }
   if (a === 'coachNext') return coachNext();
-  if (a === 'coachSkip') return coachEnd(true);
+  if (a === 'coachSkip') { if (S && S.lesson && !lessonOf(S.lesson).battle) return showLessons(); return coachEnd(true); }
   if (a === 'noteOk') return noteDone(false);
   if (a === 'tipsOff') return noteDone(true);
   // turning notes back on shows them all again from the start
@@ -3538,7 +3683,7 @@ function showRules() {
       ['Roles', 'A mech’s parts give it a role, shown in the Workshop and in its details. ' + Object.keys(MW.ROLE_INFO).map(r => '<b>' + r + '</b>: ' + MW.ROLE_INFO[r]).join(' ')],
       ['Mecha', 'Each mech is a <b>chassis</b> (HP and two weapon mounts), <b>legs</b> (movement) and <b>weapons</b>. Fit them in that order. Tap any stat or icon in the game to see what it means.'],
       ['On the map', 'Stand on a <b>radar</b> or <b>uplink</b>, or on a <b>depot</b> on the enemy half (★), to score at the end of the round. Depots also give build actions. Ruins give cover; rocks block shots.'],
-      ['New?', 'Play <b>Training</b> for a guided first round against an easy opponent. Field notes explain each new mechanic the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Start Training</button>']]],
+      ['New?', '<b>Training</b> teaches the game one part at a time in short lessons: cards, building, deploying, fighting, scoring and your base, then a guided first battle. Field notes explain anything new the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Open Training</button>']]],
     ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point, and so are enemy mecha destroyed (' + MW.MAP_IDS.filter(id => (MW.MAPS[id].effects || {}).killVp).map(id => MW.MAPS[id].name + ': every ' + Math.round(1 / MW.MAPS[id].effects.killVp)).join(', ') + '). Holding your own depots gives build actions but no points. Azure holds the bottom of the map, Ember the top.'],
       ['Comebacks', 'Whoever is behind on points gets +1 build action next round, +2 when 3 or more points behind. A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Kills and base damage always score in full.'],
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
@@ -3598,7 +3743,7 @@ function showStart() {
   const last = gamesIndex().find(g => g.status === 'playing' && g.mode !== 'online' && g.mode !== 'watch');
   $('#resume').hidden = !last;
   if (last) $('#resume').dataset.id = last.id;
-  $('#menu').hidden = false; $('#setup').hidden = true; $('#recent').hidden = true; $('#balance').hidden = true;
+  $('#menu').hidden = false; $('#setup').hidden = true; $('#recent').hidden = true; $('#balance').hidden = true; $('#lessons').hidden = true;
   if (BAL.run && !BAL.run.done) BAL.run.stop = true;
   // nobody has played here yet: point them at Training
   let trained = false; try { trained = !!localStorage.getItem('mw-trained'); } catch (e) { /* storage unavailable */ }
@@ -4084,7 +4229,7 @@ function rgLine(g) {
 /* ---------- Balance check: a batch of quick AI vs AI wars, played out of sight, and how often each doctrine wins ---------- */
 const BAL = { run: null };
 function showBalance() {
-  $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#recent').hidden = true; $('#balance').hidden = false;
+  $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#recent').hidden = true; $('#lessons').hidden = true; $('#balance').hidden = false;
   drawBalance();
 }
 $('#bal-go').addEventListener('click', () => {
@@ -4158,7 +4303,7 @@ function drawBalance() {
   out.innerHTML = h;
 }
 async function showRecent() {
-  $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#balance').hidden = true; $('#recent').hidden = false;
+  $('#menu').hidden = true; $('#setup').hidden = true; $('#online').hidden = true; $('#balance').hidden = true; $('#lessons').hidden = true; $('#recent').hidden = false;
   const el = $('#recent-list');
   const draw = list => {
     el.innerHTML = list.length ? '' : '<p class="note">No games yet. Start one from the menu and it will show up here.</p>';

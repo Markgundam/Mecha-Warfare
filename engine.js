@@ -2253,16 +2253,40 @@ function aiStep() {
   if (S.phase === 'build') {
     const ai = S.players.find(x => x.isAI && x.stage !== 'done');
     if (!ai) return false;
-    if (ai.stage === 'draw') acceptDraw(ai); else { aiBuild(ai); if (ai.stage === 'build') endBuild(ai); }
+    if (ai.stage === 'draw') acceptDraw(ai); else { if (!ai.dummy) aiBuild(ai); if (ai.stage === 'build') endBuild(ai); }
     return true;
   }
   const p = S.players[S.current];
-  if (S.phase === 'deploy') { aiDeploy(p); endDeploy(); return true; }
-  if (S.phase === 'combat') { const r = aiCombatStep(); if (!r) advanceTurn(); return true; }
+  if (S.phase === 'deploy') { if (!p.dummy) aiDeploy(p); endDeploy(); return true; }
+  if (S.phase === 'combat') {
+    // a training dummy stands still: each of its mecha simply ends its turn
+    if (p.dummy) { const m = activatable(p.id)[0]; if (m) { endActivation(m); return true; } advanceTurn(); return true; }
+    const r = aiCombatStep(); if (!r) advanceTurn(); return true;
+  }
   return false;
 }
 
+/* ---------- Training lessons: small set pieces built straight onto the board ---------- */
+// a mech from a parts list: { torso, legs, armL, armR, aux: [] }; issue parts, so they cost nothing to remove
+function lessonMech(pid, b) {
+  const p = S.players[pid], m = blankMech(p);
+  for (const k of ['torso', 'legs', 'armL', 'armR']) if (b[k]) { m.slots[k] = mk(b[k], true); m.slots[k].issued = true; }
+  if (b.torso) m.slots.core = mk('r_' + b.torso, true);
+  (b.aux || []).forEach((id, i) => { m.slots.aux[i] = mk(id, true); m.slots.aux[i].issued = true; });
+  return m;
+}
+// put a mech on the field without the Deploy phase
+function lessonPlace(pid, m, x, y) {
+  const p = S.players[pid], i = p.hangar.indexOf(m); if (i >= 0) p.hangar.splice(i, 1);
+  m.x = x; m.y = y; m.heat = 0; m.activated = false; m.braced = false; m.shutdown = false; m.fired = {}; m.moves = 0; m.plate = plateMax(m);
+  m.entrenched = false; m.burn = 0; m.slow = 0; m.shock = 0; m.shield = stats(m).shield;
+  S.mechs.push(m);
+  return m;
+}
+const lessonCard = (pid, id) => { const c = mk(id); S.players[pid].workshop.push(c); return c; };
+
 const api = {
+  lessonMech, lessonPlace, lessonCard, startCombat, startBuildPhase,
   PERSONAS, DOCTRINE_COMMANDERS, aiW,
   getAIMemory() { return AIMEM; },
   setAIMemory(m) { AIMEM = m && m.v === 1 && m.personas ? m : { v: 1, personas: {} }; },
