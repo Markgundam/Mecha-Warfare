@@ -366,6 +366,14 @@ fieldset.seat[data-seat] { flex: 1; min-height: 0; display: flex; flex-direction
 .tok .mech { display: block; width: 100%; height: 100%; }
 .tok.done .mech { opacity: .5; }
 .tok.sel { outline: 3px solid var(--accent); outline-offset: -3px; animation: selp .9s ease-in-out infinite alternate; }
+/* an enemy the selected mech can hit: red scanlines drifting over it, a hot outline; fainter if it needs a move first */
+.tok.tgt-now, .tok.tgt-reach { position: relative; outline: 2px solid #ff3a24; outline-offset: -2px; }
+.tok.tgt-reach { outline-style: dashed; outline-color: rgba(255, 58, 36, .55); }
+.tok.tgt-now::before, .tok.tgt-reach::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2; border-radius: inherit;
+  background: repeating-linear-gradient(0deg, rgba(255, 50, 30, .42) 0 2px, transparent 2px 5px); mix-blend-mode: screen; animation: tgtscan 1.2s linear infinite; }
+.tok.tgt-reach::before { opacity: .45; }
+@keyframes tgtscan { to { background-position: 0 -10px; } }
+@media (prefers-reduced-motion: reduce) { .tok.tgt-now::before, .tok.tgt-reach::before { animation: none; } }
 .tok.braced { box-shadow: inset 0 0 0 2px var(--ink); }
 .tok.act::after { content: ''; position: absolute; inset: 0; border: 2px solid var(--pc); animation: ring 1.1s ease-out infinite; pointer-events: none; }
 .mech .pt { fill: currentColor; stroke: var(--bg); stroke-width: 1; }
@@ -2211,7 +2219,23 @@ function renderTrack() {
 }
 
 /* ---------- Render: board ---------- */
+// which enemies the selected mech could hit this activation, by the game's own targeting: 'now' from where it stands,
+// 'reach' after one move. With a weapon picked, only that weapon counts
+function targetMap() {
+  const out = {}, sm = ui.sel != null ? MW.fieldMech(ui.sel) : null;
+  if (!sm || sm.x == null || S.phase !== 'combat' || sm.owner !== viewer() || sm.activated || sm.ap <= 0) return out;
+  const firing = ui.mode === 'fire' && ui.weaponKey;
+  const keys = MW.weaponsOf(sm).filter(wp => !wp.w.repair && MW.usable(sm, wp.key) && (!firing || wp.key === ui.weaponKey)).map(wp => wp.key);
+  const scan = tier => { for (const k of keys) for (const t of MW.validTargets(sm, k)) if (t.type === 'mech' && out[t.uid] !== 'now') out[t.uid] = tier; };
+  scan('now');
+  if (!firing && sm.ap >= 2 && !sm.moves && !sm.entrenched) {
+    const ox = sm.x, oy = sm.y;
+    try { for (const k in MW.reachable(sm)) { const [x, y] = k.split(',').map(Number); if ((x !== ox || y !== oy) && MW.mechAt(x, y)) continue; sm.x = x; sm.y = y; scan('reach'); } } finally { sm.x = ox; sm.y = oy; }
+  }
+  return out;
+}
 function renderBoard() {
+  const tgtMap = targetMap();
   const sm = selMech(), cur = S.players[S.current], human = isHuman();
   let reach = null, targets = [], dep = [];
   const threat = {};
@@ -2253,7 +2277,7 @@ function renderBoard() {
     if (w) { inner += '<svg viewBox="0 0 40 40"' + (m ? ' style="opacity:.4"' : '') + '><circle class="wglow" cx="20" cy="22" r="15"/><path d="M6 32l6-10 5 4 6-11 6 8 5 9z" fill="var(--muted)"/><path d="M10 12l5 5m0-5l-5 5M27 8l4 4m0-4l-4 4" stroke="var(--muted)" stroke-width="1.6"/></svg>'; lab.push('wreck'); }
     if (m) {
       const st = MW.stats(m);
-      let tok = '<span class="tok p' + m.owner + (m.entrenched ? ' entr' : '') + (ui.sel === m.uid ? ' sel' : '') + (S.active === m.uid ? ' act' : '') + (m.braced ? ' braced' : '') + (m.overwatch ? ' ow' : '') + (S.phase === 'combat' && m.activated ? ' done' : '') + '">' + mechSVG(m);
+      let tok = '<span class="tok p' + m.owner + (m.entrenched ? ' entr' : '') + (ui.sel === m.uid ? ' sel' : '') + (S.active === m.uid ? ' act' : '') + (m.braced ? ' braced' : '') + (m.overwatch ? ' ow' : '') + (S.phase === 'combat' && m.activated ? ' done' : '') + (tgtMap[m.uid] ? ' tgt-' + tgtMap[m.uid] : '') + '">' + mechSVG(m);
       tok += hpBar(m, 'hpb');
       if (S.phase === 'combat' && !m.activated) tok += pips(m.ap);
       if (m.heat > 0) tok += '<span class="heatb' + (m.heat > st.heatCap ? ' hot' : '') + '">' + m.heat + '</span>';
@@ -2324,7 +2348,7 @@ function sync3d(overlay, zoneMap, olabs, oddsMap, turret) {
   const reach = sm && human && S.phase === 'combat' && (ui.mode === 'move' || ui.mode === 'phase') && sm.owner === S.current && !MW.actGuard(sm) ? (ui.mode === 'phase' ? Object.fromEntries(MW.phaseTiles(sm).map(([x, y]) => [x + ',' + y, 1])) : MW.reachable(sm)) : null;
   const plan = reach ? [[sm.x, sm.y]].concat(Object.keys(reach).filter(k => reach[k] > 0).map(k => k.split(',').map(Number))) : null;
   const cam = aiming ? { aim: tmA.uid, x: tmA.x, y: tmA.y } : human && S.phase === 'deploy' && ui.mode === 'deploy' ? { deploy: S.current } : frame ? { frame, key: sm.uid + ':' + ui.weaponKey + ':' + sm.x + ',' + sm.y } : plan && plan.length > 1 ? { plan, key: sm.uid + ':' + sm.x + ',' + sm.y } : sm ? { sel: sm.uid } : {};
-  window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, turret: turret || {}, sel: ui.sel, active: S.active, cam, labels: ui.curLabels, aim: aiming ? tmA.uid : null, onAim: part => onAct({ dataset: { act: 'shoot', part } }) });
+  window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, turret: turret || {}, sel: ui.sel, active: S.active, targets: targetMap(), cam, labels: ui.curLabels, aim: aiming ? tmA.uid : null, onAim: part => onAct({ dataset: { act: 'shoot', part } }) });
 }
 function applyLabels(n, quiet) {
   const box = $('#labels');

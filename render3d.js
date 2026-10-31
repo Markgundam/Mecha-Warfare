@@ -2339,6 +2339,50 @@ function rebuildRec(rec, m, S) {
   rec.entr = !!m.entrenched;
 }
 
+// enemies the selected mech can hit glow red, after targeting-HUD references: a hologram twin of every part with fine
+// scanlines drifting up, a brighter sweep band and a hot fresnel rim, plus four bracket arcs turning on the ground.
+// 'now' is in range from where it stands; 'reach' only after a move, drawn fainter
+const TGT_U = { uTime: { value: 0 } };
+const TGT_MAT = {};
+function tgtMat(tier) {
+  if (TGT_MAT[tier]) return TGT_MAT[tier];
+  return (TGT_MAT[tier] = new T.ShaderMaterial({
+    uniforms: { uTime: TGT_U.uTime, uStr: { value: tier === 'now' ? 1 : 0.42 } },
+    vertexShader: 'varying vec3 vW; varying vec3 vN; varying vec3 vV;\n' +
+      'void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(normalMatrix * normal); vec4 mv = viewMatrix * w; vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform float uTime; uniform float uStr; varying vec3 vW; varying vec3 vN; varying vec3 vV;\n' +
+      'void main() {\n' +
+      '  float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.2);\n' +
+      '  float f = fract(vW.y * 22.0 - uTime * 1.8);\n' +
+      '  float scan = smoothstep(0.0, 0.18, f) * (1.0 - smoothstep(0.32, 0.5, f));\n' +
+      '  float g = fract(vW.y * 1.3 - uTime * 0.55);\n' +
+      '  float band = smoothstep(0.0, 0.06, g) * (1.0 - smoothstep(0.06, 0.2, g));\n' +
+      '  float pulse = 0.8 + 0.2 * sin(uTime * 6.0);\n' +
+      '  float a = (0.14 + 0.5 * scan + 1.1 * rim + 0.7 * band) * pulse * uStr;\n' +
+      '  gl_FragColor = vec4(vec3(1.0, 0.13, 0.08) * a, a);\n' +
+      '}',
+    transparent: true, depthWrite: false, blending: T.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+  }));
+}
+function setTarget(rec, tier) {
+  if (rec.tgtTier === tier && rec.tgtFor === rec.R.root) return;
+  if (rec.tgt) { rec.tgt.forEach(o => { if (o.parent) o.parent.remove(o); }); rec.tgt = null; }
+  rec.tgtTier = tier; rec.tgtFor = rec.R.root;
+  if (!rec.tgtRing) {
+    const g = new T.Group();
+    for (let i = 0; i < 4; i++) {
+      const arc = new T.Mesh(new T.RingGeometry(0.46, 0.53, 10, 1, i * Math.PI / 2 + 0.2, Math.PI / 2 - 0.4), new T.MeshBasicMaterial({ color: 0xff3a24, transparent: true, opacity: 0.95, depthWrite: false }));
+      arc.rotation.x = -Math.PI / 2; g.add(arc);
+    }
+    g.position.y = 0.02; g.renderOrder = 4; BD.group.add(g); rec.tgtRing = g;
+  }
+  rec.tgtRing.visible = !!tier;
+  rec.tgtRing.children.forEach(a => { a.material.opacity = tier === 'now' ? 0.95 : 0.45; });
+  if (!tier) return;
+  const parts = [];
+  rec.R.root.traverse(o => { if (o.isMesh && o.geometry && !o.userData.tgtTwin && !(o.material && (Array.isArray(o.material) || o.material.transparent))) parts.push(o); });
+  rec.tgt = parts.map(o => { const tw = new T.Mesh(o.geometry, tgtMat(tier)); tw.userData.tgtTwin = true; tw.renderOrder = 5; tw.raycast = () => {}; o.add(tw); return tw; });
+}
 R3.sync = function (v) {
   if (!BD) return;
   const S = v.S;
@@ -2357,11 +2401,12 @@ R3.sync = function (v) {
     rec.hot = m.heat > window.MW.stats(m).heatCap;
     rec.selRing.visible = v.sel === m.uid; rec.actRing.visible = v.active === m.uid; rec.owRing.visible = !!m.overwatch;
     rec.empRing.visible = !!m.entrenched;
+    setTarget(rec, (v.targets && v.targets[m.uid]) || null);
   }
   // mecha that left the field: kept briefly so a death, detonation, strip or return to base can play out
   for (const id in BD.recs) {
     const rec = BD.recs[id];
-    if (!seen[id] && !rec.gone) { rec.gone = true; rec.goneAt = t; rec.selRing.visible = rec.actRing.visible = rec.owRing.visible = rec.empRing.visible = false; }
+    if (!seen[id] && !rec.gone) { rec.gone = true; rec.goneAt = t; rec.selRing.visible = rec.actRing.visible = rec.owRing.visible = rec.empRing.visible = false; setTarget(rec, null); }
   }
   // objectives change hands
   for (const o of S.objectives) {
@@ -3254,6 +3299,7 @@ function positionLabels() {
 }
 
 function updateBoard(t, dt) {
+  TGT_U.uTime.value = t;
   for (let i = BD.queue.length - 1; i >= 0; i--) if (BD.queue[i].t <= t) { const q = BD.queue.splice(i, 1)[0]; try { q.fn(); } catch (e) { /* keep animating */ } }
   for (let i = BD.anims.length - 1; i >= 0; i--) { let keep = false; try { keep = BD.anims[i](t); } catch (e) { keep = false; } if (!keep) BD.anims.splice(i, 1); }
   BD.parts.update(dt);
@@ -3488,7 +3534,8 @@ function updateRec(rec, t, dt) {
   else rec.bubble.material.opacity = rec.m && rec.m.braced ? 0.12 : 0;
   rec.bubble.position.copy(root.position).setY(root.position.y + 0.4);
   // rings and shadow follow
-  for (const r of [rec.selRing, rec.actRing, rec.owRing, rec.empRing, rec.blob]) { r.position.x = root.position.x; r.position.z = root.position.z; }
+  for (const r of [rec.selRing, rec.actRing, rec.owRing, rec.empRing, rec.blob, rec.tgtRing]) if (r) { r.position.x = root.position.x; r.position.z = root.position.z; }
+  if (rec.tgtRing && rec.tgtRing.visible) { rec.tgtRing.rotation.y = t * 0.9; rec.tgtRing.scale.setScalar(1 + 0.06 * Math.sin(t * 6)); }
   // the emplacement ring grows in as the mech digs in, then breathes slowly
   if (rec.empRing.visible) { const g = rec.digT != null ? Math.min(1, (t - rec.digT) / 0.6) : 1; rec.empRing.scale.setScalar(0.6 + 0.4 * g); rec.empRing.material.opacity = (0.75 + 0.2 * Math.sin(t * 2.4)) * g; }
   rec.actRing.rotation.z = t * 2;
