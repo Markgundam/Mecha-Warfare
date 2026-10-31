@@ -75,6 +75,8 @@ function unlock() {
   for (const k in TRK) if (TRK[k].el.paused && TRK[k].on) TRK[k].el.play().catch(() => {});
 }
 ['pointerdown', 'keydown', 'touchstart'].forEach(ev => root.addEventListener(ev, unlock, { capture: true, passive: true }));
+// decode every recording straight away (that needs no tap), so the very first click already has its sound
+if (AC) try { init(); } catch (e) { /* audio unavailable */ }
 const live = () => ctx && ctx.state === 'running' && !prefs.mute;
 const now = () => ctx.currentTime;
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -252,7 +254,23 @@ function walk(o) {
     for (let i = 0; i < steps * 4; i++) smp('tin', { at: t0 + (i + 0.5) * dur / (steps * 4), rate: rnd(0.55, 0.7), gain: 0.18, pan: p, lp: 3000 });
     return;
   }
-  const w = mode === 'entrench' ? 0.7 : o.heavy ? 0.8 : 1;   // heavier frames step lower
+  if (mode === 'entrench') {
+    // a Quad Walker: four feet a tile in a walking gait (back left, front left, back right, front right), each one
+    // a servo whir as it lifts, then a heavy plate landing with its own sub, alternating sides; hydraulics breathe
+    // on every other foot
+    smp('hiss_open', { at: t0, rate: 0.7, gain: 0.3, pan: p });
+    const per = dur / steps;
+    for (let i = 0; i < steps; i++) for (let f = 0; f < 4; f++) {
+      const t = t0 + (i + 0.12 + f * 0.22) * per, side = (f < 2 ? -1 : 1) * 0.12, q = p + side;
+      smp('loop_servo', { at: Math.max(t0, t - 0.16), rate: rnd(0.75, 0.9), dur: 0.15, gain: 0.14, pan: q, a: 0.04, rel: 0.06 });
+      smp('punch_h', { at: t, rate: rnd(0.42, 0.5), gain: 0.6, pan: q });
+      smp('plate_h', { at: t + 0.006, rate: rnd(0.55, 0.65), gain: 0.42, pan: q, lp: 3500 });
+      sub(t, q, 0.32, 54, 0.24);
+      if (f % 2) smp('hiss_close', { at: t + 0.07, rate: rnd(0.9, 1.1), gain: 0.1, pan: q, hp: 1200 });
+    }
+    return;
+  }
+  const w = o.heavy ? 0.8 : 1;   // heavier frames step lower
   for (let i = 0; i < steps; i++) {
     const t = t0 + (i + 0.55) * dur / steps;
     smp('loop_servo', { at: t - 0.22, rate: 1.1 / w, dur: 0.2, gain: 0.18, pan: p, a: 0.05, rel: 0.08 });
@@ -299,6 +317,7 @@ const FX = {
   hot: (t, p) => { smp('hiss_open', { at: t, rate: 0.7, gain: 0.5, pan: p }); tone({ at: t, f0: 140, dur: 0.12, gain: 0.06, type: 'square', lp: 900, pan: p }); },
   // interface: recorded clicks with a soft low body so they feel physical
   click: t => smp('ui_click_002', { at: t, gain: 0.6 }),
+  hover: t => smp('ui_tick_002', { at: t, gain: 0.22, rate: 1.5, jit: 0.02 }),
   tab: t => smp('ui_tick_002', { at: t, gain: 0.6 }),
   select: t => smp('ui_select_002', { at: t, gain: 0.7 }),
   aim: t => smp('ui_switch_002', { at: t, gain: 0.6 }),

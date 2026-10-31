@@ -2262,7 +2262,7 @@ function renderBoard() {
     const cls = ['tile', ter], lab = [MW.coord(x, y)];
     let inner = '<span class="xy">' + MW.coord(x, y) + '</span>';
     zones.forEach((z, i) => { if (z.some(t => t[0] === x && t[1] === y)) cls.push('zone' + i); });
-    if (turret[k] != null) { cls.push('tz' + turret[k]); lab.push('in range of the ' + S.players[turret[k]].name + ' base turret'); }
+    if (turret[k] != null) lab.push('in range of the ' + S.players[turret[k]].name + ' base turret');
     if (ter === 'rock') { inner += '<svg viewBox="0 0 40 40"><path d="M5 33l5-17 9-9 11 6 6 20z" fill="var(--rock)"/><path d="M19 7l-3 14 8 12" fill="none" stroke="var(--tile)" stroke-width="1.5" opacity=".6"/></svg>'; lab.push('rock'); }
     if (ter === 'ruins') lab.push('ruins');
     if (b != null) {
@@ -2348,7 +2348,7 @@ function sync3d(overlay, zoneMap, olabs, oddsMap, turret) {
   const reach = sm && human && S.phase === 'combat' && (ui.mode === 'move' || ui.mode === 'phase') && sm.owner === S.current && !MW.actGuard(sm) ? (ui.mode === 'phase' ? Object.fromEntries(MW.phaseTiles(sm).map(([x, y]) => [x + ',' + y, 1])) : MW.reachable(sm)) : null;
   const plan = reach ? [[sm.x, sm.y]].concat(Object.keys(reach).filter(k => reach[k] > 0).map(k => k.split(',').map(Number))) : null;
   const cam = aiming ? { aim: tmA.uid, x: tmA.x, y: tmA.y } : human && S.phase === 'deploy' && ui.mode === 'deploy' ? { deploy: S.current } : frame ? { frame, key: sm.uid + ':' + ui.weaponKey + ':' + sm.x + ',' + sm.y } : plan && plan.length > 1 ? { plan, key: sm.uid + ':' + sm.x + ',' + sm.y } : sm ? { sel: sm.uid } : {};
-  window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, turret: turret || {}, sel: ui.sel, active: S.active, targets: targetMap(), cam, labels: ui.curLabels, aim: aiming ? tmA.uid : null, onAim: part => onAct({ dataset: { act: 'shoot', part } }) });
+  window.R3.sync({ S, flip: flip(), overlay, zones: zoneMap, turret: {}, sel: ui.sel, active: S.active, targets: targetMap(), cam, labels: ui.curLabels, aim: aiming ? tmA.uid : null, onAim: part => onAct({ dataset: { act: 'shoot', part } }) });
 }
 function applyLabels(n, quiet) {
   const box = $('#labels');
@@ -3258,7 +3258,7 @@ const LESSONS = [
   { id: 'base', title: 'Your Base', learn: 'The base turret, counter-battery fire, and why the base matters.', combat: true,
     setup() { lessonField(() => { MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_light', legs: 'l_boost', armL: 'b_gun' }), 1, 0); const d = MW.lessonPlace(1, MW.lessonMech(1, { torso: 't_light', legs: 'b_legs', armL: 'b_gun' }), 2, 4); d.slots.torso.hp = 1; }); },
     steps: [
-      { t: () => 'Your <b>base turret</b> covers the tinted area, ' + C.TURRET_RANGE + ' tiles around the base. When the round ends it fires on the closest enemy inside it.', next: 'Next' },
+      { t: () => 'Your <b>base turret</b> reaches ' + C.TURRET_RANGE + ' tiles from the base. When the round ends it fires on the closest enemy within that reach.', next: 'Next' },
       { t: 'It also <b>returns fire</b> on anything that shelled your base that round, however far away it stood. Shelling a base is never free.', next: 'Next' },
       { t: () => 'If your base is destroyed you lose the war. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base scores you a point.', next: 'Next' },
       { t: 'A training dummy has walked into your turret\'s reach. Hold your fire: tap <b>Hold with all remaining</b> and watch the turret finish it when the round ends.', hl: '[data-act=passAll]', done: () => !foes().length }
@@ -3735,7 +3735,7 @@ function showRules() {
     ['Map', [['Battlefields', MW.MAP_IDS.map(id => '<b>' + MW.MAPS[id].name + '</b> (' + MW.MAPS[id].goal.toLowerCase() + '): ' + MW.MAPS[id].blurb + (MW.MAPS[id].notes ? ' <i>' + MW.MAPS[id].notes + '</i>' : '')).join('<br>') + (S && S.map ? '<br>This battle: <b>' + MW.MAP.name + '</b>.' : '')],
       ['Objectives', 'End a round on a depot or radar to hold it. Each depot adds ' + C.DEPOT + ' build action to your next build (up to ' + C.DEPOT_FULL + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
       ['Crates', 'Every other round a crate drops on the centre line: +' + MW.actWord(C.CRATE_SUPPLY) + ' or a special card, taken by the first mech to end a move on it.'],
-      ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution' + (C.COUNTER_BATTERY ? ', and returns fire on any mech that shelled the base that round, however far away' : '') + '; its reach is tinted and outlined in the base\'s colour on the map. Returning to base vents heat and restocks ammo.'],
+      ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution' + (C.COUNTER_BATTERY ? ', and returns fire on any mech that shelled the base that round, however far away' : '') + '. Returning to base vents heat and restocks ammo.'],
       ['Salvage', 'Salvaging a wreck gives an extra build action plus any special parts that survived, which refit for 1.']]]
   ];
   const cur = Math.min(ui.ruleTab || 0, T.length - 1);
@@ -4168,9 +4168,19 @@ function updateNetDeck() {
   $('#net-deck').innerHTML = MW.DOCTRINES[v] ? deckBar(v) + weaponMix(v) : '<p class="note">Picked at random when you host.</p>';
 }
 
+// a soft tick as the pointer moves onto something that can be pressed (only where there is a pointer to hover with)
+const HOVERABLE = 'button:not(:disabled), .mode, .lesson, label, select, [data-act], [data-start], [data-dnav]';
+let hoverEl = null, hoverT = 0;
+if (window.matchMedia && window.matchMedia('(hover: hover)').matches) document.addEventListener('pointerover', e => {
+  const el = e.target.closest && e.target.closest(HOVERABLE);
+  if (!el || el === hoverEl || el.closest('#game .board, #game .tiles')) { if (!el) hoverEl = null; return; }
+  hoverEl = el;
+  const now = performance.now(); if (now - hoverT < 45) return; hoverT = now;
+  snd('hover');
+});
 document.addEventListener('click', e => {
   const st = e.target.closest('[data-start]');
-  { const a0 = e.target.closest('[data-act]'); if (a0 && !a0.disabled) { const k = a0.dataset.act, n = k in UI_SND ? UI_SND[k] : 'click'; if (n) snd(n); } else if (st || e.target.closest('button, .tile')) snd(e.target.closest('.tile') ? 'tab' : 'click'); }
+  { const a0 = e.target.closest('[data-act]'); if (a0 && !a0.disabled) { const k = a0.dataset.act, n = k in UI_SND ? UI_SND[k] : 'click'; if (n) snd(n); } else if (st) snd('select'); else if (e.target.closest('button, .tile, label, select')) snd(e.target.closest('.tile, label') ? 'tab' : 'click'); }
   if (st) return openSetup(st.dataset.start);
   const t = e.target.closest('.tile');
   if (t) return onTile(+t.dataset.x, +t.dataset.y);

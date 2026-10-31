@@ -2441,7 +2441,8 @@ R3.sync = function (v) {
     ov.material.color.setHex(OV_COL[kind] || 0xffffff);
     ov.material.opacity = OV_OP[kind] || 0.35;
   }
-  if (BD.turretRings) BD.turretRings.forEach((g, i) => { g.visible = v.S.players[i].base.hp > 0; });
+  // the turret's reach is not drawn on the battle floor; the map tour still outlines it when it explains the base
+  if (BD.turretRings) BD.turretRings.forEach(g => { g.visible = false; });
   BD.labels = v.labels || [];
   BD.baseHp = v.baseHp;
   BD.aimUid = v.aim != null ? v.aim : null; BD.onAim = v.onAim || null;
@@ -3223,13 +3224,15 @@ function loop() {
 }
 // while aiming, everything but the target mech and the ground is hidden; it all comes back when aiming ends
 function aimView() {
-  if (BD.aimFor === BD.aimUid) return;
-  for (const o of BD.aimHid || []) o.visible = true;
-  BD.aimHid = []; BD.aimFor = BD.aimUid;
+  if (BD.aimFor !== BD.aimUid) {
+    for (const o of BD.aimHid || []) o.visible = true;
+    BD.aimHid = []; BD.aimFor = BD.aimUid;
+  }
   const rec = BD.aimUid != null ? BD.recs[BD.aimUid] : null;
   if (!rec) return;
-  // the ground and the tile highlights stay; scenery, other mecha and effects go
-  const keep = new Set([rec.R.root, rec.blob, rec.selRing].concat(Object.values(BD.ov)));
+  // the ground and the tile highlights stay; scenery, other mecha and effects go. Checked every frame, so rings,
+  // columns and effects the game shows or spawns while aiming stay out of the shot too
+  const keep = new Set([rec.R.root, rec.blob, rec.selRing, rec.tgtRing].concat(Object.values(BD.ov)));
   for (const o of BD.group.children) if (o.visible && !keep.has(o) && !o.userData.ground) { o.visible = false; BD.aimHid.push(o); }
 }
 // the screen centre of one part of a mech, in board space, for the aiming tags
