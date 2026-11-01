@@ -1773,7 +1773,9 @@ function aiStance(pid) {
   const gap = (foe.vp || 0) - (p.vp || 0);
   const myHp = mine.reduce((t, m) => t + hpOf(m) / Math.max(1, maxHpOf(m)), 0) / Math.max(1, mine.length);
   let stance = null;
-  if (nearBase && (p.base.hp < (p.base.max || C.BASE_HP) * 0.75 || w.hold + w.caution > 1.2)) stance = 'defend';
+  const hurt = p.base.hp < (p.base.max || C.BASE_HP) * 0.75, shelled = theirs.some(e => aiSieger(pid, e));
+  // intruders near a healthy base are fought where they stand (on the objectives) rather than by pulling back home
+  if (nearBase && (hurt || (aix(pid, 'race') ? shelled : w.hold + w.caution > 1.2))) stance = 'defend';
   else if (gap <= -C.LEAD_GAP && C.LEAD_GAP) stance = 'press';               // our objectives barely score while we lead: go for the base
   else if (gap >= 3) stance = 'raid';
   else if (theirs.length > mine.length + 1 && myHp < 0.7) stance = 'regroup';
@@ -1796,7 +1798,9 @@ function aiStance(pid) {
 // never left the hangar; capped, that fell to 0.9 and win rates held)
 // cbaware: shelling a base from beyond its turret's reach draws counter-battery fire; weigh that before the shot (won its
 // duels: Assault +3 to +7, Experimental +1)
-const AIX = { tough: true, deploy: true, brave: true, never: true, reserve: true, cbaware: true };
+// race: defend the base only once it is hurt or being shelled, never just because enemies stand near it while the war is
+// lost on points (a Bastion sat home from 0-2 to 3-12 with its base untouched; 900 paired duels: 48.7% vs 46.6%, no matchup worse)
+const AIX = { tough: true, deploy: true, brave: true, never: true, reserve: true, cbaware: true, race: true };
 const aix = (pid, k) => AIX[k] === true || (Array.isArray(AIX[k]) && AIX[k].includes(pid));
 function threatMap(pid) {
   const key = S.round + ':' + S.mechs.map(m => m.uid + '@' + m.x + ',' + m.y + (m.activated ? 'a' : '')).join('|');

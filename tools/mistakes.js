@@ -21,6 +21,7 @@ const KINDS = {
   idleWeapon: 'Weapon on a mech fielded 2+ rounds that never fired',
   overheat: 'Overheated (core damage and shutdown)',
   slowArmy: 'Combat rounds with no fielded mech that moves 3+',
+  idleDefend: 'Combat rounds spent defending an unhurt base while 3+ points behind',
   lowOdds: 'Shots taken at under 45% to hit',
   freshLoss: 'Mecha lost within a round of deploying',
   baseLost: 'Base destroyed',
@@ -99,6 +100,14 @@ for (let w = 0; w < N; w++) {
     if (pre.phase !== 'combat' && MW.S.phase === 'combat') {
       // a new combat: does each army have anything quick on the field?
       for (const p of MW.S.players) { const f = MW.fieldMechs(p.id); if (f.length && !f.some(m => { const q = reachOf(m); return !q.anchored && q.move >= 3; })) add(side[p.id], 'slowArmy'); }
+    }
+    // the stance is chosen at the first activation of a round: count it once that round's combat is under way
+    if (MW.S.phase === 'combat' && MW.S.active != null && side.stanceRound !== MW.S.round) {
+      side.stanceRound = MW.S.round;
+      for (const p of MW.S.players) {
+        const gap = (MW.S.players[1 - p.id].vp || 0) - (p.vp || 0);
+        if (p.ai && p.ai.stance === 'defend' && gap >= 3 && p.base.hp >= (p.base.max || C.BASE_HP) * 0.75) { add(side[p.id], 'idleDefend'); keep('idleDefend', '[' + p.doctrine + ' / ' + p.ai.persona + '] R' + MW.S.round + ' defends at ' + p.vp + '-' + MW.S.players[1 - p.id].vp + ', base ' + p.base.hp + '/' + (p.base.max || C.BASE_HP)); }
+      }
     }
     if (pre.phase === 'combat') {
       for (const m of MW.S.mechs) {
