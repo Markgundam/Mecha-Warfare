@@ -20,7 +20,7 @@ const C = {
   // counter-battery: a base turret also fires on whatever shelled it this round, at any range (out-of-reach shelling
   // went unanswered otherwise). MOVE_EXEMPT: legs a doctrine's move penalty does not slow. FORWARD_DEPLOY: deploying
   // beside ground held since last round (tested, barely changed play: off)
-  COUNTER_BATTERY: 1, MOVE_EXEMPT: ['l_treads', 'l_quad'], FORWARD_DEPLOY: 0, FUEL_START: 2
+  COUNTER_BATTERY: 1, MOVE_EXEMPT: ['l_treads', 'l_quad'], FORWARD_DEPLOY: 0, FUEL_START: 2, SPLIT_FIRST: 0
 };
 
 /* ---------- Components ---------- */
@@ -905,7 +905,11 @@ function startCombat() {
     m.activated = false; m.braced = false; m.fired = {}; m.moves = 0; m.overwatch = false; m.tricked = false; m.cloak = 0; m.overclocked = false;
   }
   log('Combat begins.', 'sys');
-  S.current = S.first;
+  // SPLIT_FIRST (off): the side that deployed first opens the fighting second, in round 1 (1) or every round (2). In
+  // mirror wars the round-1 first mover won only 43-45% on three maps; round-1 split brought that to 49-54%, but two
+  // full samples then moved doctrine balance in opposite directions (Armored 54%, or Assault 64% on Lanes), so it
+  // stays off until it can be judged on more wars
+  S.current = C.SPLIT_FIRST && (C.SPLIT_FIRST > 1 || S.round === 1) ? 1 - S.first : S.first;
   if (!activatable(S.current).length) {
     if (activatable(1 - S.current).length) S.current = 1 - S.current;
     else resolution();
