@@ -74,7 +74,7 @@ const DEFS = {};
   // combo weapons, one per doctrine: each works only when its mech is built and played a certain way, and hits hard
   // when it does. Assault: a two-handed hammer, swung with everything the mech has left. Experimental: overclock
   // and unload
-  { id: 's_hammer', name: 'Meteor Hammer', slot: 'arm', special: true, cost: 7, wt: 4, en: 3, hp: 6, weapon: { dmg: 7, range: 1, acc: 90, heat: 2, ap: true, melee: true, shock: true, twoHanded: true, allIn: true, apCost: 2 } },
+  { id: 's_hammer', name: 'Meteor Hammer', slot: 'arm', special: true, cost: 7, wt: 4, en: 3, hp: 6, weapon: { dmg: 6, range: 1, acc: 90, heat: 2, ap: true, melee: true, shock: true, twoHanded: true, allIn: true, apCost: 1 } },
   { id: 's_overload', name: 'Overload Lance', slot: 'arm', special: true, cost: 7, wt: 3, en: 6, hp: 4, weapon: { dmg: 9, range: 4, acc: 85, heat: 3, ap: true, needsOverclock: true } },
   { id: 's_anchor', name: 'Siege Anchors', slot: 'legs', cost: 4, hp: 16, armor: 2, capacity: 26, move: 2, hull: 6, hidden: true },
   { id: 's_frame', name: 'Aegis Frame', slot: 'torso', special: true, cost: 7, wt: 6, hp: 13, armor: 1, auxSlots: 3, heatCap: 9 },
@@ -179,7 +179,7 @@ const DOCTRINES = {
   assault: {
     name: 'Assault Doctrine',
     blurb: 'A swarm of light, fast mecha that overwhelm by numbers and speed.',
-    perks: ['Opening team: a Brawler (blade and shotgun), a Raider (the fastest, for objectives) and a Scout (evasive, the longest gun)', 'Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Pack tactics: +10% to hit for each other Assault mech within 2 tiles of the target (up to +20%)', 'Combo weapon: the two-handed Meteor Hammer, a 2-order swing from a standing start', 'Issue parts: Striker Chassis and Booster Legs (fast), Skirmisher Chassis and Twin SMGs (cheap), Scatter Cannon, Plasma Blade'],
+    perks: ['Opening team: a Brawler (blade and shotgun), a Raider (the fastest, for objectives) and a Scout (evasive, the longest gun)', 'Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Pack tactics: +10% to hit for each other Assault mech within 2 tiles of the target (up to +20%)', 'Combo weapon: the two-handed Meteor Hammer, a leaping smash that ends its turn', 'Issue parts: Striker Chassis and Booster Legs (fast), Skirmisher Chassis and Twin SMGs (cheap), Scatter Cannon, Plasma Blade'],
     traits: { fieldMax: 4, hangarMax: 4, move: 1, startMechs: 3, pack: 10 },
     deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 3, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 2, w_smg: 2, w_gatling: 2, a_jump: 2, a_servo: 1, a_cool: 1, a_over: 1, s_hammer: 2, s_inferno: 1, s_cryo: 1, s_emp: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
   },
@@ -1874,6 +1874,8 @@ function aiStance(pid) {
 // carrying hammers (540 audited wars, both on: hammers that never swung 86% to 80%, swings 72 to 97, Assault 47.8% to
 // 49.4%; 900 paired duels: 48.2% vs 46.3%, no matchup worse. hammerfit alone 48.4%; hammer alone 46.1%; a bolder
 // hammer that ignored the threat swung 164 times but lost its duels, 42.7%)
+// Since the Meteor Hammer became a one-order swing (it still ends the turn), 'hammer' only steps in for blows that
+// cost more than one order; the card change took hammers that never swung from 79% to 23% (1,080 audited wars)
 const AIX = { tough: true, deploy: true, brave: true, never: true, reserve: true, cbaware: true, race: true, spare: true, fieldfix: true, hammer: true, hammerfit: true };
 const aix = (pid, k) => AIX[k] === true || (Array.isArray(AIX[k]) && AIX[k].includes(pid));
 function threatMap(pid) {
