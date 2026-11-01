@@ -1530,7 +1530,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 .ts.now { width: 16px; height: 26px; box-shadow: 0 0 0 2px var(--accent), 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent); }
 /* the commander's description is one line whichever one is picked, so the screen never jumps */
 #start .cmdblurb { font-size: 13px; }
-/* build actions as pips */
+/* actions as pips */
 .bpips { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; line-height: 0; }
 .bpips i { display: block; width: 6px; height: 11px; border-radius: 2px; background: var(--accent); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .18); }
 .bpips i.new { background: var(--good); }
@@ -1546,6 +1546,14 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 }
 @media (prefers-reduced-motion: reduce) { .rv-supply .bpips i.new { animation: none; background: var(--accent); } }
 .bpips i.off { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; opacity: .4; }
+/* fuel (Armored): amber cells, one per move left in the tank; an empty tank turns red */
+.fuel { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font: 800 10px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; color: #ffa62b; vertical-align: middle; }
+.fuel .bpips i { background: #ffa62b; width: 5px; height: 10px; }
+.fuel .bpips i.off { background: transparent; }
+.fuel.out { color: var(--bad); }
+.fuel.out .bpips i.off { opacity: .8; }
+.fuelrow { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 8px; }
+.fuelrow .btn { justify-content: flex-start; text-align: left; }
 .btn .bpips, .pfc .bpips { margin-left: 2px; }
 .btn.blocked .bpips i:not(.off) { background: var(--bad); }
 #win-head .rchips .bpips i { width: 9px; height: 18px; }
@@ -1554,7 +1562,7 @@ fieldset.seat.mapseat { --sc: var(--accent); --ss: color-mix(in srgb, var(--acce
 .rv-supply .bpips i { width: 14px; height: 30px; border-radius: 3px; }
 .rv-supply .rv-inc .bpips i { width: 7px; height: 14px; background: var(--good); }
 .olab .bpips i { width: 5px; height: 9px; }
-/* the draw screen also says how many build actions there are this round */
+/* the draw screen also says how many actions there are this round */
 .rv-supply { display: inline-flex; align-items: center; gap: 10px; padding: 8px 18px 8px 10px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); animation: dealin .65s cubic-bezier(.2, .8, .2, 1) both; }
 .rv-supply .rico { width: 34px; height: 34px; padding: 6px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
 .rv-supply b { font: 900 34px/1 var(--display); color: var(--ink); }
@@ -1857,7 +1865,7 @@ function keyword(d) {
   return '';
 }
 const si = name => ico(name, 'si');
-// build actions as pips: one gold bar per action, spent ones as empty outlines
+// actions as pips: one gold bar per action, spent ones as empty outlines
 // the last `fresh` of them are green: actions earned on the field last round
 const bpips = (n, spent, cls, fresh) => { const f = Math.min(Math.max(0, fresh || 0), Math.max(0, n)); return '<span class="bpips' + (cls ? ' ' + cls : '') + '" role="img" aria-label="' + MW.actWord(n) + (f ? ', ' + f + ' earned' : '') + '" title="' + MW.actWord(n) + (f ? ', ' + f + ' earned last round' : '') + '">' + '<i></i>'.repeat(Math.max(0, n - f)) + Array.from({ length: f }, (_, i) => '<i class="new" style="--pd:' + i + '"></i>').join('') + '<i class="off"></i>'.repeat(Math.max(0, spent || 0)) + '</span>'; };
 
@@ -1886,7 +1894,7 @@ const othersTurn = () => S.players[S.current].isAI || (!!net && S.current !== ne
 function viewer() { if (net) return net.seat; const c = S.players[S.current]; if (!c.isAI) return c.id; const h = S.players.find(p => !p.isAI); return h ? h.id : 0; }
 /* ---------- Sound: what each button sounds like, and which music fits the moment ---------- */
 const snd = (n, o) => { if (window.SFX) window.SFX.play(n, o); };
-const UI_SND = { install: 'install', remove: 'remove', slotClear: 'remove', repair: 'repair', fixMech: 'repair', scrap: 'scrap', dismantle: 'scrap',
+const UI_SND = { fuel: 'install', install: 'install', remove: 'remove', slotClear: 'remove', repair: 'repair', fixMech: 'repair', scrap: 'scrap', dismantle: 'scrap',
   acceptDraw: 'draw', requisition: 'draw', play: 'draw', endBuild: 'confirm', endDeploy: 'confirm', passAll: 'confirm', coachNext: 'confirm', noteOk: 'confirm',
   closeOverlay: 'back', closeWin: 'back', cancelFire: 'back', deselect: 'back', toStart: 'back', wtab: 'tab', itab: 'tab', ruleTab: 'tab', pf: 'tab', pg: 'tab', lpg: 'tab', step: 'tab',
   weapon: 'aim', pickTarget: 'aim', phaseArm: 'aim', nukeArm: 'aim', hangar: 'select', selField: 'select', pickDeploy: 'select', warnDeploy: 'select', slot: 'select', plus: 'select', partInfo: 'select',
@@ -1938,9 +1946,9 @@ function statList(d) {
     if (w.heatDmg) add('heatDmg', 'Target +' + w.heatDmg + ' heat', w.heatDmg, 1);
     if (w.burn) add('burn', 'Sets burning ' + w.burn + ' rounds', w.burn, 1);
     if (w.slow) add('slow', 'Slows: −2 move', 1, 1);
-    if (w.shock) add('shock', 'Shocks: −1 action', 1, 1);
+    if (w.shock) add('shock', 'Shocks: −1 order', 1, 1);
     if (w.needsEntrench) add('needsEntrench', 'Combo: fires only dug in, on Quad Walker legs', 1, -1);
-    if (w.twoHanded) add('twoHanded', 'Combo: two-handed, takes both arms; a swing needs ' + (w.apCost || 2) + ' actions and ends the activation', 1, -1);
+    if (w.twoHanded) add('twoHanded', 'Combo: two-handed, takes both arms; a swing needs ' + (w.apCost || 2) + ' orders and ends the activation', 1, -1);
     if (w.needsOverclock) add('needsOverclock', 'Combo: fires only after overclocking this activation', 1, -1);
   }
   if (d.slot === 'legs') { add('move', 'MOVE ' + d.move, d.move, 1, 'MOVE'); if (d.carry) add('carry', 'Carries ' + MW.SIZE_NAME[d.carry].toLowerCase() + ' chassis', d.carry, 1); if (d.entrench || d.dig) add('entrench', 'Can entrench', 1, 0); if (d.hull) add('hull', 'Hull +' + d.hull + ' HP', d.hull, 1, 'Hull'); }
@@ -2095,6 +2103,26 @@ function meter(label, val, max) {
   return '<div class="meter' + (over ? ' over' : near ? ' near' : '') + '">' + label + '<b>' + val + ' / ' + max + '</b><span><i style="width:' + (max > 0 ? Math.min(100, val / max * 100) : (val ? 100 : 0)) + '%"></i></span></div>';
 }
 const pips = n => '<span class="pips">' + '<i></i>'.repeat(Math.max(0, n)) + '</span>';
+// a mech's fuel, for armies that move on it: lit cells for the moves left, empty ones for the rest of the tank
+function fuelTag(m) {
+  if (!MW.needsFuel(m)) return '';
+  const cap = MW.fuelCap(m.owner), f = Math.min(cap, m.fuel || 0);
+  return '<span class="fuel' + (f ? '' : ' out') + '" title="Fuel: ' + f + ' of ' + cap + '. Each move burns 1; 1 action in the build adds 1.">Fuel<span class="bpips">' + '<i></i>'.repeat(f) + '<i class="off"></i>'.repeat(cap - f) + '</span></span>';
+}
+// every tank that can take fuel this build, from the Base window
+function showFuel() {
+  const p = S.players[viewer()], tank = MW.fieldMechs(p.id).concat(p.hangar.filter(m => !MW.isBlank(m) && !MW.issues(m).length));
+  const o = $('#overlay');
+  o.innerHTML = '<div class="sheet" role="dialog" aria-label="Fuel"><div class="phead"><h2>Fuel</h2><button type="button" class="btn sm" data-act="closeOverlay">Done</button></div>' +
+    '<p class="note">Your mecha move only on fuel: each move burns 1. 1 action adds 1 to a tank, up to ' + MW.fuelCap(p.id) + '. Actions left: ' + bpips(p.ep) + '</p>' +
+    '<div class="fuelrow">' + (tank.map(m => fuelBtn(p, m)).join('') || '<p class="note">No mecha to fuel yet.</p>') + '</div></div>';
+  o.hidden = false; o.dataset.sheet = 'fuel';
+}
+// a button that spends an action to put one more move in a mech's tank
+function fuelBtn(p, m, grow) {
+  const why = MW.canFuel(p, m);
+  return '<button type="button" class="btn sm' + (grow ? ' grow' : '') + '" data-act="fuel" data-uid="' + m.uid + '"' + (why ? ' disabled title="' + why + '"' : '') + '><span><b>' + m.name + '</b>' + fuelTag(m) + '</span><small>+1 fuel ' + bpips(1) + '</small></button>';
+}
 
 /* ---------- Mech views ---------- */
 function blueprint(m, editable) {
@@ -2122,7 +2150,7 @@ function statBlock(m, field) {
   const hpF = maxHp ? hp / maxHp : 0;
   let h = '<div class="stats">' +
     row('hp', 'HP (frame)', 'hp', 'HP', hp + '<i>/' + maxHp + '</i>', bar(hpF, hpF < 0.34 ? 'low' : hpF < 0.67 ? 'mid' : ''), !!t && hp < maxHp) +
-    row('move', 'Move per action', 'move', 'Move', String(st.move), seg(st.move, Math.max(6, st.move))) +
+    row('move', 'Move per order', 'move', 'Move', String(st.move), seg(st.move, Math.max(6, st.move))) +
     row('armor', 'Armor', 'shield', 'Armour', String(armor), seg(armor, Math.max(4, armor))) +
     row('heat', 'Heat capacity', 'incendiary', 'Heat cap', (field ? m.heat + '<i>/' + st.heatCap + '</i>' : String(st.heatCap)), field ? bar(st.heatCap ? m.heat / st.heatCap : 0, m.heat > st.heatCap ? 'low' : 'heat') : seg(st.heatCap, Math.max(10, st.heatCap), 'heat'), field && m.heat > st.heatCap) +
     row('load', 'Capacity: pips used / chassis budget', 'load', 'Weight', st.used + '<i>/' + st.cap + '</i>', seg(st.used, Math.max(st.cap, st.used), st.used > st.cap ? 'low' : ''), st.used > st.cap) +
@@ -2145,8 +2173,8 @@ function rosterRow(m, clickable) {
   const t = m.slots.torso, td = t && D[t.id];
   let status;
   if (m.x == null) status = MW.issues(m).length ? 'Building' : 'Ready';
-  else status = S.phase === 'combat' ? (m.activated ? 'Done' : m.ap + ' AP') : MW.coord(m.x, m.y);
-  const inner = mechSVG(m) + '<span><b>' + m.name + '</b><small>' + armIcons(m) + MW.role(m) + (t ? ' · HP ' + MW.hpOf(m) + '/' + MW.maxHpOf(m) : '') + (m.heat ? ' · heat ' + m.heat : '') + '</small></span><small>' + status + '</small>';
+  else status = S.phase === 'combat' ? (m.activated ? 'Done' : m.ap + (m.ap === 1 ? ' order' : ' orders')) : MW.coord(m.x, m.y);
+  const inner = mechSVG(m) + '<span><b>' + m.name + '</b><small>' + armIcons(m) + MW.role(m) + (t ? ' · HP ' + MW.hpOf(m) + '/' + MW.maxHpOf(m) : '') + (m.heat ? ' · heat ' + m.heat : '') + (MW.needsFuel(m) ? ' · fuel ' + (m.fuel || 0) + '/' + MW.fuelCap(m.owner) : '') + '</small></span><small>' + status + '</small>';
   return clickable ? '<button type="button" class="rost p' + m.owner + '" data-act="selField" data-uid="' + m.uid + '">' + inner + '</button>' : '<div class="rost p' + m.owner + '">' + inner + '</div>';
 }
 function fieldLists() {
@@ -2161,7 +2189,7 @@ function fieldLists() {
 function renderTop() {
   const prev = ui.prev || {}, now = {};
   // one plate per side: the name over the race to the win, as a bar (the numbers stay in the tooltip;
-  // build actions are in the Base window)
+  // actions are in the Base window)
   const side = p => {
     const v = ui.vpShow && ui.vpShow[p.id] != null ? ui.vpShow[p.id] : (p.vp || 0);
     now['v' + p.id] = v;
@@ -2807,11 +2835,13 @@ function mechDock(m, closable) {
   const guard = own ? MW.actGuard(m) : 'x', live = own && !guard;
   const st = MW.stats(m);
   const flags = [m.heat > st.heatCap ? '<b class="bad">overheating</b>' : '', st.underpowered ? '<b class="bad">low power</b>' : '', m.braced ? 'braced' : '', m.shield > 0 ? 'shield ' + m.shield : '', m.entrenched ? '<b class="emp">emplaced</b>' : '', m.burn > 0 ? 'burning' : '', m.slow > 0 ? 'slowed' : '', m.shock ? 'shocked' : '', m.overwatch ? 'on overwatch' : ''].filter(Boolean);
-  let h = '<div class="mh p' + m.owner + '">' + mechPic(m) + '<div class="mh-t"><div class="mh-1"><b>' + m.name + '</b>' + (S.phase === 'combat' && !m.activated ? pips(m.ap) : '') +
+  if (MW.needsFuel(m) && !(m.fuel > 0)) flags.unshift('<b class="bad">out of fuel</b>');
+  let h = '<div class="mh p' + m.owner + '">' + mechPic(m) + '<div class="mh-t"><div class="mh-1"><b>' + m.name + '</b>' + (S.phase === 'combat' && !m.activated ? pips(m.ap) : '') + fuelTag(m) +
     '<span class="mh-s">' + MW.role(m) + ' · ' + MW.coord(m.x, m.y) + (flags.length ? ' · ' + flags.join(' · ') : '') + '</span></div></div>' +
     '<div class="mh-b"><button type="button" class="ib" data-act="details" aria-label="Details">i</button>' + (closable ? '<button type="button" class="ib" data-act="deselect" aria-label="Close">✕</button>' : '') + '</div></div>' +
     '<div class="mh-stats">' + statBlock(m, true) + '</div>';
   if (S.phase === 'combat' && m.owner !== viewer()) return h + oddsAgainst(m) + enemyWeaponsLine(m);
+  if (S.phase === 'build' && isHuman() && m.owner === S.current && MW.needsFuel(m)) return h + '<div class="row">' + fuelBtn(S.players[m.owner], m, true) + '</div>';
   if (live && ui.mode === 'fire' && ui.pendingTarget != null) return h + picker(m);
   h += weaponRows(m, live);
   if (live && ui.mode === 'fire' && MW.getSlot(m, ui.weaponKey)) h += targetChips(m);
@@ -2836,6 +2866,10 @@ function renderDock() {
     const o = S.players[1 - p.id];
     h += '<div class="dock-h p' + p.id + '"><b>Build locked in.</b> Deployment starts when ' + o.name + ' is ready; ' + S.players[S.first].name + ' deploys first.</div><div class="row"><button type="button" class="btn sm" data-act="openShop">Hangar</button></div>';
   } else if (S.phase === 'build') {
+    if (MW.fuelCap(p.id)) {
+      const tank = MW.fieldMechs(p.id).concat(p.hangar.filter(m => !MW.isBlank(m) && !MW.issues(m).length));
+      if (tank.length) h += '<div class="dock-h">Fuel: each move burns 1. Top up a mech for 1 action.</div><div class="fuelrow">' + tank.map(m => fuelBtn(p, m)).join('') + '</div>';
+    }
     h += '<div class="row"><button type="button" class="btn grow" data-act="openShop">Base<small>' + bpips(p.ep) + ' · ' + si('cards') + p.workshop.length + ' cards</small></button>' +
       '<button type="button" class="btn primary grow" data-act="endBuild">End build ›<small>Go to deployment</small></button></div>';
   } else if (S.phase === 'deploy') {
@@ -2845,7 +2879,7 @@ function renderDock() {
     const list = MW.activatable(p.id);
     h += '<div class="mrows">' + list.map(m => {
       const ws = MW.weaponsOf(m).map(wp => { const n = MW.usable(m, wp.key) ? MW.validTargets(m, wp.key).length : 0; return '<span class="' + (n ? 'ok' : '') + '">' + ico(wp.def.cat, 'sm k-' + wp.def.cat) + (wp.inst.hp <= 0 ? 'out' : MW.weaponLock(m, wp.key) ? 'dig in' : n ? n + ' in range' : 'none') + '</span>'; }).join('');
-      return '<button type="button" class="mrow p' + m.owner + '" data-act="selField" data-uid="' + m.uid + '">' + mechPic(m) + '<span class="mr-t"><b>' + m.name + '</b>' + pips(m.ap) + '</span><span class="wchips">' + (ws || '<span>Unarmed</span>') + '</span></button>';
+      return '<button type="button" class="mrow p' + m.owner + '" data-act="selField" data-uid="' + m.uid + '">' + mechPic(m) + '<span class="mr-t"><b>' + m.name + '</b>' + pips(m.ap) + fuelTag(m) + '</span><span class="wchips">' + (ws || '<span>Unarmed</span>') + '</span></button>';
     }).join('') + '</div>';
     h += '<div class="row"><button type="button" class="btn sm" data-act="openShop">Hangar</button><button type="button" class="btn sm grow" data-act="passAll">Hold with all remaining</button></div>';
   }
@@ -2907,7 +2941,7 @@ function baseRes(p) {
   ui.prevRes = { pid: p.id, ep: p.ep };
   const chip = (title, icon, val, res, extra) => '<div title="' + title + '"' + (res ? ' data-res="' + res + '"' : '') + '>' + ico(icon, 'rico') + val + (extra || '') + '</div>';
   const nx = (p.next || 0) + MW.incomeOf(p);
-  return '<div class="res rchips">' + chip('Build actions left this round', 'eng', bpips(p.ep, Math.max(0, (p.epMax || 0) - p.ep), pr && pr.ep !== p.ep ? 'bump' : ''), 'ep', nx ? '<small class="rinc" title="Earned for next round">+' + bpips(nx) + '</small>' : '') +
+  return '<div class="res rchips">' + chip('Actions left this round', 'eng', bpips(p.ep, Math.max(0, (p.epMax || 0) - p.ep), pr && pr.ep !== p.ep ? 'bump' : ''), 'ep', nx ? '<small class="rinc" title="Earned for next round">+' + bpips(nx) + '</small>' : '') +
     chip('Cards left in your Arsenal deck', 'deck', '<b>' + p.deck.length + '</b>') +
     chip('Mecha on the field', 'torso', '<b>' + MW.fieldMechs(p.id).length + '<i>/' + MW.fieldMax(p.id) + '</i></b>') + '</div>';
 }
@@ -3088,8 +3122,8 @@ function renderReveal() {
   const n = p.incoming.length;
   el.className = 'p' + p.id;
   el.innerHTML = '<div class="rv-head"><span class="lbl">' + p.name + ' · Round ' + S.round + ' · ' + (p.wave ? 'Extra draw' : 'Arsenal draw') + '</span><h2>' + (p.wave ? (p.waveFrom || 'Extra draw') + ': ' + n + ' more' : n + ' new card' + (n > 1 ? 's' : '')) + '</h2></div>' +
-    // the build actions this round, and how many of them were earned on the field last round
-    '<div class="rv-supply" title="Build actions">' + ico('eng', 'rico') + bpips(p.ep, 0, '', S.round > 1 ? p.lastIncome : 0) + '</div>' +
+    // the actions this round, and how many of them were earned on the field last round
+    '<div class="rv-supply" title="Actions">' + ico('eng', 'rico') + bpips(p.ep, 0, '', S.round > 1 ? p.lastIncome : 0) + '</div>' +
     '<div class="rv-cards">' + p.incoming.map((c, i) => revealCard(D[c.id], i)).join('') + '</div>' +
     '<div class="rv-foot"><span class="note">' + p.deck.length + ' cards left in your Arsenal · Workshop ' + p.workshop.length + '/' + C.WORKSHOP_MAX + '</span><button type="button" class="btn primary" data-act="acceptDraw">' + 'Add to Workshop ›<small>Then build</small>' + '</button></div>';
 }
@@ -3109,7 +3143,7 @@ function renderWin() {
   if (k === 'shop') {
     const p = S.players[viewer()];
     title = 'Base'; pc = ' p' + p.id; html = panelBase(p); head = baseRes(p);
-    if (uiPhase() === 'build' && isHuman()) extra = '<button type="button" class="btn sm primary" data-act="endBuild">End build ›</button>';
+    if (uiPhase() === 'build' && isHuman()) extra = (MW.fuelCap(p.id) ? '<button type="button" class="btn sm" data-act="fuelMenu">Fuel</button>' : '') + '<button type="button" class="btn sm primary" data-act="endBuild">End build ›</button>';
   } else if (k === 'mech') { title = sm.name; pc = ' p' + sm.owner; html = '<span class="lbl">' + S.players[sm.owner].name + ' · ' + MW.role(sm) + (sm.x != null ? ' · ' + MW.coord(sm.x, sm.y) : ' · hangar') + ' · HP ' + MW.hpOf(sm) + '/' + MW.maxHpOf(sm) + '</span>' + roleLine(sm) + hpBar(sm, 'mdhp') + (R3on ? '<div class="h3d" id="h3d"><span class="h3d-hint">Drag to turn</span></div>' : blueprint(sm, false)) + statBlock(sm, sm.x != null); }
   else { title = 'Battle'; ui.itab = ui.itab || 'log'; html = tabs([['log', 'Log'], ['forces', 'Forces']], ui.itab, 'itab') + '<div class="tabbody">' + (ui.itab === 'log' ? logHTML() : fieldLists()) + '</div>'; }
   el.className = (k ? 'open' : 'idle') + pc;
@@ -3142,12 +3176,12 @@ const COACH = [
   { t: 'Waiting for the enemy to deploy…', wait: true, done: () => S.phase === 'combat' && isHuman() },
   { t: '<b>Combat.</b> Commanders take turns activating one mech. Tap one of your mecha on the map: the highlighted tiles show where it can move. Tap a tile to move there.', hl: '.mrow', done: () => myMechs().some(m => m.moves > 0 || m.activated || Object.keys(m.fired || {}).length) },
   { t: 'Now pick a <b>weapon</b>. Tiles in reach light up and each target shows your hit chance. Tap an enemy in range to fire, or finish this mech if nothing is close yet.', hl: '[data-act=weapon]', done: () => myMechs().some(m => m.activated || Object.keys(m.fired || {}).length) },
-  { t: '<b>Objectives</b> score points. Hold a <b>radar</b> (or an uplink) at the end of a round, or a <b>depot on the enemy half</b> (marked ★), and you score. Depots also give an extra build action every round. Move onto one to take it.' + (killEvery() ? ' Destroying enemy mecha scores too: every <b>' + killEvery() + ' kills</b> is worth a point.' : ''), next: 'Got it' },
+  { t: '<b>Objectives</b> score points. Hold a <b>radar</b> (or an uplink) at the end of a round, or a <b>depot on the enemy half</b> (marked ★), and you score. Depots also give an extra action every round. Move onto one to take it.' + (killEvery() ? ' Destroying enemy mecha scores too: every <b>' + killEvery() + ' kills</b> is worth a point.' : ''), next: 'Got it' },
   { t: 'Activate your other mecha the same way. When you are done, they can hold position. The round ends once everyone has acted.', done: () => S.round >= 2 || S.phase === 'over' },
   { t: '<b>Resolution</b> just played: heat cooled, base turrets fired, and points were scored. Your points are the ★ at the top. Keep an eye on <b>heat</b>: a mech over its limit at round end is damaged and shuts down.', next: 'Next', low: true },
   { t: 'Round 2 begins. Tap <b>Add to Workshop</b> for this round\'s cards.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
   { t: 'Time to upgrade. Open the <b>Parts</b> tab: it lists the cards in your Workshop that can go on the selected mech.', hl: '[data-act=wtab][data-tab=cards]', done: () => ui.wtab === 'cards' || fittedNew() },
-  { t: 'Pick a card and tap its gold button. <b>Fit</b> puts the part in an empty slot; <b>Replace</b> swaps out the part already there. Most parts take one build action (the wrench at the top of the Workshop), big ones two, specials three.', hl: '[data-act=install]', prefer: b => /^Fit/.test(b.textContent.trim()), done: () => fittedNew() || S.phase !== 'build' },
+  { t: 'Pick a card and tap its gold button. <b>Fit</b> puts the part in an empty slot; <b>Replace</b> swaps out the part already there. Most parts take one action (the wrench at the top of the Workshop), big ones two, specials three.', hl: '[data-act=install]', prefer: b => /^Fit/.test(b.textContent.trim()), done: () => fittedNew() || S.phase !== 'build' },
   { t: 'That is the loop: <b>build, deploy, fight, resolve</b>. New mechanics get a short note the first time they come up. The <b>Rules</b> button has the full field manual. Now win this battle!', next: 'Finish' }
 ];
 const NOTES = [
@@ -3156,27 +3190,29 @@ const NOTES = [
   { id: () => 'map-' + S.map, when: () => S.map && S.round <= 2,
     t: () => '<b>' + MW.MAP.name + '</b>: ' + MW.MAP.blurb + (MW.MAP.notes ? ' ' + MW.MAP.notes : '') },
   { id: () => 'fit', when: () => uiPhase() === 'build' && S.round >= 2,
-    t: () => '<b>Fitting parts.</b> Tap a step on the strip (chassis, legs, arms, aux), then pick a card and tap Fit. Each fit takes 1 build action (big parts 2, specials 3). Removing a part is free.' },
+    t: () => '<b>Fitting parts.</b> Tap a step on the strip (chassis, legs, arms, aux), then pick a card and tap Fit. Each fit takes 1 action (big parts 2, specials 3). Removing a part is free.' },
+  { id: () => 'fuel', when: () => uiPhase() === 'build' && S.round >= 2 && MW.fuelCap(viewer()) > 0,
+    t: () => '<b>Fuel.</b> Your mecha move only on fuel: each move burns 1, and an empty tank cannot move at all. Tap <b>+1 fuel</b> on a mech above End build to put one move in its tank for 1 action (up to ' + MW.fuelCap(viewer()) + '). New mecha deploy with ' + C.FUEL_START + ', and both sides can see every tank.' },
   { id: () => 'deploy-limit', when: () => S.phase === 'deploy' && S.current === viewer() && myMechs().length >= MW.fieldMax(viewer()),
     t: () => '<b>Field limit.</b> Your doctrine can field ' + MW.fieldMax(viewer()) + ' mecha at once. More can wait in the hangar and deploy when a slot frees up.' },
   { id: () => 'armored-hold', when: () => S.phase === 'combat' && S.players.some(p => p.doctrine === 'armored'),
-    t: () => { const a = S.players.find(p => p.doctrine === 'armored'); return '<b>' + a.name + ' is Armored.</b> Its mecha carry extra plating and fire straighter when they stand still. Its Quad Walker artillery fires on the move, and is deadlier <b>emplaced</b> (+1 range, +1 armour): the striped ring marks a turret.'; } },
+    t: () => { const a = S.players.find(p => p.doctrine === 'armored'); return '<b>' + a.name + ' is Armored.</b> Its mecha carry extra plating and fire straighter when they stand still. Its Quad Walker artillery fires on the move, and is deadlier <b>emplaced</b> (+1 range, +1 armour): the striped ring marks a turret. Its mecha move only on <b>fuel</b>: the amber cells beside each one show how many moves it has left, and an empty tank turns red.'; } },
   { id: () => 'combo', when: () => { const p = S.players[viewer()]; return p.workshop.concat(...p.hangar.map(m => MW.partsOf(m).map(x => x.inst)), ...MW.fieldMechs(p.id).map(m => MW.partsOf(m).map(x => x.inst))).some(c => c && MW.DEFS[c.id].weapon && (MW.DEFS[c.id].weapon.twoHanded || MW.DEFS[c.id].weapon.needsOverclock || MW.DEFS[c.id].weapon.needsEntrench)); },
-    t: () => '<b>Combo weapon.</b> ' + ({ assault: 'The <b>Meteor Hammer</b> is two-handed: it takes both arms, and a swing needs ' + MW.DEFS.s_hammer.weapon.apCost + ' actions, so it cannot move and swing in one turn. End a turn next to the target, then smash for ' + MW.DEFS.s_hammer.weapon.dmg + ', piercing and shocking.', armored: 'The <b>Heavy Railgun</b> only fires from a dug-in Quad Walker: dig in, then fire ' + MW.DEFS.s_railgun.weapon.dmg + ' piercing at long range.', experimental: 'The <b>Overload Lance</b> only fires after the mech overclocks in the same activation: overclock, then fire ' + MW.DEFS.s_overload.weapon.dmg + ' piercing, and watch the heat.' }[S.players[viewer()].doctrine] || 'It only works in the right combination, and hits hard when it does.') },
+    t: () => '<b>Combo weapon.</b> ' + ({ assault: 'The <b>Meteor Hammer</b> is two-handed: it takes both arms, and a swing needs ' + MW.DEFS.s_hammer.weapon.apCost + ' orders, so it cannot move and swing in one turn. End a turn next to the target, then smash for ' + MW.DEFS.s_hammer.weapon.dmg + ', piercing and shocking.', armored: 'The <b>Heavy Railgun</b> only fires from a dug-in Quad Walker: dig in, then fire ' + MW.DEFS.s_railgun.weapon.dmg + ' piercing at long range.', experimental: 'The <b>Overload Lance</b> only fires after the mech overclocks in the same activation: overclock, then fire ' + MW.DEFS.s_overload.weapon.dmg + ' piercing, and watch the heat.' }[S.players[viewer()].doctrine] || 'It only works in the right combination, and hits hard when it does.') },
   { id: () => 'heat', when: () => S.phase === 'combat' && myMechs().some(m => m.heat >= MW.stats(m).heatCap - 1),
     t: () => '<b>Running hot.</b> A mech of yours is near its heat limit (the flame). If it ends the round above the limit, its core takes damage and it shuts down next round. Hold fire or brace to let it cool.' },
   { id: () => 'crate', when: () => S.phase === 'combat' && (S.crates || []).length > 0,
-    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> score on this map: end a move on one to grab it, for a victory point plus a build action or a special part.' + (MW.rule('crateStops', false) ? ' Loading a crate ends that mech\'s turn.' : '') + (MW.MAP.obj.some(o => o[2] === 'radar') ? ' The radars on the scrap pile score too.' : '') : '<b>Crate.</b> A crate has dropped. The first mech to end a move on it grabs an extra build action or a special part.' },
+    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> score on this map: end a move on one to grab it, for a victory point plus an action or a special part.' + (MW.rule('crateStops', false) ? ' Loading a crate ends that mech\'s turn.' : '') + (MW.MAP.obj.some(o => o[2] === 'radar') ? ' The radars on the scrap pile score too.' : '') : '<b>Crate.</b> A crate has dropped. The first mech to end a move on it grabs an extra action or a special part.' },
   { id: () => 'overwatch', when: () => S.phase === 'combat' && S.mechs.some(m => m.owner !== viewer() && m.overwatch),
     t: () => '<b>Enemy overwatch.</b> A mech on overwatch shoots the first enemy that ends a move in its range. Those tiles are striped when you move. Wait it out, or send something tough first.' },
   { id: () => 'damaged', when: () => myMechs().concat(S.players[viewer()].hangar).some(m => ['armL', 'armR', 'legs', 'core'].some(k => m.slots[k] && m.slots[k].hp <= 0)),
-    t: () => '<b>Broken part.</b> A destroyed arm loses its weapon; broken legs slow the mech. Return it to base and repair it in the Workshop (1 build action), or fit a replacement.' },
+    t: () => '<b>Broken part.</b> A destroyed arm loses its weapon; broken legs slow the mech. Return it to base and repair it in the Workshop (1 action), or fit a replacement.' },
   { id: () => 'disarmed', when: () => S.phase === 'combat' && myMechs().some(m => !MW.hasWeapon(m)),
     t: () => '<b>Disarmed.</b> A mech with no working weapon can still <b>Detonate</b> (a blast that hurts everything within 2 tiles) or <b>Strip</b> itself in the field to recover parts.' },
   { id: () => 'depot', when: () => S.objectives.some(o => o.type === 'depot' && o.owner === viewer()),
-    t: () => '<b>Depot held.</b> Each depot gives ' + C.DEPOT + ' extra build action a round (up to ' + C.DEPOT_FULL + '). Depots on the enemy half (★) also score a victory point' + (MW.rule('depotVp', true) ? '.' : ', but not on this map.') },
+    t: () => '<b>Depot held.</b> Each depot gives ' + C.DEPOT + ' extra action a round (up to ' + C.DEPOT_FULL + '). Depots on the enemy half (★) also score a victory point' + (MW.rule('depotVp', true) ? '.' : ', but not on this map.') },
   { id: () => 'behind', when: () => uiPhase() === 'build' && (S.players[1 - viewer()].vp || 0) > (S.players[viewer()].vp || 0),
-    t: () => '<b>Behind on points.</b> The side that is behind gets an extra build action each round, two when 3 or more points behind.' },
+    t: () => '<b>Behind on points.</b> The side that is behind gets an extra action each round, two when 3 or more points behind.' },
   { id: () => 'lead', when: () => (S.players[viewer()].vp || 0) - (S.players[1 - viewer()].vp || 0) >= C.LEAD_GAP,
     t: () => '<b>In the lead.</b> While ' + C.LEAD_GAP + ' or more points ahead, objectives score at most ' + C.LEAD_CAP + ' a round. Kills and damage to the enemy base still count in full: press the advantage.' },
   { id: () => 'base-threat', when: () => S.phase === 'combat' && (S.mechs.some(m => m.owner !== viewer() && Math.abs(m.x - S.players[viewer()].base.x) + Math.abs(m.y - S.players[viewer()].base.y) <= C.TURRET_RANGE) || Object.values(S.players[viewer()].siegedBy || {}).some(r => r >= S.round - 1)),
@@ -3209,8 +3245,8 @@ const mine = () => MW.S.mechs.filter(m => m.owner === 0), foes = () => MW.S.mech
 const frame = () => MW.S.players[0].hangar[0];
 const lead = () => mine()[0];
 // a fresh board: Azure (you, Assault) against a training dummy that never moves or fires
-function lessonBoard() {
-  MW.newGame({ map: 'open', players: [{ name: 'Azure', doctrine: 'assault', isAI: false }, { name: 'Ember', doctrine: 'assault', isAI: true, persona: 'recruit' }] });
+function lessonBoard(doc) {
+  MW.newGame({ map: 'open', players: [{ name: 'Azure', doctrine: doc || 'assault', isAI: false }, { name: 'Ember', doctrine: 'assault', isAI: true, persona: 'recruit' }] });
   const st = MW.S; st.players[1].dummy = true; st.first = 0; st.current = 0;
   return st;
 }
@@ -3229,17 +3265,17 @@ const LESSONS = [
       { t: 'Every part you can fit comes from your <b>Arsenal</b>, your doctrine\'s own deck. Each round opens with new cards from it. Tap <b>Add to Workshop</b>.', hl: '[data-act=acceptDraw]', done: () => uiPhase() !== 'draw' },
       { t: 'Cards wait in your <b>Workshop</b> until you fit them to a mech. Open the <b>Parts</b> tab to see them.', hl: '[data-act=wtab][data-tab=cards]', done: () => ui.wtab === 'cards' },
       { t: 'Every card reads the same way. Top left: its type. Middle: its two key numbers (a weapon shows damage and range). Bottom left: its special rule. Bottom right: its weight in capacity pips. Tap <b>i</b> on a card to read all of it.', hl: '[data-act=partInfo]', done: () => did('partInfo') },
-      { t: 'Short of parts? <b>Requisition</b> one more card from the Arsenal for 1 build action, the wrench counter at the top. Try it.', hl: '[data-act=requisition]', done: () => did('requisition') },
+      { t: 'Short of parts? <b>Requisition</b> one more card from the Arsenal for 1 action, the wrench counter at the top. Try it.', hl: '[data-act=requisition]', done: () => did('requisition') },
       { t: 'Tap <b>Add to Workshop</b> to take it.', hl: '[data-act=acceptDraw]', done: () => did('requisition') && uiPhase() !== 'draw' },
-      { t: 'The Workshop holds up to ' + C.WORKSHOP_MAX + ' cards. A card you will never use can be <b>scrapped</b> from its i details for a build action. Standard parts never run out.', next: 'Got it' }
+      { t: 'The Workshop holds up to ' + C.WORKSHOP_MAX + ' cards. A card you will never use can be <b>scrapped</b> from its i details for an action. Standard parts never run out.', next: 'Got it' }
     ] },
-  { id: 'build', title: 'Build your First Mecha', learn: 'Chassis, legs and weapons, mounts, and build actions.',
+  { id: 'build', title: 'Build your First Mecha', learn: 'Chassis, legs and weapons, mounts, and actions.',
     setup() { const st = lessonBoard(), p = st.players[0]; MW.acceptDraw(p); p.hangar = p.hangar.filter(MW.isBlank); p.ep = p.epMax = 6; ui.hangarSel = frame() && frame().uid; },
     steps: [
       { t: 'This empty frame is a mech waiting to be built. Every mech needs a <b>chassis</b>, then <b>legs</b>, then a <b>weapon</b>. Tap the gold <b>+</b> on the chassis, then <b>Fit</b> one.', hl: '[data-act=plus]', done: () => !!frame().slots.torso },
       { t: 'The chassis sets the mech\'s HP and armour and gives it two weapon mounts. Now fit <b>legs</b>: pick a card and tap its <b>Fit legs</b> button. Legs set how far it moves, and how heavy a chassis they can carry.', hl: '[data-act=install]', prefer: b => /Fit legs/.test(b.textContent), done: () => !!frame().slots.legs },
       { t: 'Now a <b>weapon</b>: tap a <b>Fit L arm</b> or <b>Fit R arm</b> button. A weapon only fits a matching mount (Gun, Energy, Melee or Heavy) or a Universal one, so each card only offers the arms it fits.', hl: '[data-act=install]', prefer: b => /Fit [LR] arm/.test(b.textContent), done: () => !!(frame().slots.armL || frame().slots.armR) },
-      { t: 'Every fit costs <b>build actions</b>, the wrench counter at the top: most parts 1, big ones 2, specials 3. Up to ' + C.CARRY_MAX + ' unused actions carry over to the next round.', next: 'Got it' },
+      { t: 'Every fit costs <b>actions</b>, the wrench counter at the top: most parts 1, big ones 2, specials 3. Up to ' + C.CARRY_MAX + ' unused actions carry over to the next round.', next: 'Got it' },
       { t: 'Your mech is ready to fight once it shows no warnings. Fill its other arm too, if you like.', done: () => !MW.isBlank(frame()) && !MW.issues(frame()).length && MW.hasWeapon(frame()), next: 'Finish' }
     ] },
   { id: 'deploy', title: 'Deployment', learn: 'Moving mecha from the hangar onto the battlefield.',
@@ -3250,20 +3286,20 @@ const LESSONS = [
       { t: () => 'Your doctrine fields up to ' + MW.fieldMax(0) + ' mecha at once. Deploy a second one.', hl: '.dchip, [data-act=pickDeploy]', done: () => mine().length > 1 },
       { t: 'Mecha left in the hangar stay safe, and can be refitted next round. Tap <b>End deployment</b>.', hl: '[data-act=endDeploy]', done: () => S.phase !== 'deploy' || S.current !== 0 }
     ] },
-  { id: 'fire', title: 'Move and Fire', learn: 'Activations, actions, moving, hit chance and aiming.', combat: true,
+  { id: 'fire', title: 'Move and Fire', learn: 'Activations, orders, moving, hit chance and aiming.', combat: true,
     setup() { lessonField(() => { MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_assault', legs: 'l_boost', armL: 'w_blade', armR: 'w_scatter' }), 1, 5); MW.lessonPlace(1, MW.lessonMech(1, { torso: 't_light', legs: 'b_legs', armL: 'b_gun' }), 5, 4); }); },
     steps: [
-      { t: '<b>Combat.</b> Commanders take turns activating one mech at a time. Each mech has <b>2 actions</b>: a move is one, firing a weapon is one. Tap your mech.', done: () => (lead() && (ui.sel === lead().uid || S.active === lead().uid)) || !foes().length },
+      { t: '<b>Combat.</b> Commanders take turns activating one mech at a time. Each mech has <b>2 orders</b>: a move is one, firing a weapon is one. Tap your mech.', done: () => (lead() && (ui.sel === lead().uid || S.active === lead().uid)) || !foes().length },
       { t: 'The lit tiles show how far it can move. Its Scatter Cannon reaches 2 tiles: move to a tile within 2 of the training dummy.', done: () => (lead() && lead().moves > 0) || !foes().length },
       { t: 'Pick a <b>weapon</b>. Enemies in reach light up with your chance to hit.', hl: '[data-act=weapon]', done: () => ui.mode === 'fire' || (lead() && Object.keys(lead().fired || {}).length > 0) || !foes().length },
       { t: 'Tap the dummy, then choose where to aim. The <b>body</b> takes full damage. An <b>arm</b> or <b>legs</b> are harder to hit, but knock that part out.', done: () => (lead() && Object.keys(lead().fired || {}).length > 0) || !foes().length },
-      { t: 'Each round your mech gets its actions back. Keep firing until the dummy is destroyed.', done: () => !foes().length }
+      { t: 'Each round your mech gets its orders back. Keep firing until the dummy is destroyed.', done: () => !foes().length }
     ] },
   { id: 'capture', title: 'Capture Points', learn: 'Holding objectives and scoring victory points.', combat: true,
     setup() { lessonField(() => { MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_skirm', legs: 'l_boost', armL: 'w_smg', armR: 'w_smg' }), 1, 1); }); },
     steps: [
       { t: 'A <b>radar</b> scores a victory point every round for whoever holds it when the round ends. Move your mech onto the radar at the top edge of the map.', done: () => S.objectives.some(o => o.type === 'radar' && lead() && lead().x === o.x && lead().y === o.y) || (S.players[0].vp || 0) > 0 },
-      { t: 'Use its last action to <b>brace</b>: it takes less damage until next round while it holds the point.', hl: '[data-act=brace]', done: () => (lead() && lead().activated) || (S.players[0].vp || 0) > 0 },
+      { t: 'Use its last order to <b>brace</b>: it takes less damage until next round while it holds the point.', hl: '[data-act=brace]', done: () => (lead() && lead().activated) || (S.players[0].vp || 0) > 0 },
       { t: 'The round ends with <b>Resolution</b>: held points score. Watch your points at the top.', wait: true, done: () => (S.players[0].vp || 0) > 0 },
       { t: () => 'Points also come from <b>depots on the enemy half</b> (marked ★), from <b>destroying enemy mecha</b> and from <b>damaging the enemy base</b>. First to ' + C.VP_WIN + ' wins.', next: 'Got it' }
     ] },
@@ -3274,6 +3310,21 @@ const LESSONS = [
       { t: 'It also <b>returns fire</b> on anything that shelled your base that round, however far away it stood. Shelling a base is never free.', next: 'Next' },
       { t: () => 'If your base is destroyed you lose the war. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base scores you a point.', next: 'Next' },
       { t: 'A training dummy has walked into your turret\'s reach. Hold your fire: tap <b>Hold with all remaining</b> and watch the turret finish it when the round ends.', hl: '[data-act=passAll]', done: () => !foes().length }
+    ] },
+  { id: 'fuel', title: 'Fuel (Armored)', learn: 'Armored mecha move only on fuel, bought with actions.',
+    setup() {
+      const st = lessonBoard('armored');
+      for (const p of st.players) { MW.acceptDraw(p); p.hangar = p.hangar.filter(MW.isBlank); }
+      st.players[1].stage = 'done';
+      MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_heavy', legs: 'l_treads', armL: 'w_scatter' }), 1, 0).fuel = 0;
+    },
+    steps: [
+      { t: '<b>Fuel.</b> Armored mecha move only on fuel, and each move burns 1. The amber cells beside a mech show what is left. The tank of this mech is empty, so it cannot move.', next: 'Next' },
+      { t: () => 'In the build, <b>1 action</b> puts one move in a tank, up to ' + MW.fuelCap(0) + '. Tap <b>Fuel</b>, then <b>+1 fuel</b> on your mech.', hl: '[data-act=fuel], [data-act=fuelMenu]', done: () => lead() && lead().fuel > 0 },
+      { t: () => 'A new mech deploys with ' + C.FUEL_START + ' fuel, and mecha waiting in the hangar can be topped up too. Tap <b>End build</b>.', hl: '[data-act=endBuild]', done: () => S.phase !== 'build' || uiPhase() === 'wait' },
+      { t: 'Tap <b>End deployment</b>.', hl: '[data-act=endDeploy]', done: () => S.phase === 'combat' },
+      { t: 'Move your mech onto the <b>radar</b> at the top edge, and watch a fuel cell go out.', done: () => lead() && lead().moves > 0 },
+      { t: 'The tank is empty again. It can still fire, brace and go on overwatch, but it cannot move until you fuel it in the next build. Your opponent sees the same gauge, so fuel where you will need to move next round.', next: 'Got it' }
     ] },
   { id: 'battle', title: 'First Battle', learn: 'Everything together: a guided first round, then win the war.', battle: true,
     setup() { MW.newGame({ map: 'open', players: [{ name: 'Azure', doctrine: 'assault', isAI: false }, { name: 'Ember', doctrine: 'armored', isAI: true, persona: 'recruit' }] }); },
@@ -3647,6 +3698,8 @@ function onAct(el) {
     case 'play': { const c = p.workshop.find(x => x.uid === +el.dataset.uid); return after(MW.playTactic(p, +el.dataset.uid), (c ? D[c.id].name : 'Card') + ' played.'); }
     case 'acceptDraw': return after(MW.acceptDraw(), 'Added to the Workshop.');
     case 'requisition': return after(MW.requisition(p));
+    case 'fuel': { const m = MW.fieldMech(+el.dataset.uid) || p.hangar.find(x => x.uid === +el.dataset.uid), r = after(MW.fuel(p, m), m ? m.name + ' fuelled: ' + m.fuel + ' fuel.' : ''); if (!$('#overlay').hidden && $('#overlay').dataset.sheet === 'fuel') showFuel(); return r; }
+    case 'fuelMenu': return showFuel();
     case 'endBuild': {
       // mecha that still can't deploy get a warning first, with a quick way back to fix them
       const bad = p.hangar.filter(m => !MW.isBlank(m) && MW.issues(m).length);
@@ -3718,38 +3771,39 @@ function showRules() {
       ['A round', '<b>Draw</b> new cards, <b>build</b> and repair mecha in the Workshop, <b>deploy</b> them next to your base, then <b>fight</b>: you and your opponent take turns activating one mech each. <b>Resolution</b> scores points and cools heat.'],
       ['Roles', 'A mech’s parts give it a role, shown in the Workshop and in its details. ' + Object.keys(MW.ROLE_INFO).map(r => '<b>' + r + '</b>: ' + MW.ROLE_INFO[r]).join(' ')],
       ['Mecha', 'Each mech is a <b>chassis</b> (HP and two weapon mounts), <b>legs</b> (movement) and <b>weapons</b>. Fit them in that order. Tap any stat or icon in the game to see what it means.'],
-      ['On the map', 'Stand on a <b>radar</b> or <b>uplink</b>, or on a <b>depot</b> on the enemy half (★), to score at the end of the round. Depots also give build actions. Ruins give cover; rocks block shots.'],
-      ['New?', '<b>Training</b> teaches the game one part at a time in short lessons: cards, building, deploying, fighting, scoring and your base, then a guided first battle. Field notes explain anything new the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Open Training</button>']]],
-    ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point, and so are enemy mecha destroyed (' + MW.MAP_IDS.filter(id => (MW.MAPS[id].effects || {}).killVp).map(id => MW.MAPS[id].name + ': every ' + Math.round(1 / MW.MAPS[id].effects.killVp)).join(', ') + '). Holding your own depots gives build actions but no points. Azure holds the bottom of the map, Ember the top.'],
-      ['Comebacks', 'Whoever is behind on points gets +1 build action next round, +2 when 3 or more points behind. A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Kills and base damage always score in full.'],
+      ['On the map', 'Stand on a <b>radar</b> or <b>uplink</b>, or on a <b>depot</b> on the enemy half (★), to score at the end of the round. Depots also give actions. Ruins give cover; rocks block shots.'],
+      ['New?', '<b>Training</b> teaches the game one part at a time in short lessons: cards, building, deploying, fighting, scoring, your base and Armored fuel, then a guided first battle. Field notes explain anything new the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Open Training</button>']]],
+    ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point, and so are enemy mecha destroyed (' + MW.MAP_IDS.filter(id => (MW.MAPS[id].effects || {}).killVp).map(id => MW.MAPS[id].name + ': every ' + Math.round(1 / MW.MAPS[id].effects.killVp)).join(', ') + '). Holding your own depots gives actions but no points. Azure holds the bottom of the map, Ember the top.'],
+      ['Comebacks', 'Whoever is behind on points gets +1 action next round, +2 when 3 or more points behind. A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Kills and base damage always score in full.'],
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
-    ['Build', [['Start', 'Each side starts with mecha ready to deploy, each built for its own role (Assault brings an extra one), and ' + C.EP + ' build actions a round (Armored ' + MW.DOCTRINES.armored.traits.ep + '). Up to ' + C.CARRY_MAX + ' unused ones carry over to the next round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) wait in the Workshop until you play them: Spare Parts and Overtime Shift (extra build actions), Tech Requisition (more cards), Field Repairs.'],
-      ['Build', 'You get ' + C.EP + ' build actions a round. Fitting a part takes 1 (big chassis and heavy guns 2, specials 3); repairing takes 1; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads have armoured tracks, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
+    ['Build', [['Start', 'Each side starts with mecha ready to deploy, each built for its own role (Assault brings an extra one), and ' + C.EP + ' actions a round (Armored ' + MW.DOCTRINES.armored.traits.ep + '). Up to ' + C.CARRY_MAX + ' unused ones carry over to the next round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) wait in the Workshop until you play them: Spare Parts and Overtime Shift (extra actions), Tech Requisition (more cards), Field Repairs.'],
+      ['Fuel (Armored)', 'Armored mecha move only on fuel: each move burns 1, and with an empty tank a mech cannot move (it can still fire, brace and overwatch). A new mech deploys with ' + C.FUEL_START + '. In the build, 1 action adds 1 fuel to a mech on the field or a finished one in the hangar, up to ' + MW.DOCTRINES.armored.traits.fuel + '. Every tank shows as amber cells beside the mech, for both sides.'],
+      ['Build', 'You get ' + C.EP + ' actions a round. Fitting a part takes 1 (big chassis and heavy guns 2, specials 3); repairing takes 1; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads have armoured tracks, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
       ['Aiming', 'Pick where a shot goes. Body: no penalty, full damage to the hull. Weapon arm (−15%): knocks that weapon offline for the rest of the round and the next (it restarts at half strength), half the damage reaches the hull. Legs (−10%): slows the mech, 1 move once destroyed, half to the hull. The reactor sits inside the chassis and cannot be aimed at.'],
       ['Energy weapons', 'Lasers, lances and projectors melt through 1 point of armour (3 for the Experimental doctrine). Pierce ignores armour completely.'],
       ['Reading a card', 'Every card has the same layout. Top left: its type (chassis, legs, aux, or the weapon mount it needs: gun, energy, melee, heavy). Middle: two numbers (weapons: damage and range; chassis: HP and size; legs: move and the heaviest chassis they carry). Bottom left: its one special rule as a word. Bottom right: its weight in capacity pips, and a flame if it runs hot. Tap i for every detail.'],
-      ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Scrap unused cards from their i details for 1 build action each. Short on cards? Requisition one more from the Arsenal for ' + MW.actWord(C.REQ_COST) + '.']]],
-    ['Fight', [['Turns', 'Mecha on the field at once: Assault 4, Armored 3, Experimental 3. Commanders alternate activating one mech, two actions each (Experimental three): move, fire a weapon (each once per activation), overwatch, brace, salvage, or return to base.'],
-      ['Tricks', 'Every Experimental chassis carries one prototype trick, usable once a round. Overclock (Prototype): +1 action now, +3 heat. Phase jump (Singularity): an action to blink up to 3 tiles over anything, +2 heat. Cloak (Lattice): an action to make enemies 25% less likely to hit it for the rest of the round.'],
+      ['Workshop', 'Holds up to ' + C.WORKSHOP_MAX + ' cards. Standard-issue parts never run out. Scrap unused cards from their i details for 1 action each. Short on cards? Requisition one more from the Arsenal for ' + MW.actWord(C.REQ_COST) + '.']]],
+    ['Fight', [['Turns', 'Mecha on the field at once: Assault 4, Armored 3, Experimental 3. Commanders alternate activating one mech, two orders each (Experimental three): move, fire a weapon (each once per activation), overwatch, brace, salvage, or return to base.'],
+      ['Tricks', 'Every Experimental chassis carries one prototype trick, usable once a round. Overclock (Prototype): +1 order now, +3 heat. Phase jump (Singularity): an order to blink up to 3 tiles over anything, +2 heat. Cloak (Lattice): an order to make enemies 25% less likely to hit it for the rest of the round.'],
       ['Pack tactics', 'Assault mecha hunt together: each shot gets +10% for every other Assault mech within 2 tiles of the target, up to +20%.'],
       ['Shooting', 'Ruins give 20% cover. Rocks block direct fire; indirect weapons ignore them.'],
-      ['Disarmed', 'A mech with no working weapon can Detonate: its core blasts every tile within 2 (full damage next to it, half at range 2), flattens ruins, knocks objectives back to neutral and hits an adjacent enemy base. Or Strip it in the field: special parts go back to the Workshop, standard parts give a build action each (up to 2) next round.'],
+      ['Disarmed', 'A mech with no working weapon can Detonate: its core blasts every tile within 2 (full damage next to it, half at range 2), flattens ruins, knocks objectives back to neutral and hits an adjacent enemy base. Or Strip it in the field: special parts go back to the Workshop, standard parts give an action each (up to 2) next round.'],
       ['Overwatch', 'Hold fire for the round: the first enemy to end a move in range of a ready weapon is shot automatically. Tiles under enemy overwatch are striped red when you move.']]],
     ['Damage', [['HP', 'A mech’s HP is its frame’s HP, the bar under it on the map. Every hit lowers it; at 0 the mech is destroyed. A hit on another part also damages that part: a weapon knocked out goes offline for a round, legs slow, a reactor cuts power.'],
-      ['Heat', 'Firing and boosting build heat; cooling removes some each round. Heat over capacity at Resolution damages the core and leaves one action next round.'],
+      ['Heat', 'Firing and boosting build heat; cooling removes some each round. Heat over capacity at Resolution damages the core and leaves one order next round.'],
       ['Weapons', Object.keys(CAT_NAME).map(k => '<span class="chip">' + ico(k, 'sm k-' + k) + ' ' + CAT_NAME[k] + '</span>').join(' ')]]],
-    ['Special', [['Specials', '5 per deck, gold ★. Inferno Cannon burns (1 damage at each of 3 Resolutions), Cryo Lance slows (−2 move), EMP Projector shocks (one action next round). Aegis Frame and Lattice Core are tougher standard parts.'],
-      ['Combo weapons', 'Each doctrine has one weapon that only works when its mech is built and played a certain way, and hits very hard when it does. <b>Meteor Hammer</b> (Assault): two-handed, so it takes both arms, and a swing needs ' + MW.DEFS.s_hammer.weapon.apCost + ' actions: get next to the target one turn, then smash for ' + MW.DEFS.s_hammer.weapon.dmg + ', piercing and shocking, the next. <b>Heavy Railgun</b> (Armored): on a Quad Walker, dig in, then fire ' + MW.DEFS.s_railgun.weapon.dmg + ' piercing at long range. <b>Overload Lance</b> (Experimental): on a chassis that overclocks, overclock, then fire ' + MW.DEFS.s_overload.weapon.dmg + ' piercing, but mind the heat. A locked combo weapon says what it is waiting for.'],
-      ['Artillery', 'The Quad Walker (Armored issue) is very slow, tough legs that add ' + MW.DEFS.l_quad.hull + ' HP and take long-range weapons only (range ' + MW.LONG_RANGE + '+). It fires on its feet like any mech; spending an action to dig in turns it into a turret with +1 range and +1 armour, and it must pack up to move again. Emplacement weapons such as the Heavy Railgun are the exception: they need Quad Walker legs and fire only when dug in.']]],
+    ['Special', [['Specials', '5 per deck, gold ★. Inferno Cannon burns (1 damage at each of 3 Resolutions), Cryo Lance slows (−2 move), EMP Projector shocks (one order next round). Aegis Frame and Lattice Core are tougher standard parts.'],
+      ['Combo weapons', 'Each doctrine has one weapon that only works when its mech is built and played a certain way, and hits very hard when it does. <b>Meteor Hammer</b> (Assault): two-handed, so it takes both arms, and a swing needs ' + MW.DEFS.s_hammer.weapon.apCost + ' orders: get next to the target one turn, then smash for ' + MW.DEFS.s_hammer.weapon.dmg + ', piercing and shocking, the next. <b>Heavy Railgun</b> (Armored): on a Quad Walker, dig in, then fire ' + MW.DEFS.s_railgun.weapon.dmg + ' piercing at long range. <b>Overload Lance</b> (Experimental): on a chassis that overclocks, overclock, then fire ' + MW.DEFS.s_overload.weapon.dmg + ' piercing, but mind the heat. A locked combo weapon says what it is waiting for.'],
+      ['Artillery', 'The Quad Walker (Armored issue) is very slow, tough legs that add ' + MW.DEFS.l_quad.hull + ' HP and take long-range weapons only (range ' + MW.LONG_RANGE + '+). It fires on its feet like any mech; spending an order to dig in turns it into a turret with +1 range and +1 armour, and it must pack up to move again. Emplacement weapons such as the Heavy Railgun are the exception: they need Quad Walker legs and fire only when dug in.']]],
     ['AI', [['Commanders', 'The computer opponent is led by a commander with its own style, picked at random from those that suit its doctrine: ' + Object.keys(MW.DOCTRINE_COMMANDERS).map(d => MW.DOCTRINES[d].name.replace(' Doctrine', '') + ' by ' + MW.DOCTRINE_COMMANDERS[d].map(k => MW.PERSONAS[k].name).join(' or ')).join(', ') + '. ' + Object.keys(MW.PERSONAS).filter(k => !MW.PERSONAS[k].hidden && !MW.PERSONAS[k].easy).map(k => MW.PERSONAS[k].name + ': ' + MW.PERSONAS[k].blurb).join(' ')],
       ['Adapting', 'Each round a commander reads the board and picks a stance: defending its base once it is damaged or shelled (enemies merely nearby are fought where they stand), raiding objectives when behind, pressing the base when ahead, regrouping when outnumbered. It grows warier when it loses mecha and turns to defence when its base is hit.'],
       ['Learning', 'Commanders remember their wars in this browser. Each keeps a proven playbook and now and then tries a variation, keeping it if it wins more, and leaning away from whatever cost it past wars.']]],
     ['Doctrines', Object.keys(MW.DOCTRINES).map(id => [DOC_NAME(id), MW.DOCTRINES[id].blurb + ' ' + (MW.DOCTRINES[id].perks || []).join(' · ') + '.'])],
     ['Map', [['Battlefields', MW.MAP_IDS.map(id => '<b>' + MW.MAPS[id].name + '</b> (' + MW.MAPS[id].goal.toLowerCase() + '): ' + MW.MAPS[id].blurb + (MW.MAPS[id].notes ? ' <i>' + MW.MAPS[id].notes + '</i>' : '')).join('<br>') + (S && S.map ? '<br>This battle: <b>' + MW.MAP.name + '</b>.' : '')],
-      ['Objectives', 'End a round on a depot or radar to hold it. Each depot adds ' + C.DEPOT + ' build action to your next build (up to ' + C.DEPOT_FULL + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
+      ['Objectives', 'End a round on a depot or radar to hold it. Each depot adds ' + C.DEPOT + ' action to your next build (up to ' + C.DEPOT_FULL + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
       ['Crates', 'Every other round a crate drops on the centre line: +' + MW.actWord(C.CRATE_SUPPLY) + ' or a special card, taken by the first mech to end a move on it.'],
       ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution' + (C.COUNTER_BATTERY ? ', and returns fire on any mech that shelled the base that round, however far away' : '') + '. Returning to base vents heat and restocks ammo.'],
-      ['Salvage', 'Salvaging a wreck gives an extra build action plus any special parts that survived, which refit for 1.']]]
+      ['Salvage', 'Salvaging a wreck gives an extra action plus any special parts that survived, which refit for 1.']]]
   ];
   const cur = Math.min(ui.ruleTab || 0, T.length - 1);
   const o = $('#overlay');
@@ -3806,7 +3860,7 @@ const TAGS = { assault: 'Fast frames, blades and close-range guns.', armored: 'H
 const PLAY = {
   assault: { style: 'Swarm', line: 'A brawler, a raider and a scout, all fast. Grab objectives and overwhelm.' },
   armored: { style: 'Fortress', line: 'A tank on the objective, a dug-in gun behind it. Grind them down.' },
-  experimental: { style: 'Overclock', line: 'A sniper and an infiltrator with extra actions and tricks. Mind the heat.' }
+  experimental: { style: 'Overclock', line: 'A sniper and an infiltrator with extra orders and tricks. Mind the heat.' }
 };
 const DOC_ORDER = () => Object.keys(MW.DOCTRINES);
 function docStats(id) {
@@ -3821,7 +3875,8 @@ function docStats(id) {
     ['On field', n(t.fieldMax, C0.FIELD_MAX), C0.FIELD_MAX, '', true],
     ['Frame HP', Math.abs(frame - std) >= 2 ? frame : std, std, ''],
     ['Move', n(t.move, 0), 0, '+'],
-    ['Actions', n(t.ap, C0.AP), C0.AP, ''],
+    ['Orders', n(t.ap, C0.AP), C0.AP, ''],
+    ['Fuel tank', n(t.fuel, 0), 0, '', false, true],
     ['Cards drawn', n(t.draw, C0.DRAW), C0.DRAW, ''],
     ['Plating', n(t.plate, 0), 0, '+'],
     ['Repair / round', n(t.plateRegen, 0), 0, '+'],
@@ -4034,14 +4089,14 @@ function tourSteps(id) {
     Object.assign({ t: ai ? 'Enemy base' : 'Ember base', f: ['base1', 'zone1'], x: 'Top of the map. Destroy it to win outright, or reach ' + C0.VP_WIN + ' victory points first. Keep out of its outlined area unless you are attacking.' },
       { focus: [M.bases[1]].concat(zone(1)), tiles: zone(1), col: 'p1', models: [M.bases[1]], rings: [1] })
   ];
-  if (of('depot').length) st.push(Object.assign({ t: 'Depots', f: ['depot'], x: depotVp ? 'End a round on one to hold it: +' + C0.DEPOT + ' build action every round. Depots on the enemy half (marked gold) also score a victory point each round.' : 'End a round on one to hold it: +' + C0.DEPOT + ' build action every round. On this map they score no points.' },
+  if (of('depot').length) st.push(Object.assign({ t: 'Depots', f: ['depot'], x: depotVp ? 'End a round on one to hold it: +' + C0.DEPOT + ' action every round. Depots on the enemy half (marked gold) also score a victory point each round.' : 'End a round on one to hold it: +' + C0.DEPOT + ' action every round. On this map they score no points.' },
     spot(of('depot'), depotVp ? { tiles: of('depot').filter(([x]) => x > (W - 1) / 2) } : {})));
   if (of('radar').length) st.push(Object.assign({ t: 'Radar stations', f: ['radar'], x: 'Hold one for a victory point every round and +' + C0.RADAR_ACC + '% accuracy for your mecha.' }, spot(of('radar'))));
   if (of('uplink').length) st.push(Object.assign({ t: 'The uplink', f: ['uplink'], x: 'Worth ' + (M.rules.uplinkVp || 2) + ' victory points every round to whoever holds it. Expect the whole battle to be fought here.' }, spot(of('uplink'))));
   if (of('repair').length) st.push(Object.assign({ t: 'Repair stations', f: ['repair'], x: 'End a round here and the station repairs ' + C0.STATION_REPAIR + ' HP on a damaged part.' }, spot(of('repair'))));
   st.push(Object.assign(salvage
     ? { t: 'Salvage crates', f: ['crate'], x: 'A pair of crates drops inside the lit area ' + ((M.rules.crateEvery || 1) > 1 ? 'every other round' : 'every round') + (M.rules.crateMax ? ', up to ' + M.rules.crateMax + ' on the yard at once' : '') + '. The first mech to end a move on one scores a victory point and takes what is inside.' }
-    : { t: 'Crate drops', f: ['crate'], x: 'Every other round a crate lands on the lit centre line: a build action or a special card for the first mech to reach it.' },
+    : { t: 'Crate drops', f: ['crate'], x: 'Every other round a crate lands on the lit centre line: an action or a special card for the first mech to reach it.' },
     { focus: band, tiles: band, crates }));
   if (M.rocks.length) st.push(Object.assign({ t: BIOME_ROCK[id] || 'Rocks', f: ['rock'], x: 'Block movement and direct fire. Booster Legs jump over them, and artillery fires over them.' }, spot(M.rocks)));
   if (M.ruins.length) st.push(Object.assign({ t: 'Ruins', f: ['ruin'], x: 'Mecha standing in ruins are 20% harder to hit. Explosions can flatten them.' }, spot(M.ruins)));
@@ -4421,7 +4476,7 @@ document.addEventListener('click', async e => {
 // tapping an icon or stat names it, since phones have no hover
 function needFlash(k) {
   document.querySelectorAll('.res [data-res="' + k + '"]').forEach(cell => { cell.classList.remove('flash'); void cell.offsetWidth; cell.classList.add('flash'); });
-  toast('Not enough build actions left this round. Scrap a card you won\'t use (tap i on it) for one more, or end the build: up to ' + C.CARRY_MAX + ' carry over.');
+  toast('Not enough actions left this round. Scrap a card you won\'t use (tap i on it) for one more, or end the build: up to ' + C.CARRY_MAX + ' carry over.');
 }
 // what each stat and icon means, matched against the name it carries
 const GLOSSARY = [
@@ -4429,7 +4484,8 @@ const GLOSSARY = [
   [/^HP/, 'Hit points. Every hit lowers them; at 0 the mech (or base) is destroyed. Hits on arms, legs and the core also damage that part.'],
   [/^Damage/, 'HP removed by each hit. The target\'s armour takes some off, unless the weapon pierces armour.'],
   [/^Range/, 'How many tiles away it can hit, counting straight steps (no diagonals). Rocks block the shot unless it fires over obstacles.'],
-  [/^Move/, 'Tiles a mech can travel with one move action. Each mech has 2 actions per turn (3 for Experimental).'],
+  [/^Move/, 'Tiles a mech can travel with one move order. Each mech has 2 orders per turn (3 for Experimental). Armored mecha also burn 1 fuel per move.'],
+  [/^Fuel/, 'Armored mecha move only on fuel: each move burns 1. A new mech deploys with ' + C.FUEL_START + '; in the build, 1 action adds 1, up to a full tank.'],
   [/^Armou?r/, 'Taken off the damage of every hit. Armour-piercing weapons ignore it.'],
   [/^Heat/, 'Firing and boosting add heat; cooling removes some each round. Above capacity at the end of a round, the core is damaged and the mech shuts down for a round.'],
   [/^Runs hot/, 'Adds a lot of heat when fired. Watch the mech\'s heat limit.'],
@@ -4441,7 +4497,7 @@ const GLOSSARY = [
   [/^Accurate/, 'Hits more often than most weapons.'], [/^Inaccurate/, 'Misses more often than most weapons.'],
   [/^Pierces/, 'Ignores the target\'s armour.'], [/^Fires over/, 'Indirect fire: rocks and other mecha do not block it.'],
   [/^Limited ammo/, 'Runs out after this many shots. Returning to base restocks it.'],
-  [/^Build actions/, 'What you build with: fitting a part takes 1 (big chassis and heavy guns 2, specials 3), a repair 1. You get ' + C.EP + ' a round (Armored ' + MW.DOCTRINES.armored.traits.ep + '), plus 1 for each depot you hold, crates, salvage, and a bonus when behind. Up to 3 unused carry over.'],
+  [/^Actions/, 'What you build with: fitting a part takes 1 (big chassis and heavy guns 2, specials 3), a repair 1. You get ' + C.EP + ' a round (Armored ' + MW.DOCTRINES.armored.traits.ep + '), plus 1 for each depot you hold, crates, salvage, and a bonus when behind. Up to 3 unused carry over.'],
   [/^Engineering/, 'Fitting or repairing a part uses one action. They refill every build phase.'],
   [/^Mecha on the field/, 'How many of your mecha are deployed, and how many your doctrine allows at once.'],
   [/^Cards left/, 'Cards still in your Arsenal deck. You draw new ones each round.'],
@@ -4450,8 +4506,8 @@ const GLOSSARY = [
   [/aux slots$/, 'Aux slots hold support systems such as plating, coolers and jump jets.'],
   [/^Repairs/, 'A repair tool: restores HP to a friendly mech in range instead of dealing damage.'],
   [/^Sets the target burning/, 'Burning targets take 1 damage at each of the next 3 round ends.'],
-  [/^Slows/, 'Slowed targets move 2 fewer tiles for a while.'], [/^Shocks/, 'A shocked target gets one fewer action next round.'],
-  [/^Extra damage to bases/, 'Multiplies the damage this weapon deals to a base.'], [/^Only fires when dug in/, 'The mech must spend an action to dig in before this weapon can fire.']
+  [/^Slows/, 'Slowed targets move 2 fewer tiles for a while.'], [/^Shocks/, 'A shocked target gets one fewer order next round.'],
+  [/^Extra damage to bases/, 'Multiplies the damage this weapon deals to a base.'], [/^Only fires when dug in/, 'The mech must spend an order to dig in before this weapon can fire.']
 ];
 function explain(title) { const g = GLOSSARY.find(([re]) => re.test(title)); return g ? g[1] : ''; }
 function showTip(el) {

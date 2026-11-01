@@ -4,23 +4,23 @@
 
 let W = 9, H = 7;   // set by the map in play
 const C = {
-  EP: 4, CARRY_MAX: 3, INCOME: 0, DEPOT: 1, BASE_HP: 20,   // build actions a round, how many unused ones carry over, and what a depot adds
+  EP: 4, CARRY_MAX: 3, INCOME: 0, DEPOT: 1, BASE_HP: 20,   // actions a round, how many unused ones carry over, and what a depot adds
   HAND_START: 4, DRAW: 2, WORKSHOP_MAX: 10, FIELD_MAX: 3, HANGAR_MAX: 3,
   AP: 2, TURRET_DMG: 3, TURRET_RANGE: 3, SCRAP: 1, SALVAGE_CHANCE: 0.6,
   STATION_REPAIR: 2, RADAR_ACC: 5, ENTRENCH_ARMOR: 1, CATCHUP: 1,
   VP_WIN: 12, CRATE_EVERY: 2, CRATE_SUPPLY: 1,
   DEPOT_FULL: 2, DEPOT_EXTRA: 0,     // depots past the first DEPOT_FULL pay DEPOT_EXTRA instead of DEPOT
-  CATCHUP_PER_VP: 0.34, CATCHUP_MAX: 2, // trailing bonus in build actions: 1, or 2 when 3+ points behind
+  CATCHUP_PER_VP: 0.34, CATCHUP_MAX: 2, // trailing bonus in actions: 1, or 2 when 3+ points behind
   BASE_VP_PER: 4,                     // every this much damage dealt to the enemy base is worth a victory point (0 = off)
   VP_ROUND_CAP: 2,                    // most victory points one side can score from objectives in a round (0 = no cap)
   LEAD_GAP: 2, LEAD_CAP: 1, LEAD_UNTIL: 99, // once ahead by LEAD_GAP points, objectives earn at most LEAD_CAP a round, up to round LEAD_UNTIL
   START_ARMS: 'all',                  // opening mecha: 'lead' arms only the first in both mounts, 'all' arms every mount that fits
-  REQ_COST: 1,                        // build actions to requisition one extra card from the Arsenal (0 = off)
+  REQ_COST: 1,                        // actions to requisition one extra card from the Arsenal (0 = off)
   BOUNTY: 0,                          // points the trailing side earns per kill on the leader (0 = off)
   // counter-battery: a base turret also fires on whatever shelled it this round, at any range (out-of-reach shelling
   // went unanswered otherwise). MOVE_EXEMPT: legs a doctrine's move penalty does not slow. FORWARD_DEPLOY: deploying
   // beside ground held since last round (tested, barely changed play: off)
-  COUNTER_BATTERY: 1, MOVE_EXEMPT: ['l_treads', 'l_quad'], FORWARD_DEPLOY: 0
+  COUNTER_BATTERY: 1, MOVE_EXEMPT: ['l_treads', 'l_quad'], FORWARD_DEPLOY: 0, FUEL_START: 2
 };
 
 /* ---------- Components ---------- */
@@ -112,10 +112,10 @@ const CHASSIS = {
   t_assault: { name: 'Striker Chassis', cost: 4, mounts: ['any', 'gun'], reactor: { hp: 4, power: 8, cooling: 3 }, meleeBonus: 1, trait: 'Melee weapons +1 damage' },
   t_heavy: { name: 'Heavy Chassis', cost: 6, mounts: ['gun', 'heavy'], reactor: { hp: 6, power: 10, cooling: 2 }, trait: 'Armour 2' },
   t_fortress: { name: 'Fortress Chassis', cost: 7, mounts: ['melee', 'heavy'], reactor: { hp: 6, power: 12, cooling: 2, passiveHeat: 1 }, bulwark: 1, trait: 'Bulwark: bracing gives +2 armour' },
-  t_proto: { name: 'Prototype Chassis', cost: 5, mounts: ['energy', 'energy'], reactor: { hp: 5, power: 12, cooling: 3 }, energyRange: 1, trick: 'overclock', trait: 'Overclock: once a round, +1 action for +3 heat. Energy weapons +1 range' },
+  t_proto: { name: 'Prototype Chassis', cost: 5, mounts: ['energy', 'energy'], reactor: { hp: 5, power: 12, cooling: 3 }, energyRange: 1, trick: 'overclock', trait: 'Overclock: once a round, +1 order for +3 heat. Energy weapons +1 range' },
   s_frame: { name: 'Aegis Chassis', cost: 8, mounts: ['any', 'any'], reactor: { hp: 6, power: 12, cooling: 3 }, shield: 2, trait: 'Shield 2 a round, universal mounts' },
-  c_sing: { name: 'Singularity Chassis', slot: 'torso', cost: 6, wt: 3, hp: 6, auxSlots: 2, heatCap: 7, mounts: ['energy', 'heavy'], reactor: { hp: 3, power: 16, cooling: 1, passiveHeat: 1, breach: 4 }, trick: 'phase', trait: 'Phase jump: once a round, an action to blink up to 3 tiles over anything, +2 heat. Its reactor explodes when breached' },
-  s_core: { name: 'Lattice Chassis', slot: 'torso', special: true, cost: 7, wt: 3, hp: 9, auxSlots: 2, heatCap: 8, mounts: ['energy', 'any'], reactor: { hp: 7, power: 14, cooling: 4 }, selfRepair: 1, trick: 'cloak', trait: 'Cloak: once a round, an action to make enemies 25% less likely to hit it until the round ends. Self-repairs 1 a round' }
+  c_sing: { name: 'Singularity Chassis', slot: 'torso', cost: 6, wt: 3, hp: 6, auxSlots: 2, heatCap: 7, mounts: ['energy', 'heavy'], reactor: { hp: 3, power: 16, cooling: 1, passiveHeat: 1, breach: 4 }, trick: 'phase', trait: 'Phase jump: once a round, an order to blink up to 3 tiles over anything, +2 heat. Its reactor explodes when breached' },
+  s_core: { name: 'Lattice Chassis', slot: 'torso', special: true, cost: 7, wt: 3, hp: 9, auxSlots: 2, heatCap: 8, mounts: ['energy', 'any'], reactor: { hp: 7, power: 14, cooling: 4 }, selfRepair: 1, trick: 'cloak', trait: 'Cloak: once a round, an order to make enemies 25% less likely to hit it until the round ends. Self-repairs 1 a round' }
 };
 for (const id in CHASSIS) {
   const d = DEFS[id], c = CHASSIS[id];
@@ -179,21 +179,21 @@ const DOCTRINES = {
   assault: {
     name: 'Assault Doctrine',
     blurb: 'A swarm of light, fast mecha that overwhelm by numbers and speed.',
-    perks: ['Opening team: a Brawler (blade and shotgun), a Raider (the fastest, for objectives) and a Scout (evasive, the longest gun)', 'Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Pack tactics: +10% to hit for each other Assault mech within 2 tiles of the target (up to +20%)', 'Combo weapon: the two-handed Meteor Hammer, a 2-action swing from a standing start', 'Issue parts: Striker Chassis and Booster Legs (fast), Skirmisher Chassis and Twin SMGs (cheap), Scatter Cannon, Plasma Blade'],
+    perks: ['Opening team: a Brawler (blade and shotgun), a Raider (the fastest, for objectives) and a Scout (evasive, the longest gun)', 'Up to 4 mecha on the field, starts with 3', 'Every mech moves +1', 'Pack tactics: +10% to hit for each other Assault mech within 2 tiles of the target (up to +20%)', 'Combo weapon: the two-handed Meteor Hammer, a 2-order swing from a standing start', 'Issue parts: Striker Chassis and Booster Legs (fast), Skirmisher Chassis and Twin SMGs (cheap), Scatter Cannon, Plasma Blade'],
     traits: { fieldMax: 4, hangarMax: 4, move: 1, startMechs: 3, pack: 10 },
     deck: { l_boost: 3, l_biped: 2, t_light: 2, t_assault: 3, t_skirm: 2, c_compact: 2, c_fusion: 1, w_blade: 3, w_scatter: 2, w_laser: 2, w_smg: 2, w_gatling: 2, a_jump: 2, a_servo: 1, a_cool: 1, a_over: 1, s_hammer: 2, s_inferno: 1, s_cryo: 1, s_emp: 1, x_supply: 2, x_overtime: 1, x_req: 1, x_repair: 1 }
   },
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Opening team: a Tank (shotgun and plating) that takes and holds objectives, and an Emplacement that carries the long guns', 'Up to 3 mecha on the field, every one 1 move slower, except on Heavy Treads and Quad Walkers', 'Heavy industry: 6 build actions a round instead of 4', 'Line mechs: +8 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers carry long guns, and dig in as turrets for +1 range and +1 armour', '+10% accuracy when it has not moved', 'Combo weapon: the Heavy Railgun, live on a dug-in Quad Walker', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { ep: 6, fieldMax: 3, plate: 8, plateRegen: 0, steady: 10, move: -1, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    perks: ['Opening team: a Tank (shotgun and plating) that takes and holds objectives, and an Emplacement that carries the long guns', 'Up to 3 mecha on the field', 'Fuel: its mecha move only on fuel. Each move burns 1; a new mech deploys with 2, and 1 action in the build adds 1 more (up to 3)', 'Heavy industry: 6 actions a round instead of 4', 'Line mechs: +8 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers carry long guns, and dig in as turrets for +1 range and +1 armour', '+10% accuracy when it has not moved', 'Combo weapon: the Heavy Railgun, live on a dug-in Quad Walker', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { ep: 6, fieldMax: 3, plate: 8, plateRegen: 0, steady: 10, fuel: 3, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 3, w_ram: 2, w_repair: 1, w_shield: 1, a_plate: 2, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_frame: 1, x_supply: 2, x_overtime: 1, x_repair: 1 }
   },
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['Opening team: a Sniper (overclocked lasers at range 5) and an Infiltrator (phase jumps onto objectives)', 'Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 actions per mech instead of 2', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Combo weapon: the Overload Lance, live after an overclock', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
+    perks: ['Opening team: a Sniper (overclocked lasers at range 5) and an Infiltrator (phase jumps onto objectives)', 'Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 orders per mech instead of 2', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Combo weapon: the Overload Lance, live after an overclock', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
     traits: { ap: 3, melt: 2, turretArc: 1 },
     deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_overload: 2, s_emp: 1, s_cryo: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
@@ -232,7 +232,7 @@ const MAPS = {
   },
   uplink: {
     name: 'Uplink', goal: 'King of the hill',
-    blurb: 'One uplink in the centre is worth 2 points a round to whoever holds it. Depots only add build actions, and repair pads wait on the flanks.',
+    blurb: 'One uplink in the centre is worth 2 points a round to whoever holds it. Depots only add actions, and repair pads wait on the flanks.',
     W: 9, H: 7, bases: [[0, 3], [8, 3]],
     obj: [[4, 3, 'uplink'], [2, 0, 'depot'], [6, 6, 'depot'], [2, 6, 'depot'], [6, 0, 'depot'], [4, 0, 'repair'], [4, 6, 'repair']],
     rocks: [[4, 1], [4, 5], [2, 2], [6, 4]],
@@ -243,7 +243,7 @@ const MAPS = {
   },
   salvage: {
     name: 'Scrapyard', goal: 'Scrap and signal',
-    blurb: 'Two radars stand on the scrap pile in the centre. Every other round a pair of crates drops across the yard; each one grabbed is worth a point plus what is inside. Depots only add build actions.',
+    blurb: 'Two radars stand on the scrap pile in the centre. Every other round a pair of crates drops across the yard; each one grabbed is worth a point plus what is inside. Depots only add actions.',
     W: 10, H: 7, bases: [[0, 3], [9, 3]],
     obj: [[2, 1, 'depot'], [7, 5, 'depot'], [2, 5, 'depot'], [7, 1, 'depot'], [4, 3, 'radar'], [5, 3, 'radar']],
     rocks: [[3, 2], [6, 4], [3, 4], [6, 2]],
@@ -403,9 +403,14 @@ function trait(pid, k) {
   if (k === 'fieldMax' && isEasy(p)) return Math.min(2, docTrait(p.doctrine, k) || C.FIELD_MAX);
   const v = p ? docTrait(p.doctrine, k) : null;
   if (v != null) return v;
-  return { fieldMax: C.FIELD_MAX, hangarMax: C.HANGAR_MAX, startMechs: 2, killVp: 0, pack: 0, turretArc: 0, baseHp: 0, turretShots: 1, control: 0, move: 0, ep: C.EP, draw: C.DRAW, ap: C.AP, plate: 0, plateRegen: 0, steady: 0, turretDmg: 0, heatTick: 0 }[k];
+  return { fieldMax: C.FIELD_MAX, hangarMax: C.HANGAR_MAX, startMechs: 2, killVp: 0, pack: 0, turretArc: 0, baseHp: 0, turretShots: 1, control: 0, move: 0, fuel: 0, ep: C.EP, draw: C.DRAW, ap: C.AP, plate: 0, plateRegen: 0, steady: 0, turretDmg: 0, heatTick: 0 }[k];
 }
 const fieldMax = pid => trait(pid, 'fieldMax');
+// Fuel (Armored): a mech moves only on fuel, one per move. It deploys with C.FUEL_START, and 1 action in the build adds
+// 1 to a mech on the field or in the hangar, up to the army's tank size
+const fuelCap = pid => trait(pid, 'fuel');
+const needsFuel = m => m.owner != null && !!fuelCap(m.owner);
+const outOfFuel = m => needsFuel(m) && !(m.fuel > 0);
 const hangarMax = p => trait(p.id, 'hangarMax');
 // extra plating carried by the mech: the army's own plus any Bulwark Plating fitted
 function plateMax(m) { if (m.owner == null || !m.slots) return 0; return trait(m.owner, 'plate') + stats(m).plate; }
@@ -414,11 +419,11 @@ function hpOf(m) { return m.slots.torso ? Math.max(0, m.slots.torso.hp) + hullOf
 function maxHpOf(m) { const l = m.slots.legs; return m.slots.torso ? DEFS[m.slots.torso.id].hp + (l && DEFS[l.id].hull && l.hp > 0 ? DEFS[l.id].hull : 0) + plateMax(m) : 0; }
 const worn = inst => { const d = DEFS[inst.id]; return (inst.hp > 0 || d.slot === 'core') && (inst.hp < d.hp || (!!d.hull && inst.hullHp != null && inst.hullHp < d.hull)); };
 // Sale price: plain parts 1, weapons 2, special parts 3, special weapons 4
-// scrapping a card gives one build action back this round
+// scrapping a card gives one action back this round
 function sellValue(d) { return 1; }
-// build actions to fit a part: 1 for most, 2 for the big ones, 3 for specials; a part already paid for refits for 1
+// actions to fit a part: 1 for most, 2 for the big ones, 3 for specials; a part already paid for refits for 1
 function buildCost(d, inst) { if (inst && inst.paid) return 1; return d.special ? 3 : d.cost >= 5 ? 2 : 1; }
-const actWord = n => n + ' build action' + (n === 1 ? '' : 's');
+const actWord = n => n + ' action' + (n === 1 ? '' : 's');
 function auxCount(m) { return m.slots.torso ? (DEFS[m.slots.torso.id].auxSlots || 0) : 0; }
 
 function stats(m) {
@@ -497,7 +502,7 @@ function weaponLock(m, key) {
   const w = DEFS[inst.id].weapon, l = m.slots.legs;
   if (w.needsEntrench && !(l && digsIn(l.id))) return 'Needs legs that dig in';
   if (w.needsEntrench) return 'Dig in first';
-  if (w.apCost && m.ap < w.apCost) return 'Needs ' + w.apCost + ' actions';
+  if (w.apCost && m.ap < w.apCost) return 'Needs ' + w.apCost + ' orders';
   if (w.needsOverclock && trickOf(m) !== 'overclock') return 'Needs a chassis that overclocks';
   if (w.needsOverclock && !m.overclocked) return 'Overclock first';
   return null;
@@ -741,9 +746,27 @@ function repair(p, m, key) {
   const d = DEFS[inst.id];
   if (inst.hp <= 0 && key !== 'core') return fail(d.name + ' is destroyed. Replace it instead.');
   if (!worn(inst)) return fail(d.name + ' is undamaged.');
-  if (p.ep < 1) return fail('No build actions left this round.');
+  if (p.ep < 1) return fail('No actions left this round.');
   p.ep--; inst.hp = d.hp; if (d.hull) inst.hullHp = d.hull;
   log(p.name + ' repairs ' + m.name + "'s " + d.name + '.', 'p' + p.id);
+  return OK;
+}
+// spend an action to put one move's fuel into a mech on the field
+function canFuel(p, m) {
+  if (!fuelCap(p.id)) return 'Only Armored mecha run on fuel.';
+  const g = buildGuard(p); if (g) return g;
+  if (!m || m.owner !== p.id || !(S.mechs.includes(m) || p.hangar.includes(m))) return 'Fuel one of your mecha.';
+  if (p.hangar.includes(m) && (isBlank(m) || issues(m).length)) return 'Finish building ' + m.name + ' first.';
+  if ((m.fuel || 0) >= fuelCap(p.id)) return m.name + "'s tank is full (" + fuelCap(p.id) + ' fuel).';
+  if (p.ep < 1) return 'No actions left this round.';
+  return null;
+}
+function fuel(p, m) {
+  const why = canFuel(p, m); if (why) return fail(why);
+  p.ep--; m.fuel = (m.fuel || 0) + 1;
+  if (m.x != null) fxFloat(m.x, m.y, '+1 fuel', 'good');
+  fx({ k: 'fuel', uid: m.uid, x: m.x, y: m.y, owner: p.id, n: m.fuel });
+  log(p.name + ' fuels ' + m.name + ' for a move (1 action): ' + m.fuel + ' fuel.', 'p' + p.id);
   return OK;
 }
 function newMech(p) {
@@ -821,6 +844,7 @@ function deploy(p, m, x, y) {
   m.x = x; m.y = y; m.heat = 0; m.activated = false; m.braced = false; m.shutdown = false; m.fired = {}; m.moves = 0; m.plate = m.plate == null ? plateMax(m) : Math.min(m.plate, plateMax(m));
   m.entrenched = false; m.burn = 0; m.slow = 0; m.shock = 0;
   m.shield = stats(m).shield;
+  if (needsFuel(m)) m.fuel = Math.min(fuelCap(m.owner), (m.fuel || 0) + C.FUEL_START);
   S.mechs.push(m);
   fx({ k: 'deploy', uid: m.uid, x, y, owner: p.id });
   log(p.name + ' deploys ' + m.name + ' (' + role(m) + ') at ' + coord(x, y) + '.', 'p' + p.id);
@@ -867,7 +891,7 @@ function actGuard(m) {
   if (m.owner !== S.current) return 'It is the other commander\'s activation.';
   if (m.activated) return m.name + ' has already acted this round.';
   if (S.active != null && S.active !== m.uid) return 'Finish the current activation first.';
-  if (m.ap < 1) return m.name + ' has no actions left.';
+  if (m.ap < 1) return m.name + ' has no orders left.';
   return null;
 }
 function advanceTurn() {
@@ -891,7 +915,7 @@ function passAll(pid) {
   advanceTurn();
   return OK;
 }
-// extra build actions a player earns for the next round from depots, before any catch-up bonus
+// extra actions a player earns for the next round from depots, before any catch-up bonus
 function incomeOf(p) {
   const n = S.objectives.filter(o => o.type === 'depot' && o.owner === p.id).length;
   return C.INCOME + C.DEPOT * Math.min(n, C.DEPOT_FULL) + C.DEPOT_EXTRA * Math.max(0, n - C.DEPOT_FULL);
@@ -964,7 +988,7 @@ function settle() {
 }
 
 function reachable(m) {
-  const max = m.entrenched ? 0 : stats(m).move, dist = {}, jump = locoMode(m) === 'jump';
+  const max = m.entrenched || outOfFuel(m) ? 0 : stats(m).move, dist = {}, jump = locoMode(m) === 'jump';
   const seen = {}; seen[K(m.x, m.y)] = 0; dist[K(m.x, m.y)] = 0;
   const q = [[m.x, m.y]];
   while (q.length) {
@@ -1026,16 +1050,19 @@ function pathTo(m, x, y) {
 function move(m, x, y) {
   const g = actGuard(m); if (g) return fail(g);
   if (m.entrenched) return fail(m.name + ' is emplaced. Pack up first.');
+  if (outOfFuel(m)) return fail(m.name + ' is out of fuel. Fuel it with an action in the next build.');
   const r = reachable(m);
   if (!(K(x, y) in r) || (x === m.x && y === m.y)) return fail(m.name + ' cannot reach ' + coord(x, y) + ' this move.');
   const st = stats(m);
   S.active = m.uid; m.ap--; m.moves++; m.heat += st.moveHeat;
+  const burnt = needsFuel(m); if (burnt) m.fuel--;
   const from = coord(m.x, m.y);
   const path = pathTo(m, x, y);
   const leaps = locoMode(m) === 'jump' && path.slice(1, -1).some(([px, py]) => !passable(px, py) || mechAt(px, py));
   fx({ k: 'move', uid: m.uid, path, jump: leaps });
   m.x = x; m.y = y;
-  log(m.name + ' moves ' + from + ' → ' + coord(x, y) + '.', 'p' + m.owner);
+  log(m.name + ' moves ' + from + ' → ' + coord(x, y) + (burnt ? ', burning 1 fuel (' + m.fuel + ' left).' : '.'), 'p' + m.owner);
+  if (burnt) fxFloat(x, y, '−1 fuel', 'warn');
   pickupCrate(m);
   triggerOverwatch(m);
   settle();
@@ -1052,7 +1079,7 @@ function holderOf(o) {
 }
 /* ---------- Prototype tricks: one per Experimental chassis, once a round ---------- */
 const TRICK = {
-  overclock: { name: 'Overclock', text: '+1 action now, +3 heat' },
+  overclock: { name: 'Overclock', text: '+1 order now, +3 heat' },
   phase: { name: 'Phase jump', text: 'Blink up to 3 tiles over anything, +2 heat', range: 3 },
   cloak: { name: 'Cloak', text: 'Enemies have −25% to hit it until the round ends' }
 };
@@ -1062,7 +1089,7 @@ function trickGuard(m, kind) {
   if (trickOf(m) !== kind) return m.name + ' has no ' + TRICK[kind].name + '.';
   if (m.tricked) return m.name + ' has used its trick this round.';
   if (S.phase !== 'combat' || m.owner !== S.current || m.activated || (S.active != null && S.active !== m.uid)) return actGuard(m) || 'Not now.';
-  if (kind !== 'overclock' && m.ap < 1) return m.name + ' has no actions left.';
+  if (kind !== 'overclock' && m.ap < 1) return m.name + ' has no orders left.';
   if (m.entrenched && kind === 'phase') return m.name + ' is dug in.';
   return null;
 }
@@ -1070,7 +1097,7 @@ function overclock(m) {
   const g = trickGuard(m, 'overclock'); if (g) return fail(g);
   S.active = m.uid; m.tricked = true; m.overclocked = true; m.ap++; m.heat += 3;
   fxFloat(m.x, m.y, 'Overclock', 'warn');
-  log(m.name + ' overclocks: one more action, +3 heat.', 'p' + m.owner);
+  log(m.name + ' overclocks: one more order, +3 heat.', 'p' + m.owner);
   return OK;
 }
 // the tiles a phase jump can land on: free ground within range, whatever lies between
@@ -1119,7 +1146,7 @@ function applyStatus(w, tm) {
   if (w.heatDmg) { tm.heat += w.heatDmg; fxFloat(tm.x, tm.y, '+' + w.heatDmg + ' heat', 'warn'); }
   if (w.burn) { tm.burn = Math.max(tm.burn || 0, w.burn); fxFloat(tm.x, tm.y, 'Burning', 'warn'); log(tm.name + ' is set on fire.', 'hit'); }
   if (w.slow) { tm.slow = Math.max(tm.slow || 0, w.slow); fxFloat(tm.x, tm.y, 'Slowed', 'info'); log(tm.name + ' is slowed.', 'hit'); }
-  if (w.shock) { tm.shock = 1; fxFloat(tm.x, tm.y, 'Shocked', 'info'); log(tm.name + ' is shocked: one action next round.', 'hit'); }
+  if (w.shock) { tm.shock = 1; fxFloat(tm.x, tm.y, 'Shocked', 'info'); log(tm.name + ' is shocked: one order next round.', 'hit'); }
 }
 function triggerOverwatch(mover) {
   for (const o of S.mechs.slice()) {
@@ -1442,7 +1469,7 @@ function fire(m, key, target, part) {
       if (w.heatDmg) { tm.heat += w.heatDmg; fxFloat(tm.x, tm.y, '+' + w.heatDmg + ' heat', 'warn'); }
       if (w.burn) { tm.burn = Math.max(tm.burn || 0, w.burn); fxFloat(tm.x, tm.y, 'Burning', 'warn'); log(tm.name + ' is set on fire.', 'hit'); }
       if (w.slow) { tm.slow = Math.max(tm.slow || 0, w.slow); fxFloat(tm.x, tm.y, 'Slowed', 'info'); log(tm.name + ' is slowed.', 'hit'); }
-      if (w.shock) { tm.shock = 1; fxFloat(tm.x, tm.y, 'Shocked', 'info'); log(tm.name + ' is shocked: one action next round.', 'hit'); }
+      if (w.shock) { tm.shock = 1; fxFloat(tm.x, tm.y, 'Shocked', 'info'); log(tm.name + ' is shocked: one order next round.', 'hit'); }
       applyDamage(tm, AIM[part] ? part : 'torso', dmg, pierceOf(w, m.owner), true);
     }
   }
@@ -1524,7 +1551,7 @@ function selfDestruct(m) {
   if (!checkWin()) advanceTurn();
   return OK;
 }
-// strip the mech where it stands: surviving special parts go back to the Workshop, standard parts give a build action each (up to 2)
+// strip the mech where it stands: surviving special parts go back to the Workshop, standard parts give a action each (up to 2)
 function fieldStrip(m) {
   const g = actGuard(m); if (g) return fail(g);
   const p = S.players[m.owner];
@@ -2219,7 +2246,7 @@ function aiDesign(p, m) {
   }
   return best && best.pick;
 }
-// the AI holds its events for the moment they pay: extra build actions when it is out of them with work to
+// the AI holds its events for the moment they pay: extra actions when it is out of them with work to
 // do, extra cards when the Workshop runs thin, repairs when its mecha are hurt; anything still held when the Workshop
 // fills up is played rather than sold
 function aiEvents(p, all) {
@@ -2242,7 +2269,7 @@ function aiOutfit(p, m) {
   }
 }
 function aiBuild(p) {
-  // flush with build actions and short on cards: buy one, then come back to building after the draw
+  // flush with actions and short on cards: buy one, then come back to building after the draw
   if (C.REQ_COST && p.ep >= C.REQ_COST + 6 && p.workshop.length <= C.WORKSHOP_MAX - 3 && !canRequisition(p)) { requisition(p); return; }
   for (const c of p.workshop.slice()) if (DEFS[c.id].slot === 'tactic') playTactic(p, c.uid);
   aiEvents(p, false);
@@ -2268,6 +2295,24 @@ function aiBuild(p) {
     const pile = p.workshop.filter(c => DEFS[c.id].slot === worst).sort((a, b) => DEFS[a.id].cost - DEFS[b.id].cost);
     scrapCard(p, pile[0].uid);
   }
+  aiFuel(p);
+}
+// fuel goes to the mecha whose goal lies out of reach from where they stand: a first move for each, then a second
+// while actions are left over, and a spare one in every mobile mech's tank when there is nothing to move for yet. An emplacement only gets one when nothing is in range of its guns
+function aiFuel(p) {
+  if (!fuelCap(p.id)) return;
+  const want = m => {
+    if (anchoredLegs(m)) return weaponsOf(m).some(wp => !wp.w.repair && validTargets(m, wp.key).length) ? 0 : 0.5;
+    const g = aiGoal(m);
+    if (!g) return 0;
+    const d = distMap([[g.x, g.y]])[K(m.x, m.y)];
+    return d == null ? 0 : d > g.pref ? 1 + d / 10 : 0.3;
+  };
+  const list = fieldMechs(p.id).map(m => ({ m, v: want(m) })).filter(o => o.v > 0).sort((a, b) => b.v - a.v);
+  for (const o of list) if (o.v >= 1 && !(o.m.fuel > 0) && !canFuel(p, o.m)) fuel(p, o.m);
+  for (const o of list) while (p.ep >= (o.v >= 1 ? 1 : 2) && !canFuel(p, o.m) && (o.m.fuel || 0) < (o.v >= 1 ? fuelCap(p.id) : 1)) fuel(p, o.m);
+  // actions beyond what carries over are lost at the end of the build: better in the tanks of the mecha that can move
+  for (const m of fieldMechs(p.id)) while (p.ep > C.CARRY_MAX && !anchoredLegs(m) && !canFuel(p, m)) fuel(p, m);
 }
 function aiDeploy(p) {
   for (const m of p.hangar.slice()) {
@@ -2320,6 +2365,7 @@ function lessonPlace(pid, m, x, y) {
   const p = S.players[pid], i = p.hangar.indexOf(m); if (i >= 0) p.hangar.splice(i, 1);
   m.x = x; m.y = y; m.heat = 0; m.activated = false; m.braced = false; m.shutdown = false; m.fired = {}; m.moves = 0; m.plate = plateMax(m);
   m.entrenched = false; m.burn = 0; m.slow = 0; m.shock = 0; m.shield = stats(m).shield;
+  if (needsFuel(m)) m.fuel = Math.min(fuelCap(m.owner), (m.fuel || 0) + C.FUEL_START);
   S.mechs.push(m);
   return m;
 }
@@ -2341,7 +2387,7 @@ const api = {
   setRng(f) { rnd = f; },
   newGame, concede, terrain, baseAt, turretTiles, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, deploySpots, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, ROLE_INFO, START_BUILD, slotName, slotType, effRange,
-  acceptDraw, canRequisition, requisition, finishBuildPhase, install, installCost, buildCost, actWord, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
+  acceptDraw, canRequisition, requisition, canFuel, fuel, fuelCap, needsFuel, outOfFuel, finishBuildPhase, install, installCost, buildCost, actWord, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
   LONG_RANGE, anchoredLegs, shortGun, TRICK, trickOf, trickGuard, overclock, phase, phaseTiles, cloak,
   holderOf,

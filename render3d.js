@@ -2525,6 +2525,17 @@ function newRec(m, S) {
   sh.rotation.x = -Math.PI / 2; sh.position.y = 0.006; BD.group.add(sh); rec.blob = sh;
   rec.bubble = new T.Mesh(new T.IcosahedronGeometry(0.5, 1), new T.MeshBasicMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0, wireframe: true, depthWrite: false }));
   BD.group.add(rec.bubble);
+  // a fuel gauge on the ground for armies that move on fuel: one arc segment per unit of tank, lit for each one held,
+  // so both commanders can read how far the mech can still go
+  const cap = window.MW.fuelCap(m.owner);
+  if (cap) {
+    rec.fuelG = new T.Group(); rec.fuelG.position.y = 0.025; BD.group.add(rec.fuelG);
+    const r = 0.58, span = 0.62, gap = 0.07, seg = (span - gap * (cap - 1)) / cap, a0 = -Math.PI / 2 - span / 2 / r;
+    for (let i = 0; i < cap; i++) {
+      const g = new T.Mesh(new T.RingGeometry(r - 0.06, r + 0.06, 8, 1, a0 + (i * (seg + gap)) / r, seg / r), new T.MeshBasicMaterial({ color: 0xffa62b, transparent: true, opacity: 0.95, depthWrite: false }));
+      g.rotation.x = -Math.PI / 2; g.renderOrder = 4; rec.fuelG.add(g);
+    }
+  }
   return rec;
 }
 // yellow and black hazard stripes, wrapped round a ring
@@ -2541,6 +2552,7 @@ function hazardTex() {
 }
 function dropRec(rec) {
   BD.group.remove(rec.R.root); BD.group.remove(rec.selRing); BD.group.remove(rec.actRing); BD.group.remove(rec.owRing); BD.group.remove(rec.empRing); BD.group.remove(rec.blob); BD.group.remove(rec.bubble);
+  if (rec.fuelG) BD.group.remove(rec.fuelG);
   delete BD.recs[rec.uid];
 }
 function rebuildRec(rec, m, S) {
@@ -2619,12 +2631,13 @@ R3.sync = function (v) {
     rec.hot = m.heat > window.MW.stats(m).heatCap;
     rec.selRing.visible = v.sel === m.uid; rec.actRing.visible = v.active === m.uid; rec.owRing.visible = !!m.overwatch;
     rec.empRing.visible = !!m.entrenched;
+    if (rec.fuelG) rec.fuelG.children.forEach((g, i) => { const lit = i < (m.fuel || 0); g.material.color.setHex(lit ? 0xffa62b : m.fuel > 0 ? 0x4a4a4a : 0x8a2a22); g.material.opacity = lit ? 0.95 : 0.6; });
     setTarget(rec, (v.targets && v.targets[m.uid]) || null);
   }
   // mecha that left the field: kept briefly so a death, detonation, strip or return to base can play out
   for (const id in BD.recs) {
     const rec = BD.recs[id];
-    if (!seen[id] && !rec.gone) { rec.gone = true; rec.goneAt = t; rec.selRing.visible = rec.actRing.visible = rec.owRing.visible = rec.empRing.visible = false; setTarget(rec, null); }
+    if (!seen[id] && !rec.gone) { rec.gone = true; rec.goneAt = t; rec.selRing.visible = rec.actRing.visible = rec.owRing.visible = rec.empRing.visible = false; if (rec.fuelG) rec.fuelG.visible = false; setTarget(rec, null); }
   }
   // objectives change hands
   for (const o of S.objectives) {
@@ -3784,7 +3797,7 @@ function updateRec(rec, t, dt) {
   else rec.bubble.material.opacity = rec.m && rec.m.braced ? 0.12 : 0;
   rec.bubble.position.copy(root.position).setY(root.position.y + 0.4);
   // rings and shadow follow
-  for (const r of [rec.selRing, rec.actRing, rec.owRing, rec.empRing, rec.blob, rec.tgtRing]) if (r) { r.position.x = root.position.x; r.position.z = root.position.z; }
+  for (const r of [rec.selRing, rec.actRing, rec.owRing, rec.empRing, rec.blob, rec.tgtRing, rec.fuelG]) if (r) { r.position.x = root.position.x; r.position.z = root.position.z; }
   if (rec.tgtRing && rec.tgtRing.visible) { rec.tgtRing.rotation.y = t * 0.9; rec.tgtRing.scale.setScalar(1 + 0.06 * Math.sin(t * 6)); }
   // the emplacement ring grows in as the mech digs in, then breathes slowly
   if (rec.empRing.visible) { const g = rec.digT != null ? Math.min(1, (t - rec.digT) / 0.6) : 1; rec.empRing.scale.setScalar(0.6 + 0.4 * g); rec.empRing.material.opacity = (0.75 + 0.2 * Math.sin(t * 2.4)) * g; }
