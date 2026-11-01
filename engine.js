@@ -195,7 +195,7 @@ const DOCTRINES = {
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
     perks: ['Opening team: a laser gunner (twin Laser Rifles reaching 4 on a Prototype Chassis) and an Infiltrator (phase jumps onto objectives)', 'Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 orders per mech instead of 2', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Combo weapon: the Overload Lance, live after an overclock', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
     traits: { ap: 3, melt: 2, turretArc: 1 },
-    deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_overload: 2, s_emp: 1, s_cryo: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
+    deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, l_treads: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_overload: 2, s_emp: 1, s_cryo: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
 };
 
