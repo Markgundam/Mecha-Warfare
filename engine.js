@@ -1711,11 +1711,13 @@ function resolution() {
   }
   // both reach the target level on points: the base with more HP left wins; only equal bases play another round
   if (pa.vp >= C.VP_WIN && pa.vp === pb.vp) {
-    if (pa.base.hp === pb.base.hp) log('Tied at ' + pa.vp + ' points with equal bases: the next round decides.', 'sys');
+    // bases differ in size by doctrine, so the tie goes to the base with the larger share of its HP left
+    const left = p => p.base.hp / (p.base.max || C.BASE_HP), pct = p => Math.round(100 * left(p)) + '%';
+    if (left(pa) === left(pb)) log('Tied at ' + pa.vp + ' points with bases equally intact: the next round decides.', 'sys');
     else {
-      S.phase = 'over'; S.winner = pa.base.hp > pb.base.hp ? 0 : 1; S.winReason = 'points'; S.active = null;
+      S.phase = 'over'; S.winner = left(pa) > left(pb) ? 0 : 1; S.winReason = 'points'; S.active = null;
       const w = S.players[S.winner], l = S.players[1 - S.winner];
-      log('Tied at ' + pa.vp + ' points. ' + w.name + ' wins the war with more base HP left (' + w.base.hp + ' to ' + l.base.hp + ').', 'sys');
+      log('Tied at ' + pa.vp + ' points. ' + w.name + ' wins the war with more of its base left (' + pct(w) + ' to ' + pct(l) + ').', 'sys');
       aiLearn();
       return;
     }
