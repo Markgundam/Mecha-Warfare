@@ -1894,7 +1894,7 @@ const othersTurn = () => S.players[S.current].isAI || (!!net && S.current !== ne
 function viewer() { if (net) return net.seat; const c = S.players[S.current]; if (!c.isAI) return c.id; const h = S.players.find(p => !p.isAI); return h ? h.id : 0; }
 /* ---------- Sound: what each button sounds like, and which music fits the moment ---------- */
 const snd = (n, o) => { if (window.SFX) window.SFX.play(n, o); };
-const UI_SND = { fuel: 'install', install: 'install', remove: 'remove', slotClear: 'remove', repair: 'repair', fixMech: 'repair', scrap: 'scrap', dismantle: 'scrap',
+const UI_SND = { fuel: 'install', fieldRepair: 'repair', install: 'install', remove: 'remove', slotClear: 'remove', repair: 'repair', fixMech: 'repair', scrap: 'scrap', dismantle: 'scrap',
   acceptDraw: 'draw', requisition: 'draw', play: 'draw', endBuild: 'confirm', endDeploy: 'confirm', passAll: 'confirm', coachNext: 'confirm', noteOk: 'confirm',
   closeOverlay: 'back', closeWin: 'back', cancelFire: 'back', deselect: 'back', toStart: 'back', wtab: 'tab', itab: 'tab', ruleTab: 'tab', pf: 'tab', pg: 'tab', lpg: 'tab', step: 'tab',
   weapon: 'aim', pickTarget: 'aim', phaseArm: 'aim', nukeArm: 'aim', hangar: 'select', selField: 'select', pickDeploy: 'select', warnDeploy: 'select', slot: 'select', plus: 'select', partInfo: 'select',
@@ -2113,10 +2113,23 @@ function fuelTag(m) {
 function showFuel() {
   const p = S.players[viewer()], tank = MW.fieldMechs(p.id).concat(p.hangar.filter(m => !MW.isBlank(m) && !MW.issues(m).length));
   const o = $('#overlay');
-  o.innerHTML = '<div class="sheet" role="dialog" aria-label="Fuel"><div class="phead"><h2>Fuel</h2><button type="button" class="btn sm" data-act="closeOverlay">Done</button></div>' +
+  const title = MW.fieldRepairs(p.id) ? 'Fuel and repair' : 'Fuel';
+  o.innerHTML = '<div class="sheet" role="dialog" aria-label="' + title + '"><div class="phead"><h2>' + title + '</h2><button type="button" class="btn sm" data-act="closeOverlay">Done</button></div>' +
     '<p class="note">Your mecha move only on fuel: each move burns 1. 1 action adds 1 to a tank, up to ' + MW.fuelCap(p.id) + '. Actions left: ' + bpips(p.ep) + '</p>' +
-    '<div class="fuelrow">' + (tank.map(m => fuelBtn(p, m)).join('') || '<p class="note">No mecha to fuel yet.</p>') + '</div></div>';
+    '<div class="fuelrow">' + (tank.map(m => fuelBtn(p, m)).join('') || '<p class="note">No mecha to fuel yet.</p>') + '</div>' + fieldRepairRow(p, true) + '</div>';
   o.hidden = false; o.dataset.sheet = 'fuel';
+}
+// Field repair (Armored): one button per damaged part on a mech out on the field, 1 action each
+function repairBtn(p, m, j, grow) {
+  const d = D[j.inst.id];
+  return '<button type="button" class="btn sm' + (grow ? ' grow' : '') + '" data-act="fieldRepair" data-uid="' + m.uid + '" data-key="' + j.key + '" title="Mend ' + m.name + "'s " + d.name + ' to full where it stands: +' + j.miss + ' HP for 1 action."><span><b>' + m.name + '</b> ' + d.name + ' ' + Math.max(0, j.inst.hp) + '/' + d.hp + '</span><small>Repair +' + j.miss + ' HP ' + bpips(1) + '</small></button>';
+}
+// the damaged parts of every mech on the field, worst first; nothing for an army that cannot repair out there
+function fieldRepairRow(p, note) {
+  if (!MW.fieldRepairs(p.id)) return '';
+  const btns = MW.fieldMechs(p.id).flatMap(m => MW.fieldRepairable(p, m).map(j => repairBtn(p, m, j)));
+  if (!btns.length) return note ? '<p class="note">Field repair: nothing to mend on your mecha out there (the chassis waits for the hangar).</p>' : '';
+  return '<div class="dock-h">Field repair: mend a damaged part where it stands for 1 action. The chassis and destroyed parts wait for the hangar.</div><div class="fuelrow">' + btns.join('') + '</div>';
 }
 // a button that spends an action to put one more move in a mech's tank
 function fuelBtn(p, m, grow) {
@@ -2841,7 +2854,10 @@ function mechDock(m, closable) {
     '<div class="mh-b"><button type="button" class="ib" data-act="details" aria-label="Details">i</button>' + (closable ? '<button type="button" class="ib" data-act="deselect" aria-label="Close">✕</button>' : '') + '</div></div>' +
     '<div class="mh-stats">' + statBlock(m, true) + '</div>';
   if (S.phase === 'combat' && m.owner !== viewer()) return h + oddsAgainst(m) + enemyWeaponsLine(m);
-  if (S.phase === 'build' && isHuman() && m.owner === S.current && MW.needsFuel(m)) return h + '<div class="row">' + fuelBtn(S.players[m.owner], m, true) + '</div>';
+  if (S.phase === 'build' && isHuman() && m.owner === S.current && (MW.needsFuel(m) || MW.fieldRepairs(m.owner))) {
+    const bp = S.players[m.owner];
+    return h + '<div class="row">' + (MW.needsFuel(m) ? fuelBtn(bp, m, true) : '') + MW.fieldRepairable(bp, m).map(j => repairBtn(bp, m, j, true)).join('') + '</div>';
+  }
   if (live && ui.mode === 'fire' && ui.pendingTarget != null) return h + picker(m);
   h += weaponRows(m, live);
   if (live && ui.mode === 'fire' && MW.getSlot(m, ui.weaponKey)) h += targetChips(m);
@@ -2870,6 +2886,7 @@ function renderDock() {
       const tank = MW.fieldMechs(p.id).concat(p.hangar.filter(m => !MW.isBlank(m) && !MW.issues(m).length));
       if (tank.length) h += '<div class="dock-h">Fuel: each move burns 1. Top up a mech for 1 action.</div><div class="fuelrow">' + tank.map(m => fuelBtn(p, m)).join('') + '</div>';
     }
+    h += fieldRepairRow(p, false);
     h += '<div class="row"><button type="button" class="btn grow" data-act="openShop">Base<small>' + bpips(p.ep) + ' · ' + si('cards') + p.workshop.length + ' cards</small></button>' +
       '<button type="button" class="btn primary grow" data-act="endBuild">End build ›<small>Go to deployment</small></button></div>';
   } else if (S.phase === 'deploy') {
@@ -3143,7 +3160,7 @@ function renderWin() {
   if (k === 'shop') {
     const p = S.players[viewer()];
     title = 'Base'; pc = ' p' + p.id; html = panelBase(p); head = baseRes(p);
-    if (uiPhase() === 'build' && isHuman()) extra = (MW.fuelCap(p.id) ? '<button type="button" class="btn sm" data-act="fuelMenu">Fuel</button>' : '') + '<button type="button" class="btn sm primary" data-act="endBuild">End build ›</button>';
+    if (uiPhase() === 'build' && isHuman()) extra = (MW.fuelCap(p.id) || MW.fieldRepairs(p.id) ? '<button type="button" class="btn sm" data-act="fuelMenu">' + (MW.fieldRepairs(p.id) ? 'Fuel/Repair' : 'Fuel') + '</button>' : '') + '<button type="button" class="btn sm primary" data-act="endBuild">End build ›</button>';
   } else if (k === 'mech') { title = sm.name; pc = ' p' + sm.owner; html = '<span class="lbl">' + S.players[sm.owner].name + ' · ' + MW.role(sm) + (sm.x != null ? ' · ' + MW.coord(sm.x, sm.y) : ' · hangar') + ' · HP ' + MW.hpOf(sm) + '/' + MW.maxHpOf(sm) + '</span>' + roleLine(sm) + hpBar(sm, 'mdhp') + (R3on ? '<div class="h3d" id="h3d"><span class="h3d-hint">Drag to turn</span></div>' : blueprint(sm, false)) + statBlock(sm, sm.x != null); }
   else { title = 'Battle'; ui.itab = ui.itab || 'log'; html = tabs([['log', 'Log'], ['forces', 'Forces']], ui.itab, 'itab') + '<div class="tabbody">' + (ui.itab === 'log' ? logHTML() : fieldLists()) + '</div>'; }
   el.className = (k ? 'open' : 'idle') + pc;
@@ -3193,6 +3210,8 @@ const NOTES = [
     t: () => '<b>Fitting parts.</b> Tap a step on the strip (chassis, legs, arms, aux), then pick a card and tap Fit. Each fit takes 1 action (big parts 2, specials 3). Removing a part is free.' },
   { id: () => 'fuel', when: () => uiPhase() === 'build' && S.round >= 2 && MW.fuelCap(viewer()) > 0,
     t: () => '<b>Fuel.</b> Your mecha move only on fuel: each move burns 1, and an empty tank cannot move at all. Tap <b>+1 fuel</b> on a mech above End build to put one move in its tank for 1 action (up to ' + MW.fuelCap(viewer()) + '). New mecha deploy with ' + C.FUEL_START + ', and both sides can see every tank.' },
+  { id: () => 'fieldrepair', when: () => uiPhase() === 'build' && MW.fieldRepairs(viewer()) && MW.fieldMechs(viewer()).some(m => MW.fieldRepairable(S.players[viewer()], m).length),
+    t: () => '<b>Field repair.</b> A mech out on the field is damaged. Tap <b>Repair</b> beside its fuel to mend that part to full where it stands, for 1 action a part. The chassis and a destroyed part wait for the hangar, and lost plating never comes back. Both sides see the repair in the log.' },
   { id: () => 'deploy-limit', when: () => S.phase === 'deploy' && S.current === viewer() && myMechs().length >= MW.fieldMax(viewer()),
     t: () => '<b>Field limit.</b> Your doctrine can field ' + MW.fieldMax(viewer()) + ' mecha at once. More can wait in the hangar and deploy when a slot frees up.' },
   { id: () => 'armored-hold', when: () => S.phase === 'combat' && S.players.some(p => p.doctrine === 'armored'),
@@ -3313,16 +3332,18 @@ const LESSONS = [
       { t: () => 'If your base is destroyed you lose the war. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base scores you a point.', next: 'Next' },
       { t: 'A training dummy has walked into your turret\'s reach. Hold your fire: tap <b>Hold with all remaining</b> and watch the turret finish it when the round ends.', hl: '[data-act=passAll]', done: () => !foes().length }
     ] },
-  { id: 'fuel', title: 'Fuel (Armored)', learn: 'Armored mecha move only on fuel, bought with actions.',
+  { id: 'fuel', title: 'Fuel and repair (Armored)', learn: 'Armored mecha move only on fuel, and mend themselves on the field, both bought with actions.',
     setup() {
       const st = lessonBoard('armored');
       for (const p of st.players) { MW.acceptDraw(p); p.hangar = p.hangar.filter(MW.isBlank); }
       st.players[1].stage = 'done';
-      MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_heavy', legs: 'l_treads', armL: 'w_scatter' }), 1, 0).fuel = 0;
+      const m = MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_heavy', legs: 'l_treads', armL: 'w_scatter' }), 1, 0);
+      m.fuel = 0; m.slots.legs.hp = Math.ceil(D.l_treads.hp / 2);
     },
     steps: [
       { t: '<b>Fuel.</b> Armored mecha move only on fuel, and each move burns 1. The amber cells beside a mech show what is left. The tank of this mech is empty, so it cannot move.', next: 'Next' },
       { t: () => 'In the build, <b>1 action</b> puts one move in a tank, up to ' + MW.fuelCap(0) + '. Tap <b>Fuel</b>, then <b>+1 fuel</b> on your mech.', hl: '[data-act=fuel], [data-act=fuelMenu]', done: () => lead() && lead().fuel > 0 },
+      { t: '<b>Field repair.</b> Its Heavy Treads took a beating. Armored mends its mecha where they stand: tap <b>Repair</b> on the treads to restore them to full for 1 action. The chassis, and any destroyed part, would have to wait for the hangar.', hl: '[data-act=fieldRepair], [data-act=fuelMenu]', done: () => lead() && !MW.worn(lead().slots.legs) },
       { t: () => 'A new mech deploys with ' + C.FUEL_START + ' fuel, and mecha waiting in the hangar can be topped up too. Tap <b>End build</b>.', hl: '[data-act=endBuild]', done: () => S.phase !== 'build' || uiPhase() === 'wait' },
       { t: 'Tap <b>End deployment</b>.', hl: '[data-act=endDeploy]', done: () => S.phase === 'combat' },
       { t: 'Move your mech onto the <b>radar</b> at the top edge, and watch a fuel cell go out.', done: () => lead() && lead().moves > 0 },
@@ -3702,6 +3723,7 @@ function onAct(el) {
     case 'requisition': return after(MW.requisition(p));
     case 'fuel': { const m = MW.fieldMech(+el.dataset.uid) || p.hangar.find(x => x.uid === +el.dataset.uid), r = after(MW.fuel(p, m), m ? m.name + ' fuelled: ' + m.fuel + ' fuel.' : ''); if (!$('#overlay').hidden && $('#overlay').dataset.sheet === 'fuel') showFuel(); return r; }
     case 'fuelMenu': return showFuel();
+    case 'fieldRepair': { const m = MW.fieldMech(+el.dataset.uid), r = after(MW.repair(p, m, el.dataset.key), m ? m.name + ' repaired: ' + MW.hpOf(m) + '/' + MW.maxHpOf(m) + ' HP.' : ''); if (!$('#overlay').hidden && $('#overlay').dataset.sheet === 'fuel') showFuel(); return r; }
     case 'endBuild': {
       // mecha that still can't deploy get a warning first, with a quick way back to fix them
       const bad = p.hangar.filter(m => !MW.isBlank(m) && MW.issues(m).length);
@@ -3774,12 +3796,13 @@ function showRules() {
       ['Roles', 'A mech’s parts give it a role, shown in the Workshop and in its details. ' + Object.keys(MW.ROLE_INFO).map(r => '<b>' + r + '</b>: ' + MW.ROLE_INFO[r]).join(' ')],
       ['Mecha', 'Each mech is a <b>chassis</b> (HP and two weapon mounts), <b>legs</b> (movement) and <b>weapons</b>. Fit them in that order. Tap any stat or icon in the game to see what it means.'],
       ['On the map', 'Stand on a <b>radar</b> or <b>uplink</b>, or on a <b>depot</b> on the enemy half (★), to score at the end of the round. Depots also give actions. Ruins give cover; rocks block shots.'],
-      ['New?', '<b>Training</b> teaches the game one part at a time in short lessons: cards, building, deploying, fighting, scoring, your base and Armored fuel, then a guided first battle. Field notes explain anything new the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Open Training</button>']]],
+      ['New?', '<b>Training</b> teaches the game one part at a time in short lessons: cards, building, deploying, fighting, scoring, your base and Armored fuel and field repair, then a guided first battle. Field notes explain anything new the first time it comes up.<br><button type="button" class="btn sm primary" data-act="training" style="margin-top:6px">Open Training</button>']]],
     ['Goal', [['Victory', 'Destroy the enemy base (' + C.BASE_HP + ' HP), or be first to ' + C.VP_WIN + ' victory points. If both sides reach it level on points in the same round, the side whose base has more HP left wins. At the end of every round you score 1 point for each radar you hold and each depot you hold on the enemy’s half (marked with a star), at most ' + C.VP_ROUND_CAP + ' a round. Every ' + C.BASE_VP_PER + ' damage you deal to the enemy base is worth another point, and so are enemy mecha destroyed (' + MW.MAP_IDS.filter(id => (MW.MAPS[id].effects || {}).killVp).map(id => MW.MAPS[id].name + ': every ' + Math.round(1 / MW.MAPS[id].effects.killVp)).join(', ') + '). Holding your own depots gives actions but no points. Azure holds the bottom of the map, Ember the top.'],
       ['Comebacks', 'Whoever is behind on points gets +1 action next round, +2 when 3 or more points behind. A side ' + C.LEAD_GAP + ' or more points ahead scores at most ' + C.LEAD_CAP + ' point a round from objectives until the gap closes. Kills and base damage always score in full.'],
       ['Round', 'Both commanders draw and build at the same time. When both are ready, the first commander deploys, then the second, then Combat and Resolution. The first commander swaps every round.']]],
-    ['Build', [['Start', 'Each side starts with mecha ready to deploy, each built for its own role (Assault brings an extra one), and ' + C.EP + ' actions a round (Armored ' + MW.DOCTRINES.armored.traits.ep + '). Up to ' + C.CARRY_MAX + ' unused ones carry over to the next round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) wait in the Workshop until you play them: Spare Parts and Overtime Shift (extra actions), Tech Requisition (more cards), Field Repairs.'],
+    ['Build', [['Start', 'Each side starts with mecha ready to deploy, each built for its own role (Assault brings an extra one), and ' + C.EP + ' actions a round (Armored ' + MW.DOCTRINES.armored.traits.ep + ', spent on fuel and field repairs as well as parts). Up to ' + C.CARRY_MAX + ' unused ones carry over to the next round.'], ['Draw', 'Each turn opens by drawing ' + C.DRAW + ' Arsenal cards. Event cards (hazard stripes) wait in the Workshop until you play them: Spare Parts and Overtime Shift (extra actions), Tech Requisition (more cards), Field Repairs.'],
       ['Fuel (Armored)', 'Armored mecha move only on fuel: each move burns 1, and with an empty tank a mech cannot move (it can still fire, brace and overwatch). A new mech deploys with ' + C.FUEL_START + '. In the build, 1 action adds 1 fuel to a mech on the field or a finished one in the hangar, up to ' + MW.DOCTRINES.armored.traits.fuel + '. Every tank shows as amber cells beside the mech, for both sides.'],
+      ['Field repair (Armored)', 'Armored mends its mecha where they stand. In the build, 1 action restores a damaged reactor, legs, weapon or aux system of a mech on the field to full, the same as a repair in the hangar; tap <b>Repair</b> beside its fuel. The chassis and any destroyed part wait for the hangar, and plating that was shot off never comes back. Every field repair is in the log and shows over the mech, for both sides.'],
       ['Build', 'You get ' + C.EP + ' actions a round. Fitting a part takes 1 (big chassis and heavy guns 2, specials 3); repairing takes 1; removing is free. A mech is a chassis, legs, two weapon arms and aux systems. The chassis brings HP, a built-in reactor (power and cooling), a signature trait, and a mount on each arm: Gun, Energy, Melee, Heavy or Universal. A weapon only fits a matching mount or a universal one. Legs set how a mech moves: Booster Legs jump over obstacles, Heavy Treads have armoured tracks, Quad Walkers fire heavy weapons on the move without losing accuracy (others lose 15%), Hover Skirts ignore slowing, Reinforced Bipeds cannot be knocked back. Each army also has its own unlimited issue parts. Build in order: chassis first, then legs and weapons, then aux systems. Each chassis is Light, Medium or Heavy, and its legs must carry that class. Each chassis has a capacity budget in pips; every weapon and aux system costs pips. A damaged reactor loses a pip, a wrecked one loses them all.'],
       ['Aiming', 'Pick where a shot goes. Body: no penalty, full damage to the hull. Weapon arm (−15%): knocks that weapon offline for the rest of the round and the next (it restarts at half strength), half the damage reaches the hull. Legs (−10%): slows the mech, 1 move once destroyed, half to the hull. The reactor sits inside the chassis and cannot be aimed at.'],
       ['Energy weapons', 'Lasers, lances and projectors melt through 1 point of armour (3 for the Experimental doctrine). Pierce ignores armour completely.'],
@@ -3879,6 +3902,7 @@ function docStats(id) {
     ['Move', n(t.move, 0), 0, '+'],
     ['Orders', n(t.ap, C0.AP), C0.AP, ''],
     ['Fuel tank', n(t.fuel, 0), 0, '', false, true],
+    ['Field repair', t.fieldRepair ? 'Yes' : 'No', 'No', ''],
     ['Cards drawn', n(t.draw, C0.DRAW), C0.DRAW, ''],
     ['Plating', n(t.plate, 0), 0, '+'],
     ['Repair / round', n(t.plateRegen, 0), 0, '+'],
@@ -4498,6 +4522,7 @@ const GLOSSARY = [
   [/^Damage/, 'HP removed by each hit. The target\'s armour takes some off, unless the weapon pierces armour.'],
   [/^Range/, 'How many tiles away it can hit, counting straight steps (no diagonals). Rocks block the shot unless it fires over obstacles.'],
   [/^Move/, 'Tiles a mech can travel with one move order. Each mech has 2 orders per turn (3 for Experimental). Armored mecha also burn 1 fuel per move.'],
+  [/^Field repair/, 'Armored repairs a damaged part on a mech out on the field for 1 action in the build, as in the hangar: anything but the chassis. The chassis and destroyed parts wait for the hangar; lost plating never comes back.'],
   [/^Fuel/, 'Armored mecha move only on fuel: each move burns 1. A new mech deploys with ' + C.FUEL_START + '; in the build, 1 action adds 1, up to a full tank.'],
   [/^Armou?r/, 'Taken off the damage of every hit. Armour-piercing weapons ignore it.'],
   [/^Heat/, 'Firing and boosting add heat; cooling removes some each round. Above capacity at the end of a round, the core is damaged and the mech shuts down for a round.'],
