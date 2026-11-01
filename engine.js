@@ -1865,7 +1865,14 @@ function aiStance(pid) {
 // spare: no reserve mech while the field is (or after this deployment will be) full and nothing on it is badly hurt; the
 // actions go to the mecha fighting
 // fieldfix: an army that repairs on the field mends its fighting mecha in the build, worst damage first, around their fuel
-const AIX = { tough: true, deploy: true, brave: true, never: true, reserve: true, cbaware: true, race: true, spare: true, fieldfix: true };
+// hammer: a mech with a blow that takes all its orders (the Meteor Hammer) swings when it starts next to a target, and
+// otherwise ends its move next to one it can likely catch again, where it is unlikely to be shot apart first, and holds
+// there. The AI always moved first and was left one order, so 83% of fielded hammers never swung
+// hammerfit: designs count such a blow only as often as the legs and frame can land it, so slow or paper mecha stop
+// carrying hammers (540 audited wars, both on: hammers that never swung 86% to 80%, swings 72 to 97, Assault 47.8% to
+// 49.4%; 900 paired duels: 48.2% vs 46.3%, no matchup worse. hammerfit alone 48.4%; hammer alone 46.1%; a bolder
+// hammer that ignored the threat swung 164 times but lost its duels, 42.7%)
+const AIX = { tough: true, deploy: true, brave: true, never: true, reserve: true, cbaware: true, race: true, spare: true, fieldfix: true, hammer: true, hammerfit: true };
 const aix = (pid, k) => AIX[k] === true || (Array.isArray(AIX[k]) && AIX[k].includes(pid));
 function threatMap(pid) {
   const key = S.round + ':' + S.mechs.map(m => m.uid + '@' + m.x + ',' + m.y + (m.activated ? 'a' : '')).join('|');
@@ -2166,6 +2173,7 @@ function aiCombatStep() {
       if (best && (best.x !== m.x || best.y !== m.y) && move(m, best.x, best.y).ok) return true;
     }
   }
+  if (aix(m.owner, 'hammer') && aiHeavyBlowStep(m)) return true;
   if (m.moves === 0) {
     const b = aiBestTile(m);
     if (b && (b.x !== m.x || b.y !== m.y)) { if (move(m, b.x, b.y).ok) return true; }
@@ -2173,7 +2181,7 @@ function aiCombatStep() {
   const atk = aiBestAttack(m);
   if (atk && fire(m, atk.key, atk.target, atk.part).ok) return true;
   if (wreckAt(m.x, m.y) && salvage(m).ok) return true;
-  if (m.moves === 1) {
+  if (m.moves === 1 && m.aiHold !== S.round) {
     const o = objAt(m.x, m.y), holding = o && o.type !== 'repair' && o.owner !== m.owner;
     if (!holding) {
       const b = aiBestTile(m);
@@ -2183,6 +2191,83 @@ function aiCombatStep() {
   if (!m.overwatch && aiWantsOverwatch(m) && overwatch(m).ok) return true;
   if (!m.braced && !m.overwatch && brace(m).ok) return true;
   endActivation(m);
+  return true;
+}
+// a weapon whose blow takes more orders than one (the Meteor Hammer): it cannot follow a move in the same activation
+// unless the army has orders to spare, so the mech swings when it starts next to a target, and otherwise ends its
+// activation next to one and holds there to swing at the start of the next
+const aiHeavyBlow = m => weaponsOf(m).find(wp => wp.w.apCost > 1 && !wp.w.repair && wp.inst.hp > 0 && (wp.inst.ammo == null || wp.inst.ammo > 0));
+// how likely an enemy mech is still within reach of a tile next to it when this mech next acts, read from its state and parts
+function aiStaysPut(e) {
+  if (e.entrenched || outOfFuel(e) || e.shutdown) return 0.85;
+  let p = 0.25;
+  const o = objAt(e.x, e.y);
+  if (o && o.type !== 'repair') p += 0.25;
+  // a mech with only short reach wants to stay close; one that is shocked or slowed has fewer orders or tiles to leave with
+  if (weaponsOf(e).every(wp => wp.w.repair || wp.inst.hp <= 0 || wp.w.range <= 1)) p += 0.2;
+  if (e.shock || e.slow) p += 0.15;
+  if (stats(e).move <= 2) p += 0.1;
+  return Math.min(0.85, p);
+}
+// what the blow is worth from (x, y) at the start of the next activation: its value now, times the chance a target is still there
+function aiHeavyBlowNext(m, wp, x, y) {
+  const oap = m.ap;
+  m.ap = wp.w.apCost;
+  try {
+    return withPos(m, x, y, () => {
+      const c = aiWeaponBest(m, wp, stats(m));
+      if (!c || c.ev <= 0) return 0;
+      if (c.target.type === 'base') return c.ev;
+      const near = S.mechs.filter(e => e.owner !== m.owner && man(e.x, e.y, x, y) <= effRange(wp.w, stats(m)));
+      return c.ev * (1 - near.reduce((q, e) => q * (1 - aiStaysPut(e)), 1));
+    });
+  } finally { m.ap = oap; }
+}
+// the share of activations a design can land such a blow in, against a weapon that fires every activation
+function aiHeavyBlowRate(pid, m, w, st) {
+  if (trait(pid, 'ap') - 1 >= w.apCost) return 1;
+  const td = DEFS[m.slots.torso.id];
+  // legs that cover 4 tiles close on most targets in one move; a frame that cannot take one hit dies waiting to swing
+  const reach = clamp((st.move - 1) / 3, 0.4, 1);
+  const endure = clamp((td.hp + 3 * ((td.armor || 0) + st.armorAll) + st.plate + 2 * st.shield) / 6, 0.6, 1);
+  return reach * endure;
+}
+function aiHeavyBlowStep(m) {
+  const wp = aiHeavyBlow(m);
+  if (!wp || m.aiHold === S.round) return false;
+  const need = wp.w.apCost;
+  // a target in reach and the orders for it: swing
+  if (m.ap >= need) {
+    const c = aiWeaponBest(m, wp, stats(m));
+    if (c && c.ev > 0 && fire(m, c.key, c.target, c.part).ok) return true;
+  }
+  // with the orders to move and still swing, the ordinary planner already values the blow after the move
+  if (m.ap - 1 >= need || m.moves > 1) return false;
+  const aw = aiW(m.owner), scale = 10 * (0.5 + aw.aggro) * 0.8;
+  const r = reachable(m), th = threatMap(m.owner), life = hpOf(m) + (m.plate || 0);
+  r[K(m.x, m.y)] = 0;
+  let best = null;
+  for (const k in r) {
+    const [x, y] = k.split(',').map(Number);
+    // the blow only lands if the mech lives through the enemy's turn standing there
+    const nx = aiHeavyBlowNext(m, wp, x, y) * clamp(1 - 0.9 * (th[k] || 0) / Math.max(1, life), 0, 1);
+    if (nx <= 0) continue;
+    const t = {}; t[k] = r[k];
+    const b = aiBestTile(m, t);
+    if (!b) continue;
+    const v = b.v + scale * nx;
+    if (!best || v > best.v) best = { x, y, v };
+  }
+  if (!best) return false;
+  // only when ending next to a target beats the ordinary plan for this order
+  const here = m.x === best.x && m.y === best.y;
+  if (!here) {
+    const b = aiBestTile(m);
+    if (b && b.v >= best.v) return false;
+    if (!move(m, best.x, best.y).ok) return false;
+  }
+  m.aiHold = S.round;
+  if (here) { if (!m.braced && brace(m).ok) return true; endActivation(m); }
   return true;
 }
 function aiEntrenchValue(m, x, y) {
@@ -2262,9 +2347,13 @@ function aiDesign(p, m) {
       if (w.repair) continue;
       if (w.needsEntrench && !digsIn(tmp.slots.legs.id)) continue;
       if (w.needsOverclock && !(tmp.slots.torso && DEFS[tmp.slots.torso.id].trick === 'overclock')) continue;
-      fp += (w.dmg + st.dmgBonus) * (w.shots || 1) * Math.min(95, w.acc) / 100 * (1 + effRange(w, st) / 8) + (w.ap ? 1 : 0) + (w.siege ? 1 : 0) + (w.heatDmg ? 0.5 : 0);
+      let wf = (w.dmg + st.dmgBonus) * (w.shots || 1) * Math.min(95, w.acc) / 100 * (1 + effRange(w, st) / 8) + (w.ap ? 1 : 0) + (w.siege ? 1 : 0) + (w.heatDmg ? 0.5 : 0);
       heat += w.heat + st.shotHeat;
-      fp += (w.burn ? 1.5 : 0) + (w.slow ? 0.8 : 0) + (w.shock ? 1 : 0);
+      wf += (w.burn ? 1.5 : 0) + (w.slow ? 0.8 : 0) + (w.shock ? 1 : 0);
+      // a blow that needs more orders than a move leaves (the Meteor Hammer) lands only when the mech starts its
+      // activation next to a target: how often depends on the legs that get it there and the frame that survives the wait
+      if (w.apCost > 1 && aix(p.id, 'hammerfit')) wf *= aiHeavyBlowRate(p.id, tmp, w, st);
+      fp += wf;
     }
     const td = DEFS[tmp.slots.torso.id];
     const aw = aiW(p.id);
