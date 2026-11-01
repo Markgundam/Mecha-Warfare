@@ -212,7 +212,9 @@ const MAPS = {
     name: 'Open Field', goal: 'Capture points',
     blurb: 'Radars score wherever they stand; depots score on the enemy half. A compact, open field.',
     W: 9, H: 7, bases: [[0, 3], [8, 3]],
-    obj: [[2, 5, 'depot'], [3, 1, 'depot'], [6, 1, 'depot'], [5, 5, 'depot'], [4, 0, 'radar'], [4, 6, 'radar'], [4, 3, 'repair']],
+    // the radars stand off-centre, one toward each side's half, rather than on the far edges where fast hover mecha took
+    // them first (Experimental won 66% here); the centre-column depots give actions but score for neither side
+    obj: [[2, 5, 'depot'], [4, 0, 'depot'], [4, 6, 'depot'], [6, 1, 'depot'], [3, 1, 'radar'], [5, 5, 'radar'], [4, 3, 'repair']],
     rocks: [[2, 2], [6, 4], [3, 3], [5, 3]],
     ruins: [[2, 1], [6, 5], [3, 4], [5, 2], [2, 3], [6, 3]],
     rules: {},

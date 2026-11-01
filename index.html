@@ -3319,7 +3319,7 @@ const LESSONS = [
   { id: 'capture', title: 'Capture Points', learn: 'Holding objectives and scoring victory points.', combat: true,
     setup() { lessonField(() => { MW.lessonPlace(0, MW.lessonMech(0, { torso: 't_skirm', legs: 'l_boost', armL: 'w_smg', armR: 'w_smg' }), 1, 1); }); },
     steps: [
-      { t: 'A <b>radar</b> scores a victory point every round for whoever holds it when the round ends. Move your mech onto the radar at the top edge of the map.', done: () => S.objectives.some(o => o.type === 'radar' && lead() && lead().x === o.x && lead().y === o.y) || (S.players[0].vp || 0) > 0 },
+      { t: 'A <b>radar</b> scores a victory point every round for whoever holds it when the round ends. Move your mech onto the nearest radar (the dish).', done: () => S.objectives.some(o => o.type === 'radar' && lead() && lead().x === o.x && lead().y === o.y) || (S.players[0].vp || 0) > 0 },
       { t: 'Use its last order to <b>brace</b>: it takes less damage until next round while it holds the point.', hl: '[data-act=brace]', done: () => (lead() && lead().activated) || (S.players[0].vp || 0) > 0 },
       { t: 'The round ends with <b>Resolution</b>: held points score. Watch your points at the top.', wait: true, done: () => (S.players[0].vp || 0) > 0 },
       { t: () => 'Points also come from <b>depots on the enemy half</b> (marked ★), from <b>destroying enemy mecha</b> and from <b>damaging the enemy base</b>. First to ' + C.VP_WIN + ' wins.', next: 'Got it' }
@@ -3346,7 +3346,7 @@ const LESSONS = [
       { t: '<b>Field repair.</b> Its Heavy Treads took a beating. Armored mends its mecha where they stand: tap <b>Repair</b> on the treads to restore them to full for 1 action. The chassis, and any destroyed part, would have to wait for the hangar.', hl: '[data-act=fieldRepair], [data-act=fuelMenu]', done: () => lead() && !MW.worn(lead().slots.legs) },
       { t: () => 'A new mech deploys with ' + C.FUEL_START + ' fuel, and mecha waiting in the hangar can be topped up too. Tap <b>End build</b>.', hl: '[data-act=endBuild]', done: () => S.phase !== 'build' || uiPhase() === 'wait' },
       { t: 'Tap <b>End deployment</b>.', hl: '[data-act=endDeploy]', done: () => S.phase === 'combat' },
-      { t: 'Move your mech onto the <b>radar</b> at the top edge, and watch a fuel cell go out.', done: () => lead() && lead().moves > 0 },
+      { t: 'Move your mech onto the nearest <b>radar</b> (the dish), and watch a fuel cell go out.', done: () => lead() && lead().moves > 0 },
       { t: 'The tank is empty again. It can still fire, brace and go on overwatch, but it cannot move until you fuel it in the next build. Your opponent sees the same gauge, so fuel where you will need to move next round.', next: 'Got it' }
     ] },
   { id: 'battle', title: 'First Battle', learn: 'Everything together: a guided first round, then win the war.', battle: true,
