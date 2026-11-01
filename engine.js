@@ -58,7 +58,7 @@ const DEFS = {};
   { id: 'w_missile', name: 'Missile Rack', slot: 'arm', cost: 4, wt: 3, en: 1, hp: 3, weapon: { dmg: 3, range: 4, min: 2, acc: 70, heat: 2, indirect: true, ammo: 4 } },
   { id: 'w_howitzer', name: 'Howitzer', slot: 'arm', cost: 6, wt: 7, en: 1, hp: 4, weapon: { dmg: 4, range: 5, min: 2, acc: 65, heat: 2, indirect: true, siege: 1.5, ammo: 4 } },
   { id: 'w_ram', name: 'Siege Ram', slot: 'arm', cost: 4, wt: 4, en: 2, hp: 5, weapon: { dmg: 3, range: 1, acc: 90, heat: 1, siege: 2, melee: true } },
-  { id: 'w_laser', name: 'Laser Rifle', slot: 'arm', cost: 4, wt: 2, en: 3, hp: 3, weapon: { dmg: 3, range: 4, acc: 85, heat: 2 } },
+  { id: 'w_laser', name: 'Laser Rifle', slot: 'arm', cost: 4, wt: 2, en: 3, hp: 3, weapon: { dmg: 3, range: 3, acc: 85, heat: 2 } },
   { id: 'w_scatter', name: 'Scatter Cannon', slot: 'arm', cost: 3, wt: 3, en: 1, hp: 3, weapon: { dmg: 3, range: 2, acc: 85, heat: 1 } },
   { id: 'w_gatling', name: 'Gatling Gun', slot: 'arm', cost: 4, wt: 3, en: 1, hp: 3, weapon: { dmg: 2, range: 3, acc: 75, heat: 2, shots: 2 } },
   { id: 'w_shield', name: 'Tower Shield', slot: 'arm', cost: 3, wt: 4, en: 0, hp: 8, armorAll: 1 },
@@ -193,7 +193,7 @@ const DOCTRINES = {
   experimental: {
     name: 'Experimental Doctrine',
     blurb: 'Overclocked prototypes that out-act and out-draw the enemy, if the heat allows.',
-    perks: ['Opening team: a Sniper (overclocked lasers at range 5) and an Infiltrator (phase jumps onto objectives)', 'Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 orders per mech instead of 2', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Combo weapon: the Overload Lance, live after an overclock', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
+    perks: ['Opening team: a laser gunner (twin Laser Rifles reaching 4 on a Prototype Chassis) and an Infiltrator (phase jumps onto objectives)', 'Prototype tricks: every chassis has one (Overclock, Phase jump or Cloak), paid for in heat', '3 orders per mech instead of 2', 'Energy weapons melt 3 armour instead of 1', 'Tesla base: the turret arcs to every enemy in range', 'Combo weapon: the Overload Lance, live after an overclock', 'Issue parts: Prototype Chassis (Overclock, two energy mounts), Hover Skirt, Laser Rifle'],
     traits: { ap: 3, melt: 2, turretArc: 1 },
     deck: { l_hover: 5, t_proto: 3, c_sing: 2, c_fusion: 2, w_lance: 2, w_arc: 2, w_laser: 3, w_missile: 1, a_nano: 2, a_over: 1, a_apu: 1, a_shield: 2, a_cool: 1, a_relay: 2, s_overload: 2, s_emp: 1, s_cryo: 1, s_core: 2, x_req: 2, x_supply: 1, x_overtime: 1, x_repair: 1 }
   }
@@ -374,7 +374,7 @@ const START_BUILD = {
     { torso: 't_heavy', legs: 'l_quad', armL: 'w_rail', armR: 'w_missile' }                  // Emplacement: the only long guns
   ],
   experimental: [
-    { torso: 't_proto', legs: 'l_hover', armL: 'w_laser', armR: 'w_laser' },           // Sniper: overclocked lasers at range 5
+    { torso: 't_proto', legs: 'l_hover', armL: 'w_laser', armR: 'w_laser' },           // laser gunner: twin lasers reaching 4 on the Prototype Chassis
     { torso: 'c_sing', legs: 'l_hover', armL: 'w_arc', armR: null }                    // Infiltrator: blinks onto objectives
   ]
 };
