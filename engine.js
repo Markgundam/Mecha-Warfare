@@ -1683,6 +1683,17 @@ function resolution() {
     aiLearn();
     return;
   }
+  // both reach the target level on points: the base with more HP left wins; only equal bases play another round
+  if (pa.vp >= C.VP_WIN && pa.vp === pb.vp) {
+    if (pa.base.hp === pb.base.hp) log('Tied at ' + pa.vp + ' points with equal bases: the next round decides.', 'sys');
+    else {
+      S.phase = 'over'; S.winner = pa.base.hp > pb.base.hp ? 0 : 1; S.winReason = 'points'; S.active = null;
+      const w = S.players[S.winner], l = S.players[1 - S.winner];
+      log('Tied at ' + pa.vp + ' points. ' + w.name + ' wins the war with more base HP left (' + w.base.hp + ' to ' + l.base.hp + ').', 'sys');
+      aiLearn();
+      return;
+    }
+  }
   if (S.round % rule('crateEvery', C.CRATE_EVERY) === (rule('crateEvery', C.CRATE_EVERY) === 1 ? 0 : 1)) dropCrate();
   S.round++; S.first = 1 - S.first;
   log('Round ' + S.round + ' begins.', 'sys');
