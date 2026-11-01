@@ -3202,7 +3202,7 @@ const NOTES = [
   { id: () => 'heat', when: () => S.phase === 'combat' && myMechs().some(m => m.heat >= MW.stats(m).heatCap - 1),
     t: () => '<b>Running hot.</b> A mech of yours is near its heat limit (the flame). If it ends the round above the limit, its core takes damage and it shuts down next round. Hold fire or brace to let it cool.' },
   { id: () => 'crate', when: () => S.phase === 'combat' && (S.crates || []).length > 0,
-    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> score on this map: end a move on one to grab it, for a victory point plus an action or a special part.' + (MW.rule('crateStops', false) ? ' Loading a crate ends that mech\'s turn.' : '') + (MW.MAP.obj.some(o => o[2] === 'radar') ? ' The radars on the scrap pile score too.' : '') : '<b>Crate.</b> A crate has dropped. The first mech to end a move on it grabs an extra action or a special part.' },
+    t: () => MW.rule('crateVp', 0) ? '<b>Salvage crates</b> score on this map: end a move on one to grab it, for ' + (MW.rule('crateVp', 0) === 1 ? 'a victory point' : MW.rule('crateVp', 0) + ' victory points') + ' plus an action or a special part.' + (MW.rule('crateStops', false) ? ' Loading a crate ends that mech\'s turn.' : '') + (MW.MAP.obj.some(o => o[2] === 'radar') ? ' The radars score too' + (radarsGuarded(MW.MAP) ? ': each stands under a base turret, so taking the enemy\'s means braving its guns.' : '.') : '') : '<b>Crate.</b> A crate has dropped. The first mech to end a move on it grabs an extra action or a special part.' },
   { id: () => 'overwatch', when: () => S.phase === 'combat' && S.mechs.some(m => m.owner !== viewer() && m.overwatch),
     t: () => '<b>Enemy overwatch.</b> A mech on overwatch shoots the first enemy that ends a move in its range. Those tiles are striped when you move. Wait it out, or send something tough first.' },
   { id: () => 'damaged', when: () => myMechs().concat(S.players[viewer()].hangar).some(m => ['armL', 'armR', 'legs', 'core'].some(k => m.slots[k] && m.slots[k].hp <= 0)),
@@ -3803,7 +3803,7 @@ function showRules() {
     ['Doctrines', Object.keys(MW.DOCTRINES).map(id => [DOC_NAME(id), MW.DOCTRINES[id].blurb + ' ' + (MW.DOCTRINES[id].perks || []).join(' · ') + '.'])],
     ['Map', [['Battlefields', MW.MAP_IDS.map(id => '<b>' + MW.MAPS[id].name + '</b> (' + MW.MAPS[id].goal.toLowerCase() + '): ' + MW.MAPS[id].blurb + (MW.MAPS[id].notes ? ' <i>' + MW.MAPS[id].notes + '</i>' : '')).join('<br>') + (S && S.map ? '<br>This battle: <b>' + MW.MAP.name + '</b>.' : '')],
       ['Objectives', 'End a round on a depot or radar to hold it. Each depot adds ' + C.DEPOT + ' action to your next build (up to ' + C.DEPOT_FULL + '), radars ' + C.RADAR_ACC + '% accuracy, and both score victory points. The repair station patches whoever stands on it.'],
-      ['Crates', 'Every other round a crate drops on the centre line: +' + MW.actWord(C.CRATE_SUPPLY) + ' or a special card, taken by the first mech to end a move on it.'],
+      ['Crates', 'Every other round a crate drops on the centre line: +' + MW.actWord(C.CRATE_SUPPLY) + ' or a special card, taken by the first mech to end a move on it.' + MW.MAP_IDS.filter(id => MW.MAPS[id].rules.crateVp).map(id => { const r = MW.MAPS[id].rules; return ' On the ' + MW.MAPS[id].name + ' a pair drops instead, and each crate is also worth ' + (r.crateVp === 1 ? 'a victory point' : r.crateVp + ' victory points') + '.'; }).join('')],
       ['Base', 'Each base turret hits one enemy within ' + C.TURRET_RANGE + ' tiles for ' + C.TURRET_DMG + ' at Resolution' + (C.COUNTER_BATTERY ? ', and returns fire on any mech that shelled the base that round, however far away' : '') + '. Returning to base vents heat and restocks ammo.'],
       ['Salvage', 'Salvaging a wreck gives an extra action plus any special parts that survived, which refit for 1.']]]
   ];
@@ -4072,6 +4072,11 @@ function mapKeySym(t) {
   const s = { depot: '<circle cx="8" cy="8" r="5"/>', radar: '<circle cx="8" cy="8" r="2.6"/><circle class="ring" cx="8" cy="8" r="5.5"/>', uplink: '<rect x="3.5" y="3.5" width="9" height="9" transform="rotate(45 8 8)"/>', repair: '<path d="M6.3 2.5h3.4v3.8h3.8v3.4H9.7v3.8H6.3V9.7H2.5V6.3h3.8z"/>', crate: '<rect class="crate" x="1.5" y="3" width="13" height="10" rx="1.5"/>' }[t];
   return '<svg class="mkey o-' + t + '" viewBox="0 0 16 16" aria-hidden="true">' + s + '</svg>';
 }
+// every radar on this map stands inside a base turret's reach
+function radarsGuarded(M) {
+  const r = M.obj.filter(o => o[2] === 'radar');
+  return r.length > 0 && r.every(([x, y]) => M.bases.some(([bx, by]) => Math.abs(x - bx) + Math.abs(y - by) <= MW.C.TURRET_RANGE));
+}
 // the stops on a map's tour: what to look at, what it does, and where the 3D camera goes
 function tourSteps(id) {
   const M = MW.MAPS[id], C0 = MW.C, ai = ui.startMode === 'ai', W = M.W, H = M.H;
@@ -4093,11 +4098,17 @@ function tourSteps(id) {
   ];
   if (of('depot').length) st.push(Object.assign({ t: 'Depots', f: ['depot'], x: depotVp ? 'End a round on one to hold it: +' + C0.DEPOT + ' action every round. Depots on the enemy half (marked gold) also score a victory point each round.' : 'End a round on one to hold it: +' + C0.DEPOT + ' action every round. On this map they score no points.' },
     spot(of('depot'), depotVp ? { tiles: of('depot').filter(([x]) => x > (W - 1) / 2) } : {})));
-  if (of('radar').length) st.push(Object.assign({ t: 'Radar stations', f: ['radar'], x: 'Hold one for a victory point every round and +' + C0.RADAR_ACC + '% accuracy for your mecha.' }, spot(of('radar'))));
-  if (of('uplink').length) st.push(Object.assign({ t: 'The uplink', f: ['uplink'], x: 'Worth ' + (M.rules.uplinkVp || 2) + ' victory points every round to whoever holds it. Expect the whole battle to be fought here.' }, spot(of('uplink'))));
+  if (of('radar').length) st.push(Object.assign({ t: 'Radar stations', f: ['radar'], x: 'Hold one for a victory point every round and +' + C0.RADAR_ACC + '% accuracy for your mecha.' + (radarsGuarded(M) ? ' Each stands inside a base turret\'s reach: yours is easy to hold, the enemy\'s costly to take.' : '') }, spot(of('radar'))));
+  if (of('uplink').length) {
+    // rocks on the base-facing sides of the uplink: it is reached from the left and right, maybe out of turret reach
+    const [ux, uy] = of('uplink')[0], walled = has(M.rocks, ux - 1, uy) && has(M.rocks, ux + 1, uy);
+    const sides = [[ux, uy - 1], [ux, uy + 1]].filter(([x, y]) => y >= 0 && y < H && !has(M.rocks, x, y));
+    const safe = sides.every(([x, y]) => M.bases.every(([bx, by]) => man(x, y, bx, by) > C0.TURRET_RANGE));
+    st.push(Object.assign({ t: 'The uplink', f: ['uplink'], x: 'Worth ' + (M.rules.uplinkVp || 2) + ' victory points every round to whoever holds it. Expect the whole battle to be fought here.' + (walled ? ' Rocks wall it off from both bases, so mecha climb on from the left or right' + (safe ? ', out of reach of either base turret.' : '.') : '') }, spot(of('uplink'))));
+  }
   if (of('repair').length) st.push(Object.assign({ t: 'Repair stations', f: ['repair'], x: 'End a round here and the station repairs ' + C0.STATION_REPAIR + ' HP on a damaged part.' }, spot(of('repair'))));
   st.push(Object.assign(salvage
-    ? { t: 'Salvage crates', f: ['crate'], x: 'A pair of crates drops inside the lit area ' + ((M.rules.crateEvery || 1) > 1 ? 'every other round' : 'every round') + (M.rules.crateMax ? ', up to ' + M.rules.crateMax + ' on the yard at once' : '') + '. The first mech to end a move on one scores a victory point and takes what is inside.' }
+    ? { t: 'Salvage crates', f: ['crate'], x: 'A pair of crates drops inside the lit area ' + ((M.rules.crateEvery || 1) > 1 ? 'every other round' : 'every round') + (M.rules.crateMax ? ', up to ' + M.rules.crateMax + ' on the yard at once' : '') + '. The first mech to end a move on one scores ' + (M.rules.crateVp === 1 ? 'a victory point' : M.rules.crateVp + ' victory points') + ' and takes what is inside.' }
     : { t: 'Crate drops', f: ['crate'], x: 'Every other round a crate lands on the lit centre line: an action or a special card for the first mech to reach it.' },
     { focus: band, tiles: band, crates }));
   if (M.rocks.length) st.push(Object.assign({ t: BIOME_ROCK[id] || 'Rocks', f: ['rock'], x: 'Block movement and direct fire. Booster Legs jump over them, and artillery fires over them.' }, spot(M.rocks)));

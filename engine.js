@@ -232,10 +232,11 @@ const MAPS = {
   },
   uplink: {
     name: 'Uplink', goal: 'King of the hill',
-    blurb: 'One uplink in the centre is worth 2 points a round to whoever holds it. Depots only add actions, and repair pads wait on the flanks.',
+    get blurb() { return 'One uplink in the centre is worth ' + this.rules.uplinkVp + ' points a round to whoever holds it. Rock walls cut it off from both bases, so it is taken from the left or right, beyond the reach of either base turret. Depots only add actions, and repair pads wait on the flanks.'; },
     W: 9, H: 7, bases: [[0, 3], [8, 3]],
     obj: [[4, 3, 'uplink'], [2, 0, 'depot'], [6, 6, 'depot'], [2, 6, 'depot'], [6, 0, 'depot'], [4, 0, 'repair'], [4, 6, 'repair']],
-    rocks: [[4, 1], [4, 5], [2, 2], [6, 4]],
+    // the walls beside the uplink keep each side's base guns and turret off the hill: it is fought for, not shelled from home
+    rocks: [[3, 3], [5, 3], [4, 1], [4, 5], [2, 2], [6, 4]],
     ruins: [[3, 2], [5, 4], [3, 4], [5, 2], [1, 1], [7, 5]],
     rules: { depotVp: false, uplinkVp: 2, baseHp: 6 },
     effects: { killVp: 1 / 3 },
@@ -243,12 +244,13 @@ const MAPS = {
   },
   salvage: {
     name: 'Scrapyard', goal: 'Scrap and signal',
-    blurb: 'Two radars stand on the scrap pile in the centre. Every other round a pair of crates drops across the yard; each one grabbed is worth a point plus what is inside. Depots only add actions.',
+    get blurb() { const v = this.rules.crateVp; return 'Two radars stand between the scrap stacks, one in front of each base, inside its turret\'s reach. Every other round a pair of crates drops across the yard; each one grabbed is worth ' + (v === 1 ? 'a point' : v + ' points') + ' plus what is inside. Depots only add actions.'; },
     W: 10, H: 7, bases: [[0, 3], [9, 3]],
-    obj: [[2, 1, 'depot'], [7, 5, 'depot'], [2, 5, 'depot'], [7, 1, 'depot'], [4, 3, 'radar'], [5, 3, 'radar']],
+    // each radar sits under its own base turret: holding yours is cheap, stealing the enemy's costs. Crates pay the raiders
+    obj: [[2, 1, 'depot'], [7, 5, 'depot'], [2, 5, 'depot'], [7, 1, 'depot'], [3, 3, 'radar'], [6, 3, 'radar']],
     rocks: [[3, 2], [6, 4], [3, 4], [6, 2]],
     ruins: [[4, 1], [5, 5], [4, 5], [5, 1], [2, 3], [7, 3], [1, 0], [8, 6]],
-    rules: { depotVp: false, crateVp: 1, crateEvery: 2, cratePairs: true, crateMax: 4, crateBand: [2, 7], baseHp: 8, crateSupply: 1 },
+    rules: { depotVp: false, crateVp: 2, crateEvery: 2, cratePairs: true, crateMax: 4, crateBand: [2, 7], baseHp: 8, crateSupply: 1 },
     effects: { killVp: 0.25 },
     notes: 'Bases +8 HP. Every 4 enemy mecha destroyed score 1 point.'
   }
