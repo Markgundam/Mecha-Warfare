@@ -186,8 +186,8 @@ const DOCTRINES = {
   armored: {
     name: 'Armored Doctrine',
     blurb: 'A handful of near-indestructible war machines that grind the enemy down.',
-    perks: ['Opening team: a Tank (shotgun and plating) that takes and holds objectives, and an Emplacement that carries the long guns', 'Up to 3 mecha on the field', 'Fuel: its mecha move only on fuel. Each move burns 1; a new mech deploys with 2, and 1 action in the build adds 1 more (up to 3)', 'Heavy industry: 6 actions a round instead of 4', 'Line mechs: +8 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers carry long guns, and dig in as turrets for +1 range and +1 armour', '+10% accuracy when it has not moved', 'Combo weapon: the Heavy Railgun, live on a dug-in Quad Walker', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
-    traits: { ep: 6, fieldMax: 3, plate: 8, plateRegen: 0, steady: 10, fuel: 3, baseHp: 6, turretShots: 2, turretDmg: 2 },
+    perks: ['Opening team: a Tank (shotgun and plating) that takes and holds objectives, and an Emplacement that carries the long guns', 'Up to 3 mecha on the field', 'Fuel: its mecha move only on fuel. Each move burns 1; a new mech deploys with 2, and 1 action in the build adds 1 more (up to 3)', 'Heavy industry: 6 actions a round instead of 4', 'Field repair: 1 action in the build mends a damaged part (all but the chassis) on a mech out on the field', 'Line mechs: +8 plating HP on every new mech; once shot off it is gone', 'Artillery: Quad Walkers carry long guns, and dig in as turrets for +1 range and +1 armour', '+10% accuracy when it has not moved', 'Combo weapon: the Heavy Railgun, live on a dug-in Quad Walker', 'Issue parts: Heavy Chassis, Heavy Treads, Quad Walker, Missile Rack', 'Fortress base: +6 HP, turret fires twice for 5'],
+    traits: { ep: 6, fieldMax: 3, plate: 8, plateRegen: 0, steady: 10, fuel: 3, fieldRepair: true, baseHp: 6, turretShots: 2, turretDmg: 2 },
     deck: { l_treads: 2, t_heavy: 3, t_fortress: 2, c_heavy: 1, c_fusion: 2, w_howitzer: 3, w_missile: 2, w_rail: 3, w_ram: 2, w_repair: 1, w_shield: 1, a_plate: 2, a_shield: 1, a_bulwark: 2, a_sink: 1, s_railgun: 2, s_frame: 1, x_supply: 2, x_overtime: 1, x_repair: 1 }
   },
   experimental: {
@@ -403,7 +403,7 @@ function trait(pid, k) {
   if (k === 'fieldMax' && isEasy(p)) return Math.min(2, docTrait(p.doctrine, k) || C.FIELD_MAX);
   const v = p ? docTrait(p.doctrine, k) : null;
   if (v != null) return v;
-  return { fieldMax: C.FIELD_MAX, hangarMax: C.HANGAR_MAX, startMechs: 2, killVp: 0, pack: 0, turretArc: 0, baseHp: 0, turretShots: 1, control: 0, move: 0, fuel: 0, ep: C.EP, draw: C.DRAW, ap: C.AP, plate: 0, plateRegen: 0, steady: 0, turretDmg: 0, heatTick: 0 }[k];
+  return { fieldMax: C.FIELD_MAX, hangarMax: C.HANGAR_MAX, startMechs: 2, killVp: 0, pack: 0, turretArc: 0, baseHp: 0, turretShots: 1, control: 0, move: 0, fuel: 0, fieldRepair: false, ep: C.EP, draw: C.DRAW, ap: C.AP, plate: 0, plateRegen: 0, steady: 0, turretDmg: 0, heatTick: 0 }[k];
 }
 const fieldMax = pid => trait(pid, 'fieldMax');
 // Fuel (Armored): a mech moves only on fuel, one per move. It deploys with C.FUEL_START, and 1 action in the build adds
@@ -739,16 +739,38 @@ function removePart(p, m, key) {
   ensureBlank(p); return OK;
 }
 function repairCost(inst) { return 1; }
-function repair(p, m, key) {
-  const g = buildGuard(p); if (g) return fail(g);
+// Field repair (Armored): a damaged part on a mech out on the field is mended in the build for 1 action, as in the hangar,
+// all but the chassis. The chassis, and a part destroyed out there, wait until the mech comes home. (Mending the chassis
+// too took Armored from 49% to 66% against the other doctrines in 1,080 audited wars; without it, 52%.)
+const fieldRepairs = pid => !!trait(pid, 'fieldRepair');
+function canRepair(p, m, key) {
+  const g = buildGuard(p); if (g) return g;
+  if (!m || m.owner !== p.id) return 'Repair one of your mecha.';
+  const onField = S.mechs.includes(m);
+  if (onField && !fieldRepairs(p.id)) return 'Only Armored repairs mecha on the field. Bring it home to the hangar.';
+  if (!onField && !p.hangar.includes(m)) return 'Repair one of your mecha.';
   const inst = getSlot(m, key);
-  if (!inst) return fail('Nothing to repair there.');
+  if (!inst) return 'Nothing to repair there.';
   const d = DEFS[inst.id];
-  if (inst.hp <= 0 && key !== 'core') return fail(d.name + ' is destroyed. Replace it instead.');
-  if (!worn(inst)) return fail(d.name + ' is undamaged.');
-  if (p.ep < 1) return fail('No actions left this round.');
-  p.ep--; inst.hp = d.hp; if (d.hull) inst.hullHp = d.hull;
-  log(p.name + ' repairs ' + m.name + "'s " + d.name + '.', 'p' + p.id);
+  if (inst.hp <= 0 && (onField || key !== 'core')) return d.name + ' is destroyed. ' + (onField ? 'It can only be replaced in the hangar.' : 'Replace it instead.');
+  if (!worn(inst)) return d.name + ' is undamaged.';
+  if (onField && key === 'torso') return 'The chassis can only be repaired in the hangar.';
+  if (p.ep < repairCost(inst)) return 'No actions left this round.';
+  return null;
+}
+// the parts a field repair can mend on this mech, most HP missing first
+const fieldRepairable = (p, m) => partsOf(m).filter(({ key }) => !canRepair(p, m, key))
+  .map(({ key, inst }) => ({ key, inst, miss: DEFS[inst.id].hp - Math.max(0, inst.hp) + (DEFS[inst.id].hull && inst.hullHp != null ? DEFS[inst.id].hull - inst.hullHp : 0) }))
+  .sort((a, b) => b.miss - a.miss);
+function repair(p, m, key) {
+  const why = canRepair(p, m, key); if (why) return fail(why);
+  const inst = getSlot(m, key), d = DEFS[inst.id], gain = d.hp - Math.max(0, inst.hp) + (d.hull && inst.hullHp != null ? d.hull - inst.hullHp : 0);
+  p.ep -= repairCost(inst); inst.hp = d.hp; if (d.hull) inst.hullHp = d.hull;
+  if (S.mechs.includes(m)) {
+    fxFloat(m.x, m.y, '+' + gain + ' HP ' + d.name, 'good');
+    fx({ k: 'repair', uid: m.uid, x: m.x, y: m.y, owner: p.id });
+    log(p.name + ' repairs ' + m.name + "'s " + d.name + ' in the field (1 action): +' + gain + ' HP, ' + m.name + ' at ' + hpOf(m) + '/' + maxHpOf(m) + '.', 'p' + p.id);
+  } else log(p.name + ' repairs ' + m.name + "'s " + d.name + '.', 'p' + p.id);
   return OK;
 }
 // spend an action to put one move's fuel into a mech on the field
@@ -1838,7 +1860,10 @@ function aiStance(pid) {
 // duels: Assault +3 to +7, Experimental +1)
 // race: defend the base only once it is hurt or being shelled, never just because enemies stand near it while the war is
 // lost on points (a Bastion sat home from 0-2 to 3-12 with its base untouched; 900 paired duels: 48.7% vs 46.6%, no matchup worse)
-const AIX = { tough: true, deploy: true, brave: true, never: true, reserve: true, cbaware: true, race: true };
+// spare: no reserve mech while the field is (or after this deployment will be) full and nothing on it is badly hurt; the
+// actions go to the mecha fighting
+// fieldfix: an army that repairs on the field mends its fighting mecha in the build, worst damage first, around their fuel
+const AIX = { tough: true, deploy: true, brave: true, never: true, reserve: true, cbaware: true, race: true, spare: true, fieldfix: true };
 const aix = (pid, k) => AIX[k] === true || (Array.isArray(AIX[k]) && AIX[k].includes(pid));
 function threatMap(pid) {
   const key = S.round + ':' + S.mechs.map(m => m.uid + '@' + m.x + ',' + m.y + (m.activated ? 'a' : '')).join('|');
@@ -2271,6 +2296,8 @@ function aiEvents(p, all) {
     if (now) playTactic(p, c.uid);
   }
 }
+// a mech the next fight may well take: its frame at half or less, or its torso, reactor or legs at half or less
+const badlyHurt = m => hpOf(m) <= maxHpOf(m) / 2 || partsOf(m).some(({ key, inst }) => (key === 'torso' || key === 'core' || key === 'legs') && inst.hp > 0 && inst.hp <= DEFS[inst.id].hp / 2);
 function aiOutfit(p, m) {
   const pick = aiDesign(p, m);
   if (!pick) return;
@@ -2294,7 +2321,11 @@ function aiBuild(p) {
   const allReady = built.every(m => !issues(m).length && hasWeapon(m));
   ensureBlank(p);
   const spare = p.hangar.find(isBlank);
-  if (spare && allReady && total < fieldMax(p.id) + (aix(p.id, 'reserve') ? 1 : (p.ep >= 6 ? 3 : 1) + Math.round(2 * (aiW(p.id).swarm - 0.5))) && p.ep >= 3) aiOutfit(p, spare);
+  // a field that will be full after this deployment, with nothing on it badly hurt, needs no reserve yet: a spare only
+  // waits in the hangar (mecha already built and ready here deploy into the free slots first)
+  const field = fieldMechs(p.id), ready = built.filter(m => !issues(m).length && hasWeapon(m) && !(anchoredLegs(m) && field.some(anchoredLegs))).length;
+  const noNeed = aix(p.id, 'spare') && field.length + ready >= fieldMax(p.id) && !field.some(badlyHurt);
+  if (spare && allReady && !noNeed && total < fieldMax(p.id) + (aix(p.id, 'reserve') ? 1 : (p.ep >= 6 ? 3 : 1) + Math.round(2 * (aiW(p.id).swarm - 0.5))) && p.ep >= 3) aiOutfit(p, spare);
   // a full Workshop spends its held events before it sells anything
   if (p.workshop.length > C.WORKSHOP_MAX - 2) aiEvents(p, true);
   while (p.workshop.length > C.WORKSHOP_MAX - 2) {
@@ -2306,11 +2337,33 @@ function aiBuild(p) {
     const pile = p.workshop.filter(c => DEFS[c.id].slot === worst).sort((a, b) => DEFS[a.id].cost - DEFS[b.id].cost);
     scrapCard(p, pile[0].uid);
   }
-  aiFuel(p);
+  // a first move for every mech that needs one, then the repairs that keep a mech alive, then more fuel, and what
+  // would be lost at the end of the build goes on lighter repairs before it tops up the tanks
+  aiFuel(p, 'first');
+  aiFieldRepair(p, true);
+  aiFuel(p, 'more');
+  aiFieldRepair(p, false);
+  aiFuel(p, 'spill');
+}
+// field repairs, read from each mech's damaged parts: urgent ones are a reactor or legs at half or less, or a part short
+// 3 HP or more; the rest are mended only with actions that would otherwise be lost at the end of the build
+function aiFieldRepair(p, urgent) {
+  if (!fieldRepairs(p.id) || !aix(p.id, 'fieldfix')) return;
+  const jobs = [];
+  for (const m of fieldMechs(p.id)) for (const j of fieldRepairable(p, m)) {
+    const life = j.key === 'torso' || j.key === 'core' || j.key === 'legs', half = j.inst.hp <= DEFS[j.inst.id].hp / 2;
+    if (urgent && !((life && half) || j.miss >= 3)) continue;
+    jobs.push({ m, key: j.key, v: j.miss * (life ? 1.5 : 1) + (half ? 2 : 0) });
+  }
+  jobs.sort((a, b) => b.v - a.v);
+  for (const j of jobs) {
+    if (urgent ? p.ep < 1 : p.ep <= C.CARRY_MAX) break;
+    if (!canRepair(p, j.m, j.key)) repair(p, j.m, j.key);
+  }
 }
 // fuel goes to the mecha whose goal lies out of reach from where they stand: a first move for each, then a second
 // while actions are left over, and a spare one in every mobile mech's tank when there is nothing to move for yet. An emplacement only gets one when nothing is in range of its guns
-function aiFuel(p) {
+function aiFuel(p, stage) {
   if (!fuelCap(p.id)) return;
   const want = m => {
     if (anchoredLegs(m)) return weaponsOf(m).some(wp => !wp.w.repair && validTargets(m, wp.key).length) ? 0 : 0.5;
@@ -2320,8 +2373,8 @@ function aiFuel(p) {
     return d == null ? 0 : d > g.pref ? 1 + d / 10 : 0.3;
   };
   const list = fieldMechs(p.id).map(m => ({ m, v: want(m) })).filter(o => o.v > 0).sort((a, b) => b.v - a.v);
-  for (const o of list) if (o.v >= 1 && !(o.m.fuel > 0) && !canFuel(p, o.m)) fuel(p, o.m);
-  for (const o of list) while (p.ep >= (o.v >= 1 ? 1 : 2) && !canFuel(p, o.m) && (o.m.fuel || 0) < (o.v >= 1 ? fuelCap(p.id) : 1)) fuel(p, o.m);
+  if (stage === 'first') { for (const o of list) if (o.v >= 1 && !(o.m.fuel > 0) && !canFuel(p, o.m)) fuel(p, o.m); return; }
+  if (stage === 'more') { for (const o of list) while (p.ep >= (o.v >= 1 ? 1 : 2) && !canFuel(p, o.m) && (o.m.fuel || 0) < (o.v >= 1 ? fuelCap(p.id) : 1)) fuel(p, o.m); return; }
   // actions beyond what carries over are lost at the end of the build: better in the tanks of the mecha that can move
   for (const m of fieldMechs(p.id)) while (p.ep > C.CARRY_MAX && !anchoredLegs(m) && !canFuel(p, m)) fuel(p, m);
 }
@@ -2398,7 +2451,7 @@ const api = {
   setRng(f) { rnd = f; },
   newGame, concede, terrain, baseAt, turretTiles, coord, mechAt, wreckAt, objAt, fieldMech, fieldMechs, deployTiles, deploySpots, inDeployZone,
   getSlot, partsOf, auxCount, hpOf, maxHpOf, hullOf, worn, scores, reachZone, sellValue, stats, issues, weaponsOf, usable, hasWeapon, role, ROLE_INFO, START_BUILD, slotName, slotType, effRange,
-  acceptDraw, canRequisition, requisition, canFuel, fuel, fuelCap, needsFuel, outOfFuel, finishBuildPhase, install, installCost, buildCost, actWord, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
+  acceptDraw, canRequisition, requisition, canFuel, fuel, canRepair, fieldRepairs, fieldRepairable, fuelCap, needsFuel, outOfFuel, finishBuildPhase, install, installCost, buildCost, actWord, removePart, repair, repairCost, newMech, isBlank, standardFor, SIZE_NAME, sizeOf, carryOf, capOf, pipsUsed, CHASSIS, MOUNT_NAME, mountOf, armMount, fitsMount, locoMode, trait, fieldMax, hangarMax, plateMax, incomeOf, catchupOf, dismantle, scrapCard, playTactic, endBuild,
   canDeploy, deploy, endDeploy,
   LONG_RANGE, anchoredLegs, shortGun, TRICK, trickOf, trickGuard, overclock, phase, phaseTiles, cloak,
   holderOf,
